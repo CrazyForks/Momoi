@@ -2552,10 +2552,7 @@ function ThinkingDetail({ item, calls, recall }) {
                 </p>
                 <div className="message-meta">
                   <time>{formatDate(call.created_at)}</time>
-                  <span>
-                    {thinkingStageLabel(call.stage)}
-                    {call.tools?.length ? ` · ${call.tools.join(" / ")}` : ""}
-                  </span>
+                  {call.tools?.length ? <span>{call.tools.join(" / ")}</span> : null}
                 </div>
               </div>
             </article>
