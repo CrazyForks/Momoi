@@ -203,7 +203,7 @@ def owner_content_blocks(
         opening = "<current_owner_bubbles>\n" if index == 0 else ""
         blocks.append({
             "type": "text",
-            "text": f'{opening}<bubble time={quoteattr(received_at)}>\n{escape(event.text)}',
+            "text": f'{opening}<bubble time={quoteattr(received_at)}>\n{escape(event.text.strip())}',
         })
         blocks.extend(content_blocks(event.segments))
         blocks.append({"type": "text", "text": "\n</bubble>\n"})
