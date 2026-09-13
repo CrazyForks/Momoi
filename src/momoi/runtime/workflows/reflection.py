@@ -45,7 +45,7 @@ class ReflectionWorkflow:
                     consolidated += len(candidate["turns"])
                 skipped: set[str] = set()
                 while candidate := self.store.claim_episode_annealing_candidate(
-                    self.config.episode_raw_tail_turns, self._episode_raw_token_budget(),
+                    self.config.episode_unsummarized_tail_turns, self._episode_raw_token_budget(),
                     window=window, exclude_episode_ids=tuple(skipped),
                 ):
                     if not await self._anneal_episode_candidate(candidate):

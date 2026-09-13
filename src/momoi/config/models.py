@@ -66,7 +66,7 @@ class AppConfig:
     system_prompt: str
     transcript_turns_min: int
     transcript_turns_max: int
-    episode_raw_tail_turns: int
+    episode_unsummarized_tail_turns: int
     memory_results: int
     database: Path
     log_level: str

@@ -60,7 +60,7 @@ class ConfigurationTest(unittest.TestCase):
             self.assertEqual(config.summary_results, 8)
             self.assertEqual(config.transcript_turns_min, 32)
             self.assertEqual(config.transcript_turns_max, 80)
-            self.assertEqual(config.episode_raw_tail_turns, 6)
+            self.assertEqual(config.episode_unsummarized_tail_turns, 6)
             self.assertEqual(config.max_input_tokens, 142222)
             self.assertEqual(config.context_compaction_ratio, 0.9)
             self.assertTrue(config.episode_annealing.enabled)
@@ -95,7 +95,7 @@ class ConfigurationTest(unittest.TestCase):
                 ("context", "max_input_tokens"): 999,
                 ("context", "transcript_turns_min"): 0,
                 ("context", "transcript_turns_max"): 31,
-                ("context", "episode_raw_tail_turns"): 0,
+                ("context", "episode_unsummarized_tail_turns"): 0,
                 ("context", "memory_results"): 7,
                 ("context", "summary_results"): 13,
                 ("context", "summary_tokens"): -1,

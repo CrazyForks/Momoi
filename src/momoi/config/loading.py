@@ -214,9 +214,9 @@ def parse_config(raw, config_path: Path, *, providers=None) -> AppConfig:
         "context.transcript_turns_max",
         minimum=transcript_turns_min,
     )
-    episode_raw_tail_turns = integer(
-        context_raw.get("episode_raw_tail_turns", 6),
-        "context.episode_raw_tail_turns",
+    episode_unsummarized_tail_turns = integer(
+        context_raw.get("episode_unsummarized_tail_turns", 6),
+        "context.episode_unsummarized_tail_turns",
         minimum=1,
     )
     memory_results = integer(
@@ -257,7 +257,7 @@ def parse_config(raw, config_path: Path, *, providers=None) -> AppConfig:
         system_prompt=system_prompt,
         transcript_turns_min=transcript_turns_min,
         transcript_turns_max=transcript_turns_max,
-        episode_raw_tail_turns=episode_raw_tail_turns,
+        episode_unsummarized_tail_turns=episode_unsummarized_tail_turns,
         memory_results=memory_results,
         database=database,
         log_level=log_level,

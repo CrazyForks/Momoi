@@ -33,7 +33,7 @@ class GoalNativeTranscriptTest(unittest.IsolatedAsyncioTestCase):
                     system_prompt="contract\n{{SOUL}}",
                     transcript_turns_min=4,
                     transcript_turns_max=4,
-                    episode_raw_tail_turns=2,
+                    episode_unsummarized_tail_turns=2,
                     memory_results=2,
                     database=Path(directory) / "momoi.sqlite3",
                     log_level="INFO",

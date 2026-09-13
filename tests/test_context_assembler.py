@@ -118,7 +118,7 @@ def config(
         system_prompt="test",
         transcript_turns_min=4,
         transcript_turns_max=4,
-        episode_raw_tail_turns=2,
+        episode_unsummarized_tail_turns=2,
         memory_results=memory_results,
         summary_results=summary_results,
         summary_tokens=2000,

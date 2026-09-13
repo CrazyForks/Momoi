@@ -267,7 +267,7 @@ All fields must be positive.
     "heartbeat_prompt": "prompts/HEARTBEAT.md",
     "transcript_turns_min": 32,
     "transcript_turns_max": 80,
-    "episode_raw_tail_turns": 6,
+    "episode_unsummarized_tail_turns": 6,
     "memory_results": 6,
     "max_input_tokens": 142222,
     "context_compaction_ratio": 0.9,
@@ -283,7 +283,7 @@ All fields must be positive.
 | `heartbeat_prompt` | `prompts/HEARTBEAT.md` | Optional heartbeat guidance file |
 | `transcript_turns_min` | `32` | Recent completed Turns retained after the transcript window slides; minimum `1` |
 | `transcript_turns_max` | `80` | High watermark at which the transcript window slides back to `transcript_turns_min`; cannot be lower than the minimum |
-| `episode_raw_tail_turns` | `6` | Raw tail Turns retained outside the summary for an open Episode; its normal annealing threshold is twice this value; minimum `1` |
+| `episode_unsummarized_tail_turns` | `6` | Raw tail Turns retained outside the summary for an open Episode; its normal annealing threshold is twice this value; minimum `1` |
 | `memory_results` | `6` | Per-category top-k for confirmed recall memory and reflection memory; range `0`–`6`, and `0` disables both (combined maximum `12`) |
 | `max_input_tokens` | `142222` | Upper budget for the complete model input; minimum `1000` |
 | `context_compaction_ratio` | `0.9` | Fraction of `max_input_tokens` at which old transcript and current-Turn tool results begin compacting; range `(0, 1]`. The defaults compact at 128,000 tokens. |

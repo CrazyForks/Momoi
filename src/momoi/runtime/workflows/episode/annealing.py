@@ -45,7 +45,7 @@ class EpisodeAnnealingWorkflow:
             if archived and self.store.episode_consolidation_pending_count() > 0:
                 return True
         candidate = self.store.claim_episode_annealing_candidate(
-            self.config.episode_raw_tail_turns, self._episode_raw_token_budget()
+            self.config.episode_unsummarized_tail_turns, self._episode_raw_token_budget()
         )
         if candidate is None:
             log_event(
@@ -102,7 +102,7 @@ class EpisodeAnnealingWorkflow:
         max_seconds: float | None = None,
     ) -> bool:
         candidate = candidate or self.store.claim_episode_annealing_candidate(
-            self.config.episode_raw_tail_turns, self._episode_raw_token_budget()
+            self.config.episode_unsummarized_tail_turns, self._episode_raw_token_budget()
         )
         if candidate is None:
             return False

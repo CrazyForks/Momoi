@@ -245,7 +245,7 @@ class VoiceDeliveryTest(unittest.IsolatedAsyncioTestCase):
                     providers=provider_catalog(LLMConfig("http://localhost", "test", "test", 100, 0, 1, 0)),
                     channel=self.channel.config, system_prompt="test",
                     transcript_turns_min=4, transcript_turns_max=4,
-                    episode_raw_tail_turns=2, memory_results=2,
+                    episode_unsummarized_tail_turns=2, memory_results=2,
                     database=self.root / f"{stage}.sqlite3", log_level="INFO",
                 )
                 daemon = MomoiDaemon(config, tts_provider=self.provider)
@@ -311,7 +311,7 @@ class VoiceDeliveryTest(unittest.IsolatedAsyncioTestCase):
         config = AppConfig(
             providers=provider_catalog(LLMConfig("http://localhost", "test", "test", 100, 0, 1, 0)),
             channel=self.channel.config, system_prompt="test", transcript_turns_min=4,
-            transcript_turns_max=4, episode_raw_tail_turns=2, memory_results=2,
+            transcript_turns_max=4, episode_unsummarized_tail_turns=2, memory_results=2,
             database=self.root / "blocked.sqlite3", log_level="INFO",
         )
         daemon = MomoiDaemon(config, tts_provider=self.provider)
@@ -358,7 +358,7 @@ class VoiceDeliveryTest(unittest.IsolatedAsyncioTestCase):
                     providers=provider_catalog(LLMConfig("http://localhost", "test", "test", 100, 0, 1, 0)),
                     channel=self.channel.config, system_prompt="test",
                     transcript_turns_min=4, transcript_turns_max=4,
-                    episode_raw_tail_turns=2, memory_results=2,
+                    episode_unsummarized_tail_turns=2, memory_results=2,
                     database=self.root / f"fallback-{stage}.sqlite3", log_level="INFO",
                 )
                 provider = AsyncMock(spec=TTSProvider)

@@ -145,7 +145,7 @@ class GoalCompletionTest(unittest.IsolatedAsyncioTestCase):
                 system_prompt="test",
                 transcript_turns_min=4,
                 transcript_turns_max=4,
-                episode_raw_tail_turns=2,
+                episode_unsummarized_tail_turns=2,
                 memory_results=2,
                 database=Path(directory.name) / "store.sqlite3",
                 log_level="INFO",
