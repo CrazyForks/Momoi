@@ -319,7 +319,19 @@ class ToolBatchExecutor:
                 request.workflow is not None
                 and call.name in request.workflow.tool_names
             ):
-                result = await request.workflow.execute_tool(call)
+                # Workflow tools may invoke nested models (e.g. cue admission).
+                # The preceding model round's logging scope has already ended.
+                with log_context(
+                    stage=execution.stage,
+                    turn_id=request.turn_id,
+                    call_id=request.call_id,
+                    round=request.round_number,
+                    channel=request.delivery_channel.name,
+                    goal_id=execution.goal_id,
+                    tool_call_id=call.id,
+                    tool_name=call.name,
+                ):
+                    result = await request.workflow.execute_tool(call)
             elif self.tool_executor.is_external(call.name):
                 result = None
                 if not call.id:

@@ -895,6 +895,9 @@ class EpisodeAnnealingTest(unittest.IsolatedAsyncioTestCase):
                     _tools: list[dict[str, object]],
                     **_: object,
                 ) -> ProviderResponse:
+                    from momoi.llm.telemetry import persist_thinking
+                    persist_thinking(daemon.store.record_thinking_call,
+                                     reasoning="audit trail", tools=[], model="test")
                     if any(
                         tool["name"] == "episode_cue_admit" for tool in _tools
                     ):
@@ -941,6 +944,14 @@ class EpisodeAnnealingTest(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(episode["emotional_context"]["tone"], "合作")
             self.assertEqual(episode["outcomes"], ["完成一次阶段讨论"])
             self.assertEqual(episode["recall_cues"], ["阶段讨论回顾"])
+            timeline = daemon.store.dashboard_thinking(month="all")["items"]
+            self.assertEqual(len(timeline), 1)
+            self.assertEqual(timeline[0]["stages"], ["episode_anneal", "episode_cue_admit"])
+            calls = daemon.store.read_thinking(timeline[0]["turn_id"])["calls"]
+            self.assertEqual(len(calls), 2)
+            self.assertEqual({call["turn_id"] for call in calls}, {timeline[0]["turn_id"]})
+            self.assertEqual(len({call["call_id"] for call in calls}), 2)
+            self.assertTrue(all(call["reasoning"] == "audit trail" for call in calls))
             daemon.store.close()
 
     async def test_third_failure_abandons_episode_and_other_lines_continue(
