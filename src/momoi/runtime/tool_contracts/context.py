@@ -22,6 +22,19 @@ RECALL_EXAMPLES = [
                 "episode": {"action": "none"}}]},
 ]
 
+RECALL_SCOPE_CONTRACT = (
+    "Recall scope: assess whether supplied context leaves a historical question that "
+    "could change understanding or action. Use skip when it does not. For search, use "
+    "the narrowest kind allowlist (empty/omitted means all canonical memory kinds), "
+    "one query where possible, and add only non-overlapping evidence needs. Use reuse "
+    "only when the displayed recent_recall_context query set covers the entire need; "
+    "proximity, mood, or Episode membership is not coverage. Keep Episode action "
+    "independent of retrieval: continue only for the same concrete experience, new "
+    "only for a distinct experience worth keeping, otherwise none. Split independent "
+    "outcomes into separate units; corrections replace revoked intent. Preserve known "
+    "subjects, literal identifiers, and uncertainty; do not invent unresolved identity. "
+)
+
 
 def recall_correction(message: str) -> dict[str, Any]:
     return {
@@ -49,6 +62,7 @@ RECALL_TOOL_SPEC: dict[str, Any] = {
         "Retry until successful; wait for its results before dependent calls. "
         "Arguments must contain units, an array of intent objects; do not flatten its fields "
         "or stringify nested JSON. Minimal example when context is sufficient: "
+        + RECALL_SCOPE_CONTRACT
         + json.dumps(RECALL_SKIP_EXAMPLE, ensure_ascii=False)
     ),
     "input_schema": {
