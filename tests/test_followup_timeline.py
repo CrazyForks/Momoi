@@ -46,6 +46,7 @@ def test_followup_merges_across_months_without_merging_other_children(tmp_path):
         page = store.dashboard_thinking(month="2026-09")
         items = {item["id"]: item for item in page["items"]}
         assert set(items) == {"owner", "maintenance"}
+        assert items["owner"]["excerpt"] == "owner"
         assert items["owner"]["call_count"] == 2
         assert items["owner"]["turn_ids"] == ["owner", "follow"]
         detail = store.dashboard_thinking_detail("follow")
@@ -63,3 +64,26 @@ def test_followup_xml_is_not_wrapped_or_escaped():
     assert root.attrib == {"parent_turn_id": "owner", "silent_minutes": "6"}
     assert root.find("reason").text == "A & B"
     assert root.find("followup") is None
+
+
+@pytest.mark.parametrize("reasonings, expected", [
+    (["", "Owner reasoning", ""], "Owner reasoning"),
+    (["x" * 500, "follow"], "x" * 400),
+    (["", ""], ""),
+])
+def test_merged_excerpt_uses_first_visible_reasoning(tmp_path, reasonings, expected):
+    store = Store(tmp_path / "momoi.sqlite3")
+    try:
+        store.begin_turn("owner", "owner", [])
+        store.begin_turn("follow", "reply_followup", [], parent_turn_id="owner")
+        for index, reasoning in enumerate(reasonings):
+            store.record_thinking_call(
+                turn_id="owner" if index == 0 else "follow",
+                call_id=str(index), stage="owner" if index == 0 else "reply_followup",
+                created_at=100 + index, reasoning=reasoning,
+            )
+        item = store.dashboard_thinking(month="all")["items"][0]
+        assert item["id"] == "owner"
+        assert item["excerpt"] == expected
+    finally:
+        store.close()

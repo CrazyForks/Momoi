@@ -45,7 +45,11 @@ def _group_thinking_turns(
                 "call_count": len(items),
                 "stages": stages,
                 "tools": tools,
-                "excerpt": str(items[0].get("excerpt") or ""),
+                "excerpt": next((
+                    str(item.get("excerpt") or item.get("reasoning") or "")[:400]
+                    for item in items
+                    if str(item.get("excerpt") or item.get("reasoning") or "").strip()
+                ), ""),
                 "reasoning_chars": sum(
                     int(item.get("reasoning_chars") or 0) for item in items
                 ),
