@@ -59,7 +59,7 @@ class OwnerWorkflow:
                 "opening recall. If it has not succeeded yet, complete it first.]",
             ),
             (
-                "runtime_state",
+                "self_state",
                 heartbeat_self_state_lines(
                     current_time=datetime.now(self.store.timezone).isoformat(timespec="seconds"),
                 ),
@@ -297,7 +297,7 @@ class OwnerWorkflow:
             self.store, "owner",
             ("workflow_contract", self._owner_system_prompt()),
             (
-                "runtime_state",
+                "self_state",
                 heartbeat_self_state_lines(
                     self.store.self_state_context(),
                     current_time=datetime.now(self.store.timezone).isoformat(timespec="seconds"),

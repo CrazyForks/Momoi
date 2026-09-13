@@ -228,7 +228,7 @@ def test_reflection_uses_configured_window_and_complete_transcript(daemon, at):
         for row in rows:
             assert row["content"] not in final_input
         for section in (
-            "daily_reflection_record", "tool_timeline", "runtime_state", "reflection_scope",
+            "daily_reflection_record", "tool_timeline", "self_state", "reflection_scope",
             "topic_timeline", "mutation_timeline", "episode_directory",
         ):
             assert f"<{section}>" not in final_input

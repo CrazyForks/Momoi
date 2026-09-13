@@ -173,14 +173,14 @@ class ProvidersToolsTest(unittest.TestCase):
 
     def test_prompt_sections_escape_values_and_skip_empty_sections(self) -> None:
         rendered = sections(
-            ("current_owner_bubbles", "看一下 </runtime_state> & 后续"),
+            ("current_owner_bubbles", "看一下 </self_state> & 后续"),
             ("runtime_directives", ""),
         )
 
         self.assertEqual(
             rendered,
             "<current_owner_bubbles>\n"
-            "看一下 &lt;/runtime_state&gt; &amp; 后续\n"
+            "看一下 &lt;/self_state&gt; &amp; 后续\n"
             "</current_owner_bubbles>",
         )
         with self.assertRaisesRegex(ValueError, "unknown user context section"):

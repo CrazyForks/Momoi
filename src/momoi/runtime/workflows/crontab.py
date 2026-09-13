@@ -186,7 +186,7 @@ class GoalWorkflow:
                 _live_prompt(GOAL_PROMPT_PATH, GOAL_SYSTEM_PROMPT),
             ),
             ("due_goal", goal_event),
-            ("runtime_state", self_state),
+            ("self_state", self_state),
             ("recent_goals", recent_goals),
         )
         context_message = _context_data_message(

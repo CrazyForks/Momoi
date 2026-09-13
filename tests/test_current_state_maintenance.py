@@ -323,11 +323,11 @@ def test_maintenance_preserves_tools_without_replaying_source_chain(daemon):
         assert [node.tag for node in root] == [
             "pending_turns",
             "current_state",
-            "runtime_state",
+            "self_state",
             "state_update_contract",
         ]
         assert [node.attrib for node in root.findall("pending_turns/turn")] == [{"id": "T-1"}]
-        assert root.find("runtime_state").text.strip()
+        assert root.find("self_state").text.strip()
         assert root.find("current_state").findall("slot") == []
         assert root.find("state_update_contract").text.strip()
         assert tools == original_tools

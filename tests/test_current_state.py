@@ -190,7 +190,7 @@ def test_capacity_note_in_packed_context_above_soft_threshold(state):
             operation_id=f"op{index}",
             expected_revision=manager.snapshot().revision,
         )
-    packed = pack_current_turn_context(store, "owner", ("runtime_state", "x"))
+    packed = pack_current_turn_context(store, "owner", ("self_state", "x"))
     assert '<capacity used="9" limit="12">' in packed
     manager.apply(
         delete=[manager.snapshot().slots[0].id],
@@ -198,7 +198,7 @@ def test_capacity_note_in_packed_context_above_soft_threshold(state):
         operation_id="op9",
         expected_revision=manager.snapshot().revision,
     )
-    packed = pack_current_turn_context(store, "owner", ("runtime_state", "x"))
+    packed = pack_current_turn_context(store, "owner", ("self_state", "x"))
     assert "<capacity" not in packed
 
 

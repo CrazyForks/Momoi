@@ -397,7 +397,7 @@ class WebhooksAsyncTest(unittest.IsolatedAsyncioTestCase):
             self.assertNotIn("<workflow_contract>", system_text)
             self.assertIn("<workflow_contract>", context_text)
             self.assertIn("<current_webhook_task>", context_text)
-            self.assertIn("<runtime_state>", context_text)
+            self.assertIn("<self_state>", context_text)
             self.assertNotIn("<recent_conversation>", context_text)
             self.assertNotIn("<recent_turns>", context_text)
             self.assertNotIn("<webhook_activity>", context_text)
@@ -428,7 +428,7 @@ class WebhooksAsyncTest(unittest.IsolatedAsyncioTestCase):
             self.assertIn("以后回家时帮我留意快递", str(historical[0]["content"]))
             self.assertIn("好，回家时我会留意", str(historical[1]["content"]))
             self.assertLess(
-                context_text.index("<runtime_state>"),
+                context_text.index("<self_state>"),
                 context_text.index("<current_webhook_task>"),
             )
             self.assertNotIn("<owner_preferences>", context_text)

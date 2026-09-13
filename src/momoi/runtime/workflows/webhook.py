@@ -52,7 +52,7 @@ class WebhookWorkflow:
             for message_id in group.message_ids
         ))
         self_state = self.store.self_state_context()
-        runtime_state = heartbeat_self_state_lines(
+        self_state = heartbeat_self_state_lines(
             self_state,
             current_time=datetime.now(self.store.timezone).isoformat(timespec="seconds"),
         )
@@ -74,8 +74,8 @@ class WebhookWorkflow:
                 ),
             ),
             (
-                "runtime_state",
-                runtime_state,
+                "self_state",
+                self_state,
             ),
             ("recent_events", recent_events),
         )

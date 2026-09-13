@@ -1430,7 +1430,7 @@ class DaemonAsyncTest(unittest.IsolatedAsyncioTestCase):
                             "<workflow_contract>" not in request
                             or "偶尔看看最近有什么有趣的新游戏。" not in request
                             or "<autonomous_heartbeat>" not in request
-                            or "<runtime_state>" not in request
+                            or "<self_state>" not in request
                             or "<recent_topic_reference>" not in request
                             or "<recent_heartbeat_activities>" in request
                             or "<recent_turn_base>" in request
@@ -2294,9 +2294,9 @@ class DaemonAsyncTest(unittest.IsolatedAsyncioTestCase):
         self.assertNotIn("Owner Turn: recall first", current_text)
         self.assertTrue(current_text.endswith("</current_owner_bubbles>"))
         self.assertNotIn("Every response in this Turn", current_text)
-        self.assertIn("<runtime_state>", current_text)
+        self.assertIn("<self_state>", current_text)
         self.assertLess(
-            current_text.index("<runtime_state>"),
+            current_text.index("<self_state>"),
             current_text.index("<current_owner_bubbles>"),
         )
         self.assertNotIn("<long_term_memories>", current_text)

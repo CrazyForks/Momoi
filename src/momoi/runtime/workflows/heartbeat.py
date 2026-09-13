@@ -215,7 +215,7 @@ class HeartbeatWorkflow:
             ("workflow_contract", self._heartbeat_system_prompt()),
             ("autonomous_heartbeat", heartbeat_event),
             (
-                "runtime_state",
+                "self_state",
                 heartbeat_self_state_lines(
                     self_context,
                     current_time=datetime.now(self.store.timezone).isoformat(timespec="seconds"),

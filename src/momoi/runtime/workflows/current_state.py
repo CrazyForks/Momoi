@@ -102,7 +102,7 @@ class CurrentStateWorkflow:
         latest = pack_current_turn_context(
             self.store,
             tasks[-1]["source_stage"],
-            ("runtime_state", f"Current local time: {self.store.context_timestamp(time())}"),
+            ("self_state", f"Current local time: {self.store.context_timestamp(time())}"),
             ("state_update_contract", live_prompt(PROMPT_PATH, "")),
             include_empty=True,
         )

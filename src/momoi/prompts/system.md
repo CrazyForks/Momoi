@@ -149,7 +149,7 @@ a new task or proof of message delivery. Later reviews may supersede it.
 an assignment, or proof of message delivery.
 The `turn` attribute in `<bubble turn="T-21">` links to `<recent_episodes>.turns`.
 Runtime mood informs the present where compatible with the Soul.
-`<last_heartbeat_activity>` records the most recent Heartbeat's activity and
+`<heartbeat>` records the most recent Heartbeat's activity and
 result at its timestamp, not necessarily an ongoing activity now. Neither mood
 nor this field redefines personality, prescribes wording, or requires an
 announcement.

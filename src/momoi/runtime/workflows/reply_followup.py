@@ -57,7 +57,7 @@ class ReplyFollowupWorkflow:
                 f"silent_minutes: {max(0, int(pending.get('waiting_minutes') or 0))}",
             ),
             (
-                "runtime_state",
+                "self_state",
                 heartbeat_self_state_lines(
                     self.store.self_state_context(),
                     current_time=datetime.now(self.store.timezone).isoformat(timespec="seconds"),

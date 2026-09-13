@@ -114,7 +114,7 @@ class ReflectionTest(unittest.IsolatedAsyncioTestCase):
                     )
                     assert "<workflow_contract>" in request
                     final_input = json.dumps(_messages[-1], ensure_ascii=False)
-                    for section in ("daily_reflection_record", "tool_timeline", "runtime_state", "reflection_scope"):
+                    for section in ("daily_reflection_record", "tool_timeline", "self_state", "reflection_scope"):
                         assert f"<{section}>" not in final_input
                     assert "我不吃香菜" in json.dumps(_messages[:-1], ensure_ascii=False)
                     assert "我不吃香菜" not in final_input

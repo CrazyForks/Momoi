@@ -54,7 +54,7 @@ def test_episode_catalog_and_recall_context_are_nested_xml():
     assert [query.text for query in recall.findall("query")] == queries
 
 
-def test_runtime_state_preserves_metadata_and_text_boundaries():
+def test_self_state_preserves_metadata_and_text_boundaries():
     cause = '原因 </cause> & "原文"'
     activity = '第一行\n第二行 <result>字面标签</result>'
     state = heartbeat_self_state_lines(json.dumps({
@@ -62,16 +62,16 @@ def test_runtime_state_preserves_metadata_and_text_boundaries():
         "activity": {"text": activity, "result": "结果 & 原文", "since": "since"},
         "last_heartbeat_at": "heartbeat",
     }), current_time="now")
-    message = context_data_message(("runtime_state", state))
+    message = context_data_message(("self_state", state))
     root = ElementTree.fromstring(message["content"][0]["text"])
     assert root.find("time").attrib == {"now": "now"}
     assert root.find("mood").attrib == {"state": "playful", "intensity": "0", "age_minutes": "0", "updated_at": "updated"}
     assert root.find("mood/cause").text == cause
-    assert root.find("last_heartbeat_activity").attrib == {"at": "heartbeat", "since": "since"}
-    assert root.find("last_heartbeat_activity/text").text == activity
-    assert root.find("last_heartbeat_activity/result").text == "结果 & 原文"
+    assert root.find("heartbeat").attrib == {"at": "heartbeat", "since": "since"}
+    assert root.find("heartbeat/text").text == activity
+    assert root.find("heartbeat/result").text == "结果 & 原文"
     assert root.find("heartbeat").attrib == {"at": "heartbeat"}
-    assert [item.tag for item in root] == ["time", "mood", "last_heartbeat_activity", "heartbeat"]
+    assert [item.tag for item in root] == ["time", "mood", "heartbeat", "heartbeat"]
 
 
 def test_memory_and_goal_context_preserves_nested_structure_and_literal_values():

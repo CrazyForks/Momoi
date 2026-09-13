@@ -158,8 +158,8 @@ def test_empty_current_state_omits_section_and_reading_never_renews_ttl(daemon):
     assert "STATE_ONLY" in pack_current_turn_context(daemon.store, "owner")
     clock[0] = slot.expires_at
     assert (
-        pack_current_turn_context(daemon.store, "owner", ("runtime_state", "<time />"))
-        == "<runtime_state>\n<time />\n</runtime_state>"
+        pack_current_turn_context(daemon.store, "owner", ("self_state", "<time />"))
+        == "<self_state>\n<time />\n</self_state>"
     )
     assert daemon.store.current_state.snapshot().revision == 1
 

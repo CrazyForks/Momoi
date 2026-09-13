@@ -105,7 +105,7 @@ USER_CONTEXT_SECTION_ORDER = (
     "recent_topic_reference",
     "recent_heartbeats",
     "runtime_directives",
-    "runtime_state",
+    "self_state",
     "workflow_contract",
     "state_update_contract",
     "followup",
@@ -127,7 +127,7 @@ def pack_user_context(*items: tuple[str, str]) -> str:
     # individual values. Other sections still contain plain text.
     structured = {
         "long_term_memories", "recall_memories", "goal_directory",
-        "recent_episodes", "recent_recall_context", "runtime_state", "episode_directory",
+        "recent_episodes", "recent_recall_context", "self_state", "episode_directory",
         "current_state", "due_goal",
     }
     return "\n\n".join(
