@@ -20,13 +20,15 @@ class TurnStore:
         source_ids: list[str],
         *, parent_turn_id: str | None = None,
     ) -> str:
+        if parent_turn_id == turn_id:
+            raise ValueError("Turn cannot be its own parent")
         workflow = require_turn_workflow_kind(workflow_kind)
         kind = "owner" if workflow == "owner" else "autonomous"
         now = time.time()
         stored_workflow = turn_workflow_kind_sql("turns")
         with self._db:
             row = self._db.execute(
-                f"""SELECT state, external_effect_started, failure_reason,
+                f"""SELECT state, external_effect_started, failure_reason, parent_turn_id,
                            {stored_workflow} AS stored_workflow_kind
                     FROM turns WHERE id=?""",
                 (turn_id,),
@@ -40,6 +42,8 @@ class TurnStore:
                     (turn_id, parent_turn_id, kind, workflow, json.dumps(source_ids), now, now),
                 )
                 return "running"
+            if parent_turn_id is not None and row["parent_turn_id"] != parent_turn_id:
+                raise ValueError("Turn parent cannot change")
             existing_workflow = row["stored_workflow_kind"]
             if existing_workflow is not None and existing_workflow != workflow:
                 raise ValueError(

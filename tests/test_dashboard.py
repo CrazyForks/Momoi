@@ -575,6 +575,25 @@ class DashboardTest(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(heartbeat["running"])
         self.assertEqual(heartbeat["kind"], "ordinary")
 
+    async def test_followup_detail_reads_parent_and_child_calls(self):
+        self.store.begin_turn("timeline-owner", "owner", [])
+        self.store.begin_turn("timeline-follow", "reply_followup", [],
+                              parent_turn_id="timeline-owner")
+        for index, (turn, stage) in enumerate([
+            ("timeline-owner", "owner"), ("timeline-follow", "reply_followup")
+        ]):
+            self.store.record_thinking_call(
+                turn_id=turn, call_id=turn, stage=stage,
+                created_at=time.time() + index, reasoning=turn,
+            )
+        for turn in ("timeline-owner", "timeline-follow"):
+            response = await self.client.get("/api/thinking/" + turn, headers=self._auth())
+            self.assertEqual(response.status, 200)
+            detail = await response.json()
+            self.assertEqual(detail["count"], 2)
+            self.assertEqual([call["turn_id"] for call in detail["items"]],
+                             ["timeline-owner", "timeline-follow"])
+
     async def test_thinking_endpoint_lists_and_reads_calls(self) -> None:
         now = time.time()
         self.store.record_thinking_call(

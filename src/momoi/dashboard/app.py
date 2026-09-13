@@ -367,10 +367,12 @@ def create_dashboard_app(
                     calls.append({**call, "plan_id": plan["id"], "plan_step_id": step.get("id"), "plan_step_task": step.get("task"), "plan_step_status": step.get("status")})
             calls.sort(key=lambda item: (float(item.get("created_at") or 0), int(item.get("round") or 0)))
             return web.json_response({"ok": True, "items": calls, "count": len(calls), "plan": plan})
-        item = store.read_thinking(
-            turn_id,
-            str(request.query.get("call_id") or "").strip(),
+        call_id = str(request.query.get("call_id") or "").strip()
+        item = (
+            store.read_thinking(turn_id, call_id)
+            if call_id else store.dashboard_thinking_detail(turn_id)
         )
+        turn_id = str(item.get("turn_id") or turn_id)
         if not item.get("ok"):
             raise web.HTTPNotFound(text="thinking not found")
         payload = {

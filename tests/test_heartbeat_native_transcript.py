@@ -207,7 +207,7 @@ class HeartbeatNativeTranscriptTest(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(provider.calls, 3)
             self.assertEqual(
                 [message["role"] for message in provider.first_messages],
-                ["user", "user", "assistant", "user", "user", "user"],
+                ["user", "user", "assistant", "user", "user", "user", "user"],
             )
             self.assertIn("我到家了", str(provider.first_messages[1]["content"]))
             self.assertIn("终于回来了", str(provider.first_messages[2]["content"]))

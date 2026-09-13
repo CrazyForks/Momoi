@@ -218,6 +218,34 @@ class ObservabilityStore:
             )
         return calls
 
+    def _dashboard_followup_links(self) -> dict[str, str]:
+        return {
+            str(row["id"]): str(row["parent_turn_id"])
+            for row in self._db.execute(
+                """SELECT child.id, child.parent_turn_id FROM turns child
+                   JOIN turns parent ON parent.id=child.parent_turn_id
+                   WHERE child.workflow_kind='reply_followup'
+                     AND parent.workflow_kind='owner'"""
+            )
+        }
+
+    def dashboard_thinking_detail(self, turn_id: str) -> dict[str, object]:
+        links = self._dashboard_followup_links()
+        root = links.get(turn_id, turn_id)
+        members = [root, *[child for child, parent in links.items() if parent == root]]
+        calls = [
+            call for member in members
+            for call in self.read_thinking(member).get("calls") or []
+        ]
+        calls.sort(key=lambda call: (
+            float(call.get("created_at") or 0),
+            str(call.get("turn_id") or ""),
+            int(call.get("round") or 0),
+            str(call.get("call_id") or ""),
+        ))
+        return {"ok": bool(calls), "turn_id": root, "turn_ids": members,
+                "calls": calls, "count": len(calls)}
+
     def dashboard_thinking(
         self,
         *,
@@ -245,23 +273,24 @@ class ObservabilityStore:
         turns = _group_thinking_turns(
             self._attach_legacy_topic_selection_turns(found.get("calls") or [])
         )
-        # Fold derived reply follow-ups into their Owner timeline item.
-        parent_rows = self._db.execute(
-            "SELECT id, parent_turn_id FROM turns WHERE parent_turn_id IS NOT NULL"
-        ).fetchall()
+        # Resolve explicit links before pagination, including parents outside
+        # the month's search window. Keep independent execution IDs on calls.
+        links = self._dashboard_followup_links()
         by_turn = {str(item.get("turn_id") or ""): item for item in turns}
-        for row in parent_rows:
-            child_id, parent_id = str(row["id"]), str(row["parent_turn_id"])
-            child, parent = by_turn.get(child_id), by_turn.get(parent_id)
-            if not child or not parent:
+        roots = {links.get(tid, tid) for tid in by_turn}
+        for root in roots:
+            children = [child for child, parent in links.items() if parent == root]
+            if not children:
                 continue
-            parent["stages"] = list(dict.fromkeys([*(parent.get("stages") or []), *(child.get("stages") or [])]))
-            parent["tools"] = list(dict.fromkeys([*(parent.get("tools") or []), *(child.get("tools") or [])]))
-            parent["turn_ids"] = [*(parent.get("turn_ids") or [parent_id]), child_id]
-            parent["call_count"] = int(parent.get("call_count") or 0) + int(child.get("call_count") or 0)
-            parent["reasoning_chars"] = int(parent.get("reasoning_chars") or 0) + int(child.get("reasoning_chars") or 0)
-            parent["updated_at"] = max(float(parent.get("updated_at") or 0), float(child.get("updated_at") or 0))
-            turns = [item for item in turns if item is not child]
+            detail = self.dashboard_thinking_detail(root)
+            calls = detail["calls"]
+            if not calls:
+                continue
+            grouped = _group_thinking_turns([{**call, "turn_id": root} for call in calls])[0]
+            grouped["turn_ids"] = [root, *children]
+            members = {root, *children}
+            turns = [item for item in turns if item.get("turn_id") not in members]
+            turns.append(grouped)
         # Plan steps are separate Turns for execution/audit, but one item in
         # the dashboard should represent the whole Plan timeline.
         plan_sql = "SELECT id, title, request, steps_json, status, created_at, updated_at FROM task_plans"

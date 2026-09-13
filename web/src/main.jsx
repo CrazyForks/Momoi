@@ -1995,7 +1995,8 @@ function thinkingFlowTitle(item) {
   // CUES is an internal retrieval phase of its enclosing business Turn, not a
   // second workflow identity. Show it in the timeline, but never promote it
   // into the record or detail title when a primary stage exists.
-  const visibleStages = stages.filter((stage) => !auxiliaryStages.has(stage));
+  const visibleStages = stages.filter((stage) => !auxiliaryStages.has(stage)
+    && !(stage === "reply_followup" && stages.includes("owner")));
   const labels = (visibleStages.length ? visibleStages : stages)
     .map((stage) => thinkingStageLabel(stage));
   return labels.length ? labels.join(" → ") : "未标记";

@@ -131,6 +131,7 @@ def pack_user_context(*items: tuple[str, str]) -> str:
         "current_state", "due_goal",
     }
     return "\n\n".join(
+        by_name[name].strip() if name == "followup" else
         f"<{name}>\n{by_name[name].strip()}\n</{name}>"
         if name in structured else sections((name, by_name[name]))
         for name in USER_CONTEXT_SECTION_ORDER

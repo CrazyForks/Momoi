@@ -54,8 +54,8 @@ class ReplyFollowupWorkflow:
             ("workflow_contract", self._reply_wait_system_prompt()),
             (
                 "followup",
-                f"<followup xx_turn={quoteattr(str(pending.get('source_turn') or ''))} "
-                f"silent_minutes={quoteattr(str(max(0, int(pending.get('waiting_minutes') or 0)) ))}>"
+                f"<followup parent_turn_id={quoteattr(str(pending.get('source_turn') or ''))} "
+                f"silent_minutes={quoteattr(str(max(0, int(pending.get('waiting_minutes') or 0))))}>"
                 f"<reason>{escape(str(pending.get('reason') or '').strip())}</reason></followup>",
             ),
             (

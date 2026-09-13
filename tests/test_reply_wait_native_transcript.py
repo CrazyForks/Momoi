@@ -75,13 +75,18 @@ class ReplyWaitNativeTranscriptTest(unittest.IsolatedAsyncioTestCase):
             self.assertNotIn("Required reply follow-up", system)
             self.assertIn("<workflow_contract>", rendered)
             self.assertNotIn("<reply_timeline>", rendered)
-            self.assertIn("<followup>", rendered)
-            self.assertIn("reason: 这个问题需要老师决定", rendered)
-            self.assertRegex(rendered, r"silent_minutes: \d+")
+            from xml.etree import ElementTree
+            current = messages[-1]["content"][0]["text"]
+            node = ElementTree.fromstring("<root>" + current + "</root>").find("followup")
+            self.assertEqual(node.attrib["parent_turn_id"], owner_turn)
+            self.assertGreaterEqual(int(node.attrib["silent_minutes"]), 0)
+            self.assertEqual(node.find("reason").text, "这个问题需要老师决定")
+            self.assertIsNone(node.find("followup"))
             self.assertEqual(
                 [message["role"] for message in messages],
-                ["user", "user", "assistant", "user"],
+                ["user", "user", "assistant", "user", "user"],
             )
+            self.assertIn("[runtime time gap]", str(messages[-2]["content"]))
             self.assertIn("晚上选个游戏吧", str(messages[1]["content"]))
             self.assertIn("那你想玩解谜还是动作呀", str(messages[2]["content"]))
             self.assertEqual(
