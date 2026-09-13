@@ -33,6 +33,17 @@ RECALL_SCOPE_CONTRACT = (
     "only for a distinct experience worth keeping, otherwise none. Split independent "
     "outcomes into separate units; corrections replace revoked intent. Preserve known "
     "subjects, literal identifiers, and uncertainty; do not invent unresolved identity. "
+    "If identity is unresolved, search for it first and ask if the evidence cannot "
+    "identify it. Resolve pronouns from context without inventing answers or new "
+    "retrieval needs; seek clarification when context cannot resolve a reference. "
+    "Reuse requires no new historical dependency. Add queries only for needs that "
+    "one record could not settle together. Episode membership cannot be established "
+    "by proximity, mood, time, or setting. Do not write runtime-owned archives. "
+    "Choose how to respond after assessing the evidence. "
+    "A recalled episode's confidence is a bounded query-relevance signal, not a "
+    "calibrated probability or factual truth. An absent value means no query-specific "
+    "score is available. Establish what happened from source evidence, accounting "
+    "for speaker, time, modality, and uncertainty. "
 )
 
 
@@ -61,8 +72,9 @@ RECALL_TOOL_SPEC: dict[str, Any] = {
         "Include once in the opening tool batch; independent tools may accompany it. "
         "Retry until successful; wait for its results before dependent calls. "
         "Arguments must contain units, an array of intent objects; do not flatten its fields "
-        "or stringify nested JSON. Minimal example when context is sufficient: "
+        "or stringify nested JSON. "
         + RECALL_SCOPE_CONTRACT
+        + "Minimal example when context is sufficient: "
         + json.dumps(RECALL_SKIP_EXAMPLE, ensure_ascii=False)
     ),
     "input_schema": {

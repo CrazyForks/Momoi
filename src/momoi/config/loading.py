@@ -215,7 +215,10 @@ def parse_config(raw, config_path: Path, *, providers=None) -> AppConfig:
         minimum=transcript_turns_min,
     )
     episode_unsummarized_tail_turns = integer(
-        context_raw.get("episode_unsummarized_tail_turns", 6),
+        context_raw.get(
+            "episode_unsummarized_tail_turns",
+            context_raw.get("episode_raw_tail_turns", 6),
+        ),
         "context.episode_unsummarized_tail_turns",
         minimum=1,
     )

@@ -72,6 +72,13 @@ class ConfigurationTest(unittest.TestCase):
                 [NapCatConfig, WeixinConfig],
             )
 
+            value["context"]["episode_raw_tail_turns"] = 9
+            write_app_config(path, value)
+            self.assertEqual(load_config(path).episode_unsummarized_tail_turns, 9)
+            value["context"]["episode_unsummarized_tail_turns"] = 4
+            write_app_config(path, value)
+            self.assertEqual(load_config(path).episode_unsummarized_tail_turns, 4)
+
             value["channels"]["primary"] = "missing"  # type: ignore[index]
             write_app_config(path, value)
             with self.assertRaisesRegex(ConfigError, "must name an enabled channel"):

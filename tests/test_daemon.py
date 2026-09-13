@@ -785,6 +785,8 @@ class DaemonAsyncTest(unittest.IsolatedAsyncioTestCase):
                     log_level="INFO",
                 )
             )
+            daemon.store.begin_turn("question", "owner", [])
+            daemon.store.complete_background_turn("question")
             daemon.store._db.execute(
                 """UPDATE self_state SET next_heartbeat_at=1660,
                    pending_reply_turn_id='question',
@@ -808,6 +810,11 @@ class DaemonAsyncTest(unittest.IsolatedAsyncioTestCase):
                 complete.await_args.args[0],
                 daemon._turn_id("reply-followup", 1060.0),
             )
+            parent = daemon.store._db.execute(
+                "SELECT parent_turn_id FROM turns WHERE id=?",
+                (complete.await_args.args[0],),
+            ).fetchone()[0]
+            self.assertEqual(parent, "question")
             daemon.store.close()
 
 
