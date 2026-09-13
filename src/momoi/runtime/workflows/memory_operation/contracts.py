@@ -84,11 +84,21 @@ MEMORY_OPERATION_FINISH_SPEC: dict[str, Any] = {
                         "action": {
                             "type": "string",
                             "enum": ["write", "forget", "noop", "defer"],
+                            "description": (
+                                "noop when durable meaning is already represented; write to "
+                                "refine or consolidate an existing rule, or add an independent fact. "
+                                "Different wording or another example alone does not require a write."
+                            ),
                         },
                         "reason": {"type": "string", "minLength": 1, "maxLength": 500},
                         "target_ids": {
                             "type": "array",
-                            "description": "Current memory IDs to replace, merge, or forget; empty for a new independent fact.",
+                            "description": (
+                                "Current memory IDs to replace, merge, or forget. For a clarification "
+                                "or useful new condition of an existing rule, include that rule's ID. "
+                                "Empty only for an independently useful fact not already represented; "
+                                "a different key or example does not make a fact independent."
+                            ),
                             "uniqueItems": True,
                             "items": {"type": "integer", "minimum": 1},
                         },

@@ -9,7 +9,9 @@ Assess relationship → choose action → check evidence → set activation → 
 
 **Relationship**
 
-- Duplicate: the same fact, rule, procedure, or temporary situation.
+- Duplicate: the same fact, rule, procedure, or temporary situation. For rules,
+  compare the governed behavior and practical requirement, not keys or wording.
+  Different examples or clarifications of one rule can belong in one memory.
 - Conflict: the same scope has incompatible facts or polarity.
 - Related but distinct: different scope, purpose, object, or lifecycle.
 
@@ -18,7 +20,10 @@ Assess relationship → choose action → check evidence → set activation → 
 - Keep a correct, distinct memory unchanged.
 - Replace one memory to correct it, remove turn-dependent wording, or
   move it to the right activation.
-- Merge true duplicates into the clearest survivor.
+- Merge memories expressing the same rule into the clearest survivor, preserving
+  supported conditions. Prefer a concise actionable rule over a catalogue of
+  incidents or rejected phrases. Shared topic alone does not justify merging
+  independent requirements.
 - Retire only a fact the owner explicitly revoked or disproved.
 - Regroup only when a required related id is outside the mutable set.
 
@@ -46,7 +51,8 @@ Assess relationship → choose action → check evidence → set activation → 
 - Never rewrite correct text merely for style or synonyms.
 - Never forget a memory because it was not mentioned today.
 - A factual correction requires an exact supporting owner quote.
-- For true duplicates, preserve only the overlapping existing claims.
+- For duplicates, retain the supported shared meaning and necessary conditions;
+  do not invent a broader rule just to cover different examples.
 - For different facets of a temporary event, rebuild the merged content
   from owner evidence; exclude source-only details. Cite all owner
   evidence used.
