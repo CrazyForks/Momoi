@@ -245,6 +245,23 @@ class ObservabilityStore:
         turns = _group_thinking_turns(
             self._attach_legacy_topic_selection_turns(found.get("calls") or [])
         )
+        # Fold derived reply follow-ups into their Owner timeline item.
+        parent_rows = self._db.execute(
+            "SELECT id, parent_turn_id FROM turns WHERE parent_turn_id IS NOT NULL"
+        ).fetchall()
+        by_turn = {str(item.get("turn_id") or ""): item for item in turns}
+        for row in parent_rows:
+            child_id, parent_id = str(row["id"]), str(row["parent_turn_id"])
+            child, parent = by_turn.get(child_id), by_turn.get(parent_id)
+            if not child or not parent:
+                continue
+            parent["stages"] = list(dict.fromkeys([*(parent.get("stages") or []), *(child.get("stages") or [])]))
+            parent["tools"] = list(dict.fromkeys([*(parent.get("tools") or []), *(child.get("tools") or [])]))
+            parent["turn_ids"] = [*(parent.get("turn_ids") or [parent_id]), child_id]
+            parent["call_count"] = int(parent.get("call_count") or 0) + int(child.get("call_count") or 0)
+            parent["reasoning_chars"] = int(parent.get("reasoning_chars") or 0) + int(child.get("reasoning_chars") or 0)
+            parent["updated_at"] = max(float(parent.get("updated_at") or 0), float(child.get("updated_at") or 0))
+            turns = [item for item in turns if item is not child]
         # Plan steps are separate Turns for execution/audit, but one item in
         # the dashboard should represent the whole Plan timeline.
         plan_sql = "SELECT id, title, request, steps_json, status, created_at, updated_at FROM task_plans"

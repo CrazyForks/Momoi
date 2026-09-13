@@ -215,6 +215,7 @@ CREATE TABLE IF NOT EXISTS tool_audit (
 );
 CREATE TABLE IF NOT EXISTS turns (
     id TEXT PRIMARY KEY,
+    parent_turn_id TEXT REFERENCES turns(id) ON DELETE SET NULL,
     kind TEXT NOT NULL CHECK (kind IN ('owner', 'autonomous')),
     workflow_kind TEXT CHECK (workflow_kind IN (
         'owner', 'webhook', 'goal', 'heartbeat', 'reply_followup',
@@ -237,6 +238,7 @@ CREATE TABLE IF NOT EXISTS turns (
 );
 CREATE INDEX IF NOT EXISTS turns_context_recent
     ON turns(updated_at DESC, kind, id) WHERE state<>'running';
+CREATE INDEX IF NOT EXISTS turns_parent ON turns(parent_turn_id);
 CREATE TABLE IF NOT EXISTS conversation_episodes (
     id TEXT PRIMARY KEY,
     status TEXT NOT NULL DEFAULT 'open'

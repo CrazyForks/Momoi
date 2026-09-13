@@ -66,6 +66,8 @@ class HeartbeatWorkflow:
             turn_id,
             "reply_followup" if claim_kind == "reply" else "heartbeat",
             [f"{turn_kind}:{scheduled_at}"],
+            parent_turn_id=str(state.get("pending_reply_turn_id") or "") or None
+            if claim_kind == "reply" else None,
         )
         if turn_state in {"completed", "cancelled"}:
             self.store.clear_heartbeat_claim()

@@ -20,6 +20,11 @@ def _add_plan_version(database):
     if "version" not in _columns(database, "task_plans"):
         database.execute("ALTER TABLE task_plans ADD COLUMN version INTEGER NOT NULL DEFAULT 1")
 
+def _add_turn_parent(database):
+    if "parent_turn_id" not in _columns(database, "turns"):
+        database.execute("ALTER TABLE turns ADD COLUMN parent_turn_id TEXT REFERENCES turns(id) ON DELETE SET NULL")
+    database.execute("CREATE INDEX IF NOT EXISTS turns_parent ON turns(parent_turn_id)")
+
 
 def _add_plan_context(database):
     if "context_json" not in _columns(database, "task_plans"):
@@ -576,6 +581,7 @@ MIGRATIONS: tuple[Migration, ...] = (
     _add_task_plans,
     _add_plan_context,
     _add_plan_version,
+    _add_turn_parent,
 )
 SCHEMA_VERSION = len(MIGRATIONS)
 

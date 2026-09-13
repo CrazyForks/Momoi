@@ -18,6 +18,7 @@ class TurnStore:
         turn_id: str,
         workflow_kind: str,
         source_ids: list[str],
+        *, parent_turn_id: str | None = None,
     ) -> str:
         workflow = require_turn_workflow_kind(workflow_kind)
         kind = "owner" if workflow == "owner" else "autonomous"
@@ -33,10 +34,10 @@ class TurnStore:
             if row is None:
                 self._db.execute(
                     """INSERT INTO turns
-                       (id, kind, workflow_kind, source_ids_json, state,
+                       (id, parent_turn_id, kind, workflow_kind, source_ids_json, state,
                         started_at, updated_at)
-                       VALUES (?, ?, ?, ?, 'running', ?, ?)""",
-                    (turn_id, kind, workflow, json.dumps(source_ids), now, now),
+                       VALUES (?, ?, ?, ?, ?, 'running', ?, ?)""",
+                    (turn_id, parent_turn_id, kind, workflow, json.dumps(source_ids), now, now),
                 )
                 return "running"
             existing_workflow = row["stored_workflow_kind"]
