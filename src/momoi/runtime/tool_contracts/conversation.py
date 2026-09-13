@@ -133,29 +133,49 @@ MOOD_DECISION_SCHEMA: dict[str, Any] = {
 REPLY_WAIT_DECISION_SCHEMA: dict[str, Any] = {
     "type": "object",
     "description": (
-        "JSON object, never a bare boolean or JSON-encoded string. "
-        "When wait=false, send only {\"wait\":false}; omit all other fields. "
-        "When wait=true, include delay_minutes, expected_information and reason. "
-        "Whether the last visible bubble leaves a real open beat. false when complete "
-        "or another scheduler owns the work. true only while awaiting a reply, "
-        "reaction, incoming information, or the assistant's later continuation; it requires "
-        "a visible bubble and schedules one follow-up Turn after silence."
+        "Decide whether an unanswered message you have already sent warrants one "
+        "follow-up. Use wait=true only when that message calls for a specific owner "
+        "response and continued silence would leave something meaningful unresolved: "
+        "an answer needed to proceed, a decision or confirmation, or an acknowledgement "
+        "of an urgent concern. An ordinary conversational question qualifies only "
+        "when you actually need its answer enough to follow up after silence. "
+        "Enjoying the conversation, expecting another casual reply, or having more "
+        "to say is not sufficient. Judge the message already sent; do not add a "
+        "question or invitation just to qualify for follow-up. "
+        "wait=false means no automatic follow-up, not that the conversation is over; "
+        "the owner can still reply normally. Use false when no specific response is "
+        "needed or another scheduler owns the follow-up. "
+        "Return a JSON object: {\"wait\":false} alone, or wait=true with "
+        "delay_minutes, expected_information and reason."
     ),
     "properties": {
-        "wait": {"type": "boolean"},
+        "wait": {
+            "type": "boolean",
+            "description": (
+                "true schedules one follow-up after silence following delivery "
+                "of your message; false schedules none. Choose based on the need "
+                "for the owner's response, not whether the conversation feels open."
+            ),
+        },
         "delay_minutes": {
             "type": "integer",
             "minimum": REPLY_WAIT_MIN_MINUTES,
             "maximum": REPLY_WAIT_MAX_MINUTES,
-            "description": "Whole minutes after successful bubble delivery.",
+            "description": (
+                "Whole minutes after successful delivery before following up if "
+                "the owner remains silent. Allow time to answer; choose the delay "
+                "from the urgency and effort of the requested response."
+            ),
         },
         "expected_information": {
             "type": "string",
             "minLength": 1,
             "maxLength": 300,
             "description": (
-                "The reply, reaction, incoming information, or assistant "
-                "continuation that would complete this beat."
+                "The specific answer, decision, confirmation, or acknowledgement "
+                "needed from the owner in response to your sent message. State what "
+                "would resolve the pending matter; do not describe your own next "
+                "message or a general wish to hear from the owner."
             ),
         },
         "reason": {
@@ -163,14 +183,24 @@ REPLY_WAIT_DECISION_SCHEMA: dict[str, Any] = {
             "minLength": 1,
             "maxLength": 500,
             "description": (
-                "Concrete new conversational move for the one silent-owner "
-                "follow-up; do not merely restate what is awaited."
+                "Why leaving this particular message unanswered warrants a "
+                "follow-up, and what that follow-up should clarify or check. "
+                "Ground it in the pending response; do not invent a new topic, "
+                "assume why the owner is silent, or script a conversational hook."
             ),
         },
     },
     "required": ["wait"],
     "additionalProperties": False,
-    "examples": [{"wait": False}],
+    "examples": [
+        {"wait": False},
+        {
+            "wait": True,
+            "delay_minutes": REPLY_WAIT_MAX_MINUTES,
+            "expected_information": "主人确认刚发出的行程草案是否采用",
+            "reason": "行程安排还等主人确认；若仍未回复，确认是否需要修改草案，暂不执行预订。",
+        },
+    ],
     "oneOf": [
         {
             "properties": {"wait": {"enum": [False]}},
@@ -285,6 +315,11 @@ def end_turn_tool_spec(stage: str) -> dict[str, Any]:
         if stage == "reply_followup":
             wait_schema = schema["properties"]["reply_wait"]
             wait_schema.pop("oneOf")
+            wait_schema["description"] = (
+                "This is the scheduled follow-up. Return {\"wait\":false}; "
+                "do not schedule another follow-up. The owner can still reply normally."
+            )
+            wait_schema["examples"] = [{"wait": False}]
             wait_schema["properties"] = {"wait": {"type": "boolean", "enum": [False]}}
     else:
         raise ValueError(f"end_turn is not available in {stage}")
