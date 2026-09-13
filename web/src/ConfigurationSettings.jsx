@@ -1147,7 +1147,7 @@ const runtimeDescriptions = {
 };
 
 function RuntimeSection({ module, data, save, saving, previous, next }) {
-  const schemas = Object.fromEntries(Object.entries(data.app_fields || {}).filter(([name]) => name !== "tools"));
+  const schemas = Object.fromEntries(Object.entries(data.app_fields || {}).filter(([name]) => name !== "tools" && name !== "current_state"));
   const initial = () => Object.fromEntries(Object.entries(schemas).map(([name, schema]) => [
     name,
     Object.fromEntries(Object.entries(schema.fields).map(([key, spec]) => [key, runtimeFieldValue(spec, data.app[name]?.[key])])),
