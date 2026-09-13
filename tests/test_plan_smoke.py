@@ -382,3 +382,41 @@ class PlanSmokeTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(daemon.store.task_plan(plan["id"])["status"], "completed")
         self.assertEqual(daemon.store._db.execute("SELECT COUNT(*) FROM task_plans").fetchone()[0], 1)
         self.assertNotIn("plan_step_finish", daemon.tool_surface.permitted_names("owner"))
+
+
+    async def test_plan_step_can_search_memory(self):
+        import asyncio
+        import json
+        daemon = self.daemon
+        plan = daemon.store.create_task_plan({
+            "title": "memory search", "request": "look up memory",
+            "steps": [{"task": "search memory", "on_failure": "stop"}],
+        }, self.owner_turn, daemon.channel.name)
+        daemon.store.start_task_plan(plan["id"], daemon.channel.name, {
+            "system": daemon._system(), "tools": daemon.tool_surface.conversation_specs(),
+            "messages": [],
+        })
+        daemon.store.claim_task_plan()
+        calls = 0
+
+        async def complete(system, messages, tools, **kwargs):
+            nonlocal calls
+            calls += 1
+            if calls == 1:
+                call = ToolCall("search", "memory_search", {"query": "游戏"})
+            else:
+                self.assertEqual(calls, 2)
+                result = json.loads(messages[-1]["content"][0]["content"])
+                self.assertTrue(result["ok"], result)
+                call = ToolCall("finish", "plan_step_finish", {
+                    "outcome": "succeeded", "summary": "searched",
+                    "output_refs": [], "abort_remaining": False,
+                })
+            return ProviderResponse([{
+                "type": "tool_use", "id": call.id, "name": call.name, "input": call.arguments,
+            }], [call])
+
+        daemon.provider = SimpleNamespace(complete=complete)
+        await daemon._complete_plan_step_turn(plan["id"], asyncio.Event())
+        self.assertEqual(calls, 2)
+        self.assertEqual(daemon.store.task_plan(plan["id"])["status"], "completed")

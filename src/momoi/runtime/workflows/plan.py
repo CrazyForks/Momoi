@@ -63,9 +63,6 @@ class PlanWorkflow:
                 timezone=self.store.timezone,
                 tool_activity=self.store.turn_activity(completed_turns),
             )
-            allowed = {"send_bubbles", "read_tool_result", "tool_enable", "plan_step_finish"}
-            allowed.update(str(s["name"]) for s in self.tool_surface.builtin_specs)
-            allowed.update(str(s["name"]) for s in self.mcp.tool_specs)
             tools = copy.deepcopy(context["tools"])
             workflow = AgentWorkflow(
                 preserve_transcript=True, stage="plan_step", tool_names=frozenset({"plan_step_finish"}), execute_tool=finish,
@@ -76,7 +73,7 @@ class PlanWorkflow:
             async with asyncio.timeout(300):
                 await self._run_tool_loop(
                     context["system"], messages, tools, [], TurnDraft(),
-                    execution=TurnExecutionSpec("plan_step", max_rounds=24, permitted_tools=frozenset(allowed)),
+                    execution=TurnExecutionSpec("plan_step", max_rounds=24),
                     source_event_id=f"plan:{plan_id}", turn_id=turn_id, delivery_channel=channel, workflow=workflow,
                 )
             log_event(logger, logging.INFO, "plan_step_completed", plan_id=plan_id, step_id=step["id"], turn_id=turn_id, result=completed)
