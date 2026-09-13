@@ -31,20 +31,20 @@ const navItems = [
 ];
 
 const thinkingStageLabels = {
-  owner: "对话 · 主人交流",
-  webhook: "事件 · Webhook",
-  heartbeat: "心跳 · 自主活动",
-  reflection: "记忆 · 每日复盘",
-  goal: "目标 · 执行",
-  plan_step: "计划 · 步骤执行",
-  memory_maintenance: "记忆 · 维护整理",
-  memory_operation: "记忆 · 操作",
-  episode_anneal: "对话 · 话题摘要",
-  topic_selection: "CUES · 话题筛选",
-  episode_cue_admit: "CUES · 线索准入",
-  episode_consolidate: "对话 · 话题归并",
-  reply_followup: "对话 · 回复跟进",
-  current_state_maintenance: "记忆 · 当前状态",
+  owner: "CHAT // 主人交流",
+  webhook: "EVENT // Webhook",
+  heartbeat: "HEARTBEAT // 自主活动",
+  reflection: "MEMORY // 每日复盘",
+  goal: "GOAL // 执行",
+  plan_step: "PLAN // 步骤执行",
+  memory_maintenance: "MEMORY // 维护整理",
+  memory_operation: "MEMORY // 操作",
+  episode_anneal: "CHAT // 话题摘要",
+  topic_selection: "CUES // 话题筛选",
+  episode_cue_admit: "CUES // 线索准入",
+  episode_consolidate: "CHAT // 话题归并",
+  reply_followup: "CHAT // 回复跟进",
+  current_state_maintenance: "MEMORY // 当前状态",
 };
 
 function thinkingStageLabel(stage) {
@@ -1989,7 +1989,7 @@ function olderMonths(available, month) {
 }
 
 function thinkingFlowTitle(item) {
-  if (item?.plan_id || item?.plan) return "计划 · 步骤执行";
+  if (item?.plan_id || item?.plan) return thinkingStageLabel("plan_step");
   const stages = (item.stages || [item.stage]).filter((stage) => stage !== undefined);
   const auxiliaryStages = new Set(["topic_selection", "episode_cue_admit"]);
   // CUES is an internal retrieval phase of its enclosing business Turn, not a
@@ -2519,7 +2519,7 @@ function ThinkingDetail({ item, calls, recall }) {
   return (
     <>
       <header className={`conversation-head${recall ? " has-recall" : ""}`}>
-        <h2>{item?.plan_id || item?.plan ? "计划 · 步骤执行" : thinkingFlowTitle(titleItem)}</h2>
+        <h2>{thinkingFlowTitle(titleItem)}</h2>
         {episodeId ? (
           <a
             className="tag thinking-conversation"
