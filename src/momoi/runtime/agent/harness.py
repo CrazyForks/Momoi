@@ -10,7 +10,6 @@ class TurnHarnessSpec:
     stage: str
     first_tool: str | None
     terminal_tool: str
-    require_bubbles_before_progress_work: bool = False
     permitted_tools: frozenset[str] | None = None
     required_before_end: frozenset[str] = frozenset()
     terminal_alone: bool = True
@@ -19,7 +18,7 @@ class TurnHarnessSpec:
 TURN_HARNESS_SPECS = {
     spec.stage: spec
     for spec in (
-        TurnHarnessSpec("owner", "recall", "end_turn", True),
+        TurnHarnessSpec("owner", "recall", "end_turn"),
         TurnHarnessSpec("heartbeat", "heartbeat_begin", "end_turn",
                         required_before_end=frozenset({"heartbeat_activity"})),
         TurnHarnessSpec("reply_followup", None, "end_turn"),
@@ -49,10 +48,8 @@ class TurnHarness:
     """Mutable protocol phase for a single Turn execution."""
 
     spec: TurnHarnessSpec
-    progress_tool_names: frozenset[str] = frozenset()
     permitted_tool_names: frozenset[str] | None = None
     started: bool = False
-    progress_bubbles_seen: bool = False
     blocked_tool_names: frozenset[str] = frozenset()
     completed_tools: set[str] = field(default_factory=set)
 
@@ -64,14 +61,12 @@ class TurnHarness:
         cls,
         stage: str,
         *,
-        progress_tool_names: frozenset[str] = frozenset(),
         permitted_tool_names: frozenset[str] | None = None,
         blocked_tool_names: frozenset[str] = frozenset(),
     ) -> "TurnHarness":
         try:
             return cls(
                 TURN_HARNESS_SPECS[stage],
-                progress_tool_names=progress_tool_names,
                 permitted_tool_names=permitted_tool_names,
                 blocked_tool_names=blocked_tool_names,
             )
@@ -80,12 +75,10 @@ class TurnHarness:
 
     def reset(self) -> None:
         self.started = self.spec.first_tool is None
-        self.progress_bubbles_seen = False
         self.completed_tools.clear()
 
     def accept_owner_update(self) -> None:
-        """Keep the Turn's completed opening; renew per-request progress rules."""
-        self.progress_bubbles_seen = False
+        """Keep the Turn's completed opening after a new owner message."""
 
     def validate_surface(self, tool_names: set[str]) -> None:
         required = {self.spec.terminal_tool, *self.spec.required_before_end}
@@ -171,25 +164,11 @@ class TurnHarness:
             if self.spec.stage == "goal":
                 if call.arguments:
                     return "goal_end_turn_requires_empty_arguments"
-        if (
-            self.spec.require_bubbles_before_progress_work
-            and not self.progress_bubbles_seen
-        ):
-            bubbles_seen = False
-            for name in names:
-                if name in {"send_bubbles", "send_voice"}:
-                    bubbles_seen = True
-                elif name in self.progress_tool_names and not bubbles_seen:
-                    return "send_bubbles_required_before_progress_work"
         return None
 
     def observe_calls(self, calls: list[ToolCall]) -> None:
         """Record protocol-visible calls without interpreting tool results."""
 
-        if self.spec.require_bubbles_before_progress_work and any(
-            call.name in {"send_bubbles", "send_voice"} for call in calls
-        ):
-            self.progress_bubbles_seen = True
 
     def accept(self, tool_name: str) -> None:
         self.completed_tools.add(tool_name)

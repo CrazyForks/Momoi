@@ -324,12 +324,9 @@ class PlanSmokeTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(daemon.store.task_plan(plan["id"])["status"], "cancelled")
         self.assertIsNone(daemon.store.claim_task_plan())
 
-    def test_plan_tools_have_no_prelude_or_exclusive_batch_requirement(self):
+    def test_plan_tools_have_no_exclusive_batch_requirement(self):
         from momoi.runtime.agent import TurnHarness
-        from momoi.runtime.tool_contracts.plan import PLAN_TOOLS
-        from momoi.runtime.agent.progress import requires_owner_progress
-        self.assertFalse(any(requires_owner_progress(tool) for tool in PLAN_TOOLS))
-        harness = TurnHarness.for_stage("owner", progress_tool_names=self.daemon.tool_surface.owner_progress_tool_names())
+        harness = TurnHarness.for_stage("owner")
         self.assertIsNone(harness.validate([
             ToolCall("recall", "recall", {}), ToolCall("create", "plan_create", {}),
             ToolCall("start", "plan_start", {}),

@@ -209,7 +209,6 @@ class VoiceDeliveryTest(unittest.IsolatedAsyncioTestCase):
         surface = ToolSurface(SimpleNamespace(tool_specs=[], configs={}), {"napcat": self.channel})
         name = SEND_VOICE_TOOL_SPEC["name"]
         self.assertNotIn(name, {tool["name"] for tool in surface.conversation_specs()})
-        self.assertNotIn(name, surface.owner_progress_tool_names())
         self.assertEqual(surface.mcp_server_groups(), {})
         for stage in ("owner", "heartbeat", "webhook", "reply_followup", "goal"):
             with self.subTest(stage=stage):
@@ -223,18 +222,11 @@ class VoiceDeliveryTest(unittest.IsolatedAsyncioTestCase):
                     "tool_not_allowed",
                 )
 
-    def test_enabled_voice_is_available_and_counts_as_owner_progress(self):
+    def test_enabled_voice_is_available(self):
         surface = ToolSurface(SimpleNamespace(tool_specs=[], configs={}), {"napcat": self.channel}, voice_enabled=True)
         self.assertIn("send_voice", {tool["name"] for tool in surface.conversation_specs()})
         for stage in ("owner", "heartbeat", "webhook", "reply_followup", "goal"):
             self.assertIn("send_voice", surface.permitted_names(stage))
-        harness = TurnHarness.for_stage("owner", progress_tool_names=frozenset({"curl"}))
-        harness.accept("recall")
-        voice = ToolCall("v", "send_voice", {"text": self.text})
-        work = ToolCall("w", "curl", {})
-        self.assertIsNone(harness.validate([voice, work]))
-        harness.observe_calls([voice])
-        self.assertIsNone(harness.validate([work]))
         unsupported = ToolSurface(SimpleNamespace(tool_specs=[]), {"napcat": SimpleNamespace()}, voice_enabled=True)
         self.assertEqual(surface.conversation_specs(), unsupported.conversation_specs())
 

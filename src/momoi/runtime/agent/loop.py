@@ -89,11 +89,6 @@ class AgentLoop:
             raise ValueError("workflow and execution stages do not match")
         harness = TurnHarness.for_stage(
             stage,
-            progress_tool_names=(
-                self.tool_surface.owner_progress_tool_names()
-                if stage == "owner"
-                else frozenset()
-            ),
             permitted_tool_names=permitted_tools,
             blocked_tool_names=frozenset() if voice_allowed else frozenset({"send_voice"}),
         )
