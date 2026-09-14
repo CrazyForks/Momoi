@@ -182,15 +182,28 @@ class ToolBatchExecutor:
                     request.draft.memory_context.update(prepared["memory_snapshots"])
                     return prepared
 
-                result = await begin_heartbeat(
-                    call,
-                    heartbeat_turn=execution.heartbeat,
-                    harness_started=request.harness.started,
-                    enable_tool_groups=request.enable_tool_groups,
-                    tools=request.tools,
-                    tool_surface=self.tool_surface,
-                    prepare_context=prepare_heartbeat_context,
-                )
+                # Heartbeat context preparation may issue a topic-selection
+                # model call. Keep it attached to this heartbeat turn's
+                # thinking timeline, just like owner recall.
+                with log_context(
+                    stage=execution.stage,
+                    turn_id=request.turn_id,
+                    call_id=request.call_id,
+                    round=request.round_number,
+                    channel=request.delivery_channel.name,
+                    goal_id=execution.goal_id,
+                    tool_call_id=call.id,
+                    tool_name=call.name,
+                ):
+                    result = await begin_heartbeat(
+                        call,
+                        heartbeat_turn=execution.heartbeat,
+                        harness_started=request.harness.started,
+                        enable_tool_groups=request.enable_tool_groups,
+                        tools=request.tools,
+                        tool_surface=self.tool_surface,
+                        prepare_context=prepare_heartbeat_context,
+                    )
             elif call.name == "heartbeat_activity":
                 result = record_heartbeat_activity(
                     call, heartbeat_turn=execution.heartbeat, draft=request.draft,
