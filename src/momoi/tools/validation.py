@@ -2,21 +2,33 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Literal
 
-from pydantic import ConfigDict, Field, ValidationError, create_model
+from pydantic import (
+    ConfigDict,
+    Field,
+    StrictBool,
+    StrictFloat,
+    StrictInt,
+    StrictStr,
+    ValidationError,
+    create_model,
+)
 
 
 def _annotation(schema: dict[str, Any]) -> Any:
+    enum = schema.get("enum")
+    if isinstance(enum, list) and enum:
+        return Literal[tuple(enum)]
     kind = schema.get("type")
     if kind == "string":
-        return str
+        return StrictStr
     if kind == "integer":
-        return int
+        return StrictInt
     if kind == "number":
-        return float
+        return StrictFloat
     if kind == "boolean":
-        return bool
+        return StrictBool
     if kind == "array":
         return list
     if kind == "object":
@@ -40,10 +52,27 @@ def validate_tool_arguments(
     fields: dict[str, tuple[Any, Any]] = {}
     for name, definition in properties.items():
         annotation = _annotation(definition)
-        fields[name] = (annotation, Field(...) if name in required else None)
+        constraints = {
+            "min_length": definition.get("minLength"),
+            "max_length": definition.get("maxLength"),
+            "pattern": definition.get("pattern"),
+            "ge": definition.get("minimum"),
+            "le": definition.get("maximum"),
+        }
+        fields[name] = (
+            annotation,
+            Field(
+                ... if name in required else definition.get("default", None),
+                **{key: value for key, value in constraints.items() if value is not None},
+            ),
+        )
     model = create_model(
         f"{tool_name.title().replace('_', '')}Arguments",
-        __config__=ConfigDict(extra="forbid"),
+        __config__=ConfigDict(
+            extra="forbid"
+            if schema.get("additionalProperties") is False
+            else "allow"
+        ),
         **fields,
     )
     try:

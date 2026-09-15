@@ -145,7 +145,7 @@ AGENDA_TOOL_SPECS: list[dict[str, Any]] = [
         ),
         "input_schema": {
             "type": "object",
-            "properties": {"goal_id": {"type": "string"}, "result": {"type": "string"}},
+            "properties": {"goal_id": {"type": "string", "minLength": 1}, "result": {"type": "string", "minLength": 1, "maxLength": 2000, "pattern": r"\S"}},
             "required": ["goal_id", "result"],
             "additionalProperties": False,
         },
@@ -158,7 +158,7 @@ AGENDA_TOOL_SPECS: list[dict[str, Any]] = [
         ),
         "input_schema": {
             "type": "object",
-            "properties": {"goal_id": {"type": "string"}, "reason": {"type": "string"}},
+            "properties": {"goal_id": {"type": "string", "minLength": 1}, "reason": {"type": "string", "minLength": 1, "maxLength": 2000, "pattern": r"\S"}},
             "required": ["goal_id", "reason"],
             "additionalProperties": False,
         },

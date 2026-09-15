@@ -39,7 +39,7 @@ def response(call):
 
 class GoalBoundaryTest(unittest.TestCase):
     def test_goal_review_structural_errors_name_unexpected_and_missing_fields(self):
-        from momoi.runtime.tool_validation import validate_tool_arguments
+        from momoi.tools.validation import validate_tool_arguments
         from momoi.tools.contracts.agenda import GOAL_REVIEW_SCHEMA
 
         _, error = validate_tool_arguments(

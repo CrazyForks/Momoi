@@ -16,7 +16,7 @@ from ..turn_support import (
     tool_result_block,
 )
 from ..tool_contracts.conversation import end_turn_correction, end_turn_tool_spec
-from ..tool_validation import validate_tool_arguments
+from ...tools.validation import validate_tool_arguments
 from .harness import TurnHarness
 from .protocol import assistant_history_message, parse_end_turn
 from .runtime_tools import (

@@ -19,6 +19,8 @@ from ..storage import (
 from ..storage.episode.episode_ranking import EpisodeRecallQuery
 from ..semantic.models import DenseRecallEvidence
 from ..semantic.service import SemanticRecallService
+from .contracts.memory import MEMORY_TOOL_SPECS
+from .validation import validate_tool_arguments
 
 logger = logging.getLogger(__name__)
 _EPISODE_SEARCH_SUMMARY_TOKENS = 300
@@ -130,6 +132,12 @@ class MemoryTools:
         current_events: list[IncomingMessage],
         draft: TurnDraft,
     ) -> dict[str, Any]:
+        spec = next((item for item in MEMORY_TOOL_SPECS if item["name"] == call.name), None)
+        if spec:
+            normalized, error = validate_tool_arguments(call.name, call.arguments, spec["input_schema"])
+            if error:
+                return error
+            call = ToolCall(call.id, call.name, normalized or {}, call.argument_error)
         try:
             if call.name == "memory_search":
                 query = str(call.arguments.get("query") or "").strip()
@@ -190,6 +198,12 @@ class MemoryTools:
         current_events: list[IncomingMessage],
         draft: TurnDraft,
     ) -> dict[str, Any]:
+        spec = next((item for item in MEMORY_TOOL_SPECS if item["name"] == call.name), None)
+        if spec:
+            normalized, error = validate_tool_arguments(call.name, call.arguments, spec["input_schema"])
+            if error:
+                return error
+            call = ToolCall(call.id, call.name, normalized or {}, call.argument_error)
         try:
             if call.name == "memory_search":
                 return self._search(call.arguments, draft)
@@ -258,8 +272,6 @@ class MemoryTools:
         except (TypeError, ValueError):
             limit = 5
         cursor = arguments.get("cursor", 0)
-        if isinstance(cursor, bool) or not isinstance(cursor, int) or cursor < 0:
-            return _memory_error("invalid_search_cursor")
         try:
             after, before, window = parse_history_time_range(
                 arguments.get("time_range")

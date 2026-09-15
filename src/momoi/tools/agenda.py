@@ -9,6 +9,7 @@ from ..models import ToolCall, TurnDraft
 from ..storage import Store
 from ..storage.core.scheduling import next_schedule_at, normalize_schedule
 from .contracts.agenda import AGENDA_TOOL_SPECS, GOAL_REVIEW_SCHEMA
+from .validation import validate_tool_arguments
 
 logger = logging.getLogger(__name__)
 
@@ -78,8 +79,6 @@ class AgendaTools:
         title = str(arguments.get("title") or "").strip()
         criteria = str(arguments.get("success_criteria") or "").strip()
         next_action = str(arguments.get("next_action") or "").strip()
-        if not all((title, criteria, next_action)):
-            raise ValueError("title, success_criteria, and next_action are required")
         goal_id = uuid.uuid4().hex
         schedule_value = arguments.get("schedule")
         review_value = str(arguments.get("next_review_at") or "").strip()
@@ -121,15 +120,11 @@ class AgendaTools:
         if goal["status"] in {"done", "cancelled"}:
             raise ValueError("closed goal cannot be updated")
         status = str(arguments.get("status") or "")
-        if status not in {"active", "waiting", "blocked"}:
-            raise ValueError("status must be active, waiting, or blocked")
         goal["status"] = status
         for field in ("next_action", "waiting_for", "blocked_reason", "latest_result"):
             if field in arguments:
                 goal[field] = str(arguments[field] or "")[:2000]
         clear_schedule = arguments.get("clear_schedule", False)
-        if not isinstance(clear_schedule, bool):
-            raise ValueError("clear_schedule must be boolean")
         if clear_schedule:
             goal["schedule"] = None
         if "schedule" in arguments:
@@ -167,8 +162,6 @@ class AgendaTools:
         goal = self._current(goal_id, draft)
         field = "result" if name == "goal_finish" else "reason"
         value = str(arguments.get(field) or "").strip()
-        if not value:
-            raise ValueError(f"{field} is required")
         goal.update(
             status="done" if name == "goal_finish" else "cancelled",
             latest_result=value[:2000],
@@ -185,25 +178,14 @@ class AgendaTools:
     ) -> dict[str, Any]:
         """Stage the current Goal outcome. The caller ends the Turn only on success."""
         try:
-            allowed = set(GOAL_REVIEW_SCHEMA["properties"])
-            if set(decision) - allowed:
-                raise ValueError("unknown goal outcome field")
+            decision, validation_error = validate_tool_arguments(
+                "goal_review", decision, GOAL_REVIEW_SCHEMA
+            )
+            if validation_error:
+                return {**validation_error, "error": "invalid_goal_outcome"}
+            assert decision is not None
             status = decision.get("status")
-            if not isinstance(status, str) or status not in {
-                "active",
-                "waiting",
-                "blocked",
-                "done",
-                "cancelled",
-            }:
-                raise ValueError(
-                    "goal.status must be active, waiting, blocked, done, or cancelled"
-                )
             result = decision.get("result")
-            if not isinstance(result, str) or not result.strip() or len(result) > 2000:
-                raise ValueError(
-                    "goal.result must be a nonempty string of at most 2000 characters"
-                )
             if self._current(goal_id, draft)["status"] in {"done", "cancelled"}:
                 raise ValueError("current goal is already closed")
             if status in {"done", "cancelled"}:
@@ -219,14 +201,6 @@ class AgendaTools:
                     },
                     draft,
                 )
-            for key in (
-                "next_action",
-                "waiting_for",
-                "blocked_reason",
-                "next_review_at",
-            ):
-                if key in decision and not isinstance(decision[key], str):
-                    raise ValueError(f"goal.{key} must be a string")
             required = {
                 "active": "next_action",
                 "waiting": "waiting_for",

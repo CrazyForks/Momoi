@@ -60,15 +60,7 @@ class ThinkingTools:
             else parse_history_time_range(arguments.get("time_range"))
         )
         limit = arguments.get("limit", _DEFAULT_SEARCH_LIMIT)
-        if (
-            not isinstance(limit, int)
-            or isinstance(limit, bool)
-            or not 1 <= limit <= 10
-        ):
-            limit = _DEFAULT_SEARCH_LIMIT
         cursor = arguments.get("cursor", 0)
-        if not isinstance(cursor, int) or isinstance(cursor, bool) or cursor < 0:
-            cursor = 0
         result = self.store.search_thinking(
             turn_id=turn_id,
             query=query,
