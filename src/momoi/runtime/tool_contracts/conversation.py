@@ -294,14 +294,18 @@ END_TURN_TOOL_SPEC: dict[str, Any] = {
                 "examples": [{}],
             },
         ],
-        "examples": [copy.deepcopy(END_TURN_EXAMPLE), {}],
+        "examples": [
+            copy.deepcopy(END_TURN_EXAMPLE),
+            {},
+            {"reply_wait": {"wait": False}, "mood": {"decision": "unchanged"}},
+        ],
         "additionalProperties": False,
     },
 }
 
 
 def end_turn_tool_spec(stage: str) -> dict[str, Any]:
-    """Stage-specific schema shared by provider requests and error guidance."""
+    """Return a stage-specific copy for correction details only."""
     spec = copy.deepcopy(END_TURN_TOOL_SPEC)
     schema = spec["input_schema"]
     schema.pop("oneOf")
