@@ -1,4 +1,5 @@
 import copy
+from dataclasses import replace
 import logging
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
@@ -15,6 +16,7 @@ from ..turn_support import (
     tool_result_block,
 )
 from ..tool_contracts.conversation import end_turn_correction, end_turn_tool_spec
+from ..tool_validation import validate_tool_arguments
 from .harness import TurnHarness
 from .protocol import assistant_history_message, parse_end_turn
 from .runtime_tools import (
@@ -145,6 +147,22 @@ class ToolBatchExecutor:
                 round_number=request.round_number,
                 channel=request.delivery_channel.name,
             )
+            validation_error = None
+            if (
+                not call.argument_error
+                and call.name in allowed_tool_names
+                and call.name != "end_turn"
+            ):
+                spec = next(
+                    (item for item in request.request_tools if item.get("name") == call.name),
+                    None,
+                )
+                if spec and isinstance(spec.get("input_schema"), dict):
+                    normalized, validation_error = validate_tool_arguments(
+                        call.name, call.arguments, spec["input_schema"]
+                    )
+                    if normalized is not None:
+                        call = replace(call, arguments=normalized)
             if call.argument_error:
                 result = {
                     "ok": False,
@@ -156,6 +174,8 @@ class ToolBatchExecutor:
                 }
             elif call.name not in allowed_tool_names:
                 result = {"ok": False, "error": "tool_not_allowed"}
+            elif validation_error:
+                result = validation_error
             elif call.name in {"plan_create", "plan_start", "plan_get", "plan_update", "plan_cancel"}:
                 if execution.stage != "owner":
                     result = {"ok": False, "error": "tool_not_allowed"}

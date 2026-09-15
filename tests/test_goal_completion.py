@@ -38,6 +38,26 @@ def response(call):
 
 
 class GoalBoundaryTest(unittest.TestCase):
+    def test_goal_review_structural_errors_name_unexpected_and_missing_fields(self):
+        from momoi.runtime.tool_validation import validate_tool_arguments
+        from momoi.tools.contracts.agenda import GOAL_REVIEW_SCHEMA
+
+        _, error = validate_tool_arguments(
+            "goal_review",
+            {"goal_id": "ignored", "status": "active"},
+            GOAL_REVIEW_SCHEMA,
+        )
+        self.assertEqual(error["unexpected_fields"], ["goal_id"])
+        self.assertEqual(error["missing_fields"], ["result"])
+
+        _, error = validate_tool_arguments(
+            "goal_review",
+            {"status": "active", "latest_result": "sent", "next_action": "check"},
+            GOAL_REVIEW_SCHEMA,
+        )
+        self.assertEqual(error["unexpected_fields"], ["latest_result"])
+        self.assertEqual(error["missing_fields"], ["result"])
+
     def test_shared_end_turn_schema_accepts_chat_or_empty_goal_completion(self):
         from jsonschema import Draft202012Validator
         from momoi.runtime.tool_contracts.conversation import END_TURN_TOOL_SPEC

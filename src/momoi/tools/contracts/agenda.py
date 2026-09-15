@@ -201,6 +201,20 @@ GOAL_REVIEW_SCHEMA: dict[str, Any] = {
         },
     },
     "required": ["status", "result"],
+    "examples": [
+        {
+            "status": "active",
+            "result": "本次检查已完成，已发送一条简短提醒。",
+            "next_action": "下个时段继续核对是否需要提醒。",
+        },
+        {
+            "status": "waiting",
+            "result": "等待用户提供所需信息。",
+            "waiting_for": "用户回复确认时间",
+            "next_review_at": "2026-09-16T09:00:00+08:00",
+        },
+        {"status": "done", "result": "目标已完成并验证结果。"},
+    ],
     "oneOf": [
         {
             "description": "Continue work. Schedule a future review, or reuse the recurring schedule.",

@@ -258,7 +258,9 @@ GOAL_REVIEW_TOOL_SPEC: dict[str, Any] = {
     "description": (
         "Stage the current Goal's result and next action or schedule. Callable only "
         "during a Goal Turn; the runtime supplies its ID. Must succeed in an earlier "
-        "round before end_turn({}). Changes commit only when that Turn completes."
+        "round before end_turn({}). Changes commit only when that Turn completes. "
+        "Do not pass goal_id or latest_result; use status and result, plus only the "
+        "fields required by that status."
     ),
     "input_schema": GOAL_REVIEW_SCHEMA,
 }
