@@ -147,11 +147,10 @@ class MCPRuntimeTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(schema["maxItems"], 0)
         self.assertNotIn("enum", schema["items"])
 
-    async def test_invalid_file_preserves_runtime_and_connection_failure_restores_snapshot(self):
+    async def test_invalid_file_preserves_runtime_and_connection_failure_allows_startup(self):
         self.write({"working": {"command": "working", "args": ["v2"]}})
         await self.runtime.apply()
         original = self.runtime.daemon
-        revision = self.runtime.applied_revision
         for content in ('{', '{"mcpServers": {"bad": 1}}', '{"mcpServers": {"bad": {"command": "x", "args": false}}}'):
             atomic_write(self.configuration.mcp_path(), content)
             await self.runtime.apply()
@@ -162,19 +161,23 @@ class MCPRuntimeTest(unittest.IsolatedAsyncioTestCase):
         await self.runtime.apply()
         self.assertIs(self.runtime.daemon, original)
 
-        self.write({"broken": {"command": "missing"}})
+        self.write({
+            "before": {"command": "working"},
+            "broken": {"command": "missing"},
+            "after": {"command": "working"},
+        })
         await self.runtime.apply()
         self.assertTrue(original.closed)
         self.assertTrue(self.runtime.status()["runtime_active"])
-        self.assertEqual(self.runtime.applied_revision, revision)
-        self.assertIn("previous configuration restored", self.runtime.error)
-        self.assertNotIn("private connection details", self.runtime.error)
+        self.assertEqual(self.runtime.state, "running")
+        self.assertEqual(self.runtime.applied_revision, self.configuration.revision())
+        self.assertEqual(self.runtime.error, "")
         restored = self.runtime.daemon
-        self.assertTrue(restored.mcp.has_tool("mcp__working__work"))
-        self.assertTrue((await restored.mcp.call("mcp__working__work", {}))["ok"])
-        self.assertEqual(restored.config.mcp_servers["working"]["args"], ["v2"])
-        # The rejected document remains editable; rollback does not overwrite it.
-        self.assertIn("broken", json.loads(self.configuration.mcp_path().read_text())["mcpServers"])
+        self.assertEqual(set(restored.surface.mcp_server_groups()), {"before", "after"})
+        for name in ("before", "after"):
+            self.assertTrue((await restored.mcp.call(f"mcp__{name}__work", {}))["ok"])
+        self.assertNotIn("broken", restored.mcp._workers)
+        self.assertNotIn("broken", restored.mcp._queues)
 
         self.write({"fixed": {"command": "fixed"}})
         await self.runtime.apply()

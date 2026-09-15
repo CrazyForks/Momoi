@@ -19,6 +19,7 @@ from momoi.integrations.models import LLMConfig
 from momoi.runtime import (
     MomoiDaemon,
 )
+from momoi.runtime.tool_contracts.conversation import END_TURN_TOOL_SPEC
 from momoi.runtime.jobs import AutonomousJob
 from momoi.runtime.agent import TurnExecutionSpec
 from momoi.runtime.agent.context_window import ContextWindow
@@ -1420,10 +1421,9 @@ class DaemonAsyncTest(unittest.IsolatedAsyncioTestCase):
                     tools: list[dict[str, object]],
                     **___: object,
                 ) -> ProviderResponse:
-                    # Every heartbeat round exposes the same stage-specific schema.
+                    # Every heartbeat round keeps the shared schema.
                     terminal = next(tool for tool in tools if tool["name"] == "end_turn")
-                    from momoi.runtime.tool_contracts.conversation import end_turn_tool_spec
-                    if terminal != end_turn_tool_spec("heartbeat"):
+                    if terminal != END_TURN_TOOL_SPEC:
                         raise AssertionError("Heartbeat changed the shared end_turn schema")
                     self.calls += 1
                     names = {str(tool["name"]) for tool in tools}

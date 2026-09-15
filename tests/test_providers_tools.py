@@ -465,13 +465,19 @@ class ProvidersToolsTest(unittest.TestCase):
 
 class ProvidersToolsAsyncTest(unittest.IsolatedAsyncioTestCase):
 
-    async def test_required_mcp_connection_failure_stops_startup(self) -> None:
-        manager = MCPManager(None)
-        manager.configs = {"required": {"command": "missing"}}
-        with patch.object(manager, "_connect", side_effect=RuntimeError("offline")):
-            with self.assertRaisesRegex(RuntimeError, "required MCP server"):
-                await manager.__aenter__()
-        self.assertEqual(manager._workers, {})
+    async def test_mcp_connection_failure_allows_startup_without_optional_flag(self) -> None:
+        for optional in (None, False, True):
+            manager = MCPManager(None)
+            manager.configs = {"offline": {"command": "missing"}}
+            if optional is not None:
+                manager.configs["offline"]["optional"] = optional
+            with patch.object(manager, "_connect", side_effect=RuntimeError("offline")):
+                with self.assertLogs("momoi.mcp.manager", level="ERROR") as logs:
+                    async with manager:
+                        self.assertEqual(manager._workers, {})
+                        self.assertEqual(manager._queues, {})
+                        self.assertEqual(manager.tool_specs, [])
+            self.assertIn("mcp_connect_failure", str(logs.output))
 
     async def test_optional_mcp_connection_failure_allows_startup(self) -> None:
         manager = MCPManager(None)

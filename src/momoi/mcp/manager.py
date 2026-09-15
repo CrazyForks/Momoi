@@ -83,13 +83,13 @@ class MCPManager:
                     "mcp_connect_failure",
                     server=name,
                     error_type=type(error).__name__,
-                    optional=bool(config.get("optional", False)),
+                    action="skip_server",
                 )
-                if not config.get("optional", False):
-                    await self.__aexit__()
-                    raise RuntimeError(
-                        f"required MCP server failed to connect: {name}"
-                    ) from error
+                # Each failed worker owns its transport cleanup. Keep healthy
+                # workers running and continue discovering the remaining servers.
+                await asyncio.gather(self._workers[name], return_exceptions=True)
+                self._workers.pop(name)
+                self._queues.pop(name)
         return self
 
     async def __aexit__(self, *_: object) -> None:
