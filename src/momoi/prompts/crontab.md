@@ -18,4 +18,5 @@ Typical flow:
   failure. Avoid duplicate or obsolete information and assumptions about unknown
   circumstances.
 - `goal_review` must succeed before `end_turn`, even with nothing to send.
+  Submit goal_review and end_turn({}) together in that order to avoid an extra round.
   A completed occurrence does not close an ongoing recurring Goal.

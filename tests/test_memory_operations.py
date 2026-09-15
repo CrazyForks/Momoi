@@ -490,7 +490,7 @@ def test_real_workflow_prompt_tool_correction_commit_and_usage(daemon):
     daemon.provider = type("Provider", (), {"complete": staticmethod(complete)})()
     asyncio.run(daemon._complete_memory_operation_turn("source", asyncio.Event()))
     assert len(calls) == 2
-    assert "invalid_memory_operation_result" in json.dumps(calls[1])
+    assert "invalid_tool_arguments" in json.dumps(calls[1])
     assert daemon.store.active_memory("preference", "drink")
     row = daemon.store._db.execute(
         "SELECT * FROM turns WHERE workflow_kind='memory_operation'"

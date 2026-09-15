@@ -120,7 +120,10 @@ class AgentLoop:
                     and (permitted_tools is None or "send_voice" in permitted_tools)):
                 # The harness accepts either delivery form for the opening reply.
                 required_tool = None
-            request_tools = tools
+            request_tools = [
+                end_turn_tool_spec(stage) if spec["name"] == "end_turn" and workflow is None else spec
+                for spec in tools
+            ]
             llm_round += 1
             require_tool = bool(
                 autonomous_goal_id

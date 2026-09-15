@@ -210,6 +210,11 @@ class GoalWorkflow:
             },
         ]
         tools = self.tool_surface.conversation_specs()
+        permitted = self.tool_surface.permitted_names("goal")
+        if self.store.turn_has_committed_delivery(turn_id):
+            permitted = permitted - {"send_bubbles", "send_voice"}
+            tools = [spec for spec in tools if spec["name"] not in {"send_bubbles", "send_voice"}]
+            messages.append({"role": "user", "content": "This Goal Turn is resuming after delivery was already committed. Do not resend or use another tool to send a replacement. Complete the remaining review and end_turn."})
         draft = TurnDraft()
         await self._run_tool_loop(
             self._system(),
@@ -220,7 +225,7 @@ class GoalWorkflow:
             execution=TurnExecutionSpec(
                 "goal",
                 goal_id=goal_id,
-                permitted_tools=self.tool_surface.permitted_names("goal"),
+                permitted_tools=permitted,
             ),
             source_event_id=f"goal:{goal_id}",
             turn_id=turn_id,

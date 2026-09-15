@@ -151,7 +151,7 @@ class ToolBatchExecutor:
             if (
                 not call.argument_error
                 and call.name in allowed_tool_names
-                and call.name != "end_turn"
+                and source != "mcp"
             ):
                 spec = next(
                     (item for item in request.request_tools if item.get("name") == call.name),

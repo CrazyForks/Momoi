@@ -17,7 +17,6 @@ from momoi.channel.napcat import NapCatConfig
 from momoi.config.models import AppConfig, EpisodeAnnealingConfig, HeartbeatConfig, NotificationConfig
 from momoi.integrations.models import LLMConfig
 from momoi.runtime import (
-    END_TURN_TOOL_SPEC,
     MomoiDaemon,
 )
 from momoi.runtime.jobs import AutonomousJob
@@ -1421,10 +1420,10 @@ class DaemonAsyncTest(unittest.IsolatedAsyncioTestCase):
                     tools: list[dict[str, object]],
                     **___: object,
                 ) -> ProviderResponse:
-                    # Every heartbeat round keeps the shared schema, including
-                    # retries and configured interval limits, for prefix caching.
+                    # Every heartbeat round exposes the same stage-specific schema.
                     terminal = next(tool for tool in tools if tool["name"] == "end_turn")
-                    if terminal != END_TURN_TOOL_SPEC:
+                    from momoi.runtime.tool_contracts.conversation import end_turn_tool_spec
+                    if terminal != end_turn_tool_spec("heartbeat"):
                         raise AssertionError("Heartbeat changed the shared end_turn schema")
                     self.calls += 1
                     names = {str(tool["name"]) for tool in tools}

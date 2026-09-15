@@ -150,8 +150,8 @@ class GoalNativeTranscriptTest(unittest.IsolatedAsyncioTestCase):
             await daemon._complete_goal_turn(goal_id, asyncio.Event())
 
             end_turn = next(tool for tool in provider.first_tools if tool["name"] == "end_turn")
-            from momoi.runtime.tool_contracts.conversation import END_TURN_TOOL_SPEC
-            self.assertEqual(end_turn["input_schema"], END_TURN_TOOL_SPEC["input_schema"])
+            from momoi.runtime.tool_contracts.conversation import end_turn_tool_spec
+            self.assertEqual(end_turn["input_schema"], end_turn_tool_spec("goal")["input_schema"])
             rendered = str(provider.first_messages)
             self.assertNotIn("<workflow_contract>", str(provider.first_system))
             self.assertIn("<workflow_contract>", rendered)

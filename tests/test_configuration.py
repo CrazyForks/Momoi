@@ -439,7 +439,7 @@ class ConfigurationTest(unittest.TestCase):
             all_rows = invoke("list", include_closed=True)
             self.assertIn(goal_id, all_rows[0])
 
-    def test_goal_create_ignores_empty_unused_timestamp(self) -> None:
+    def test_goal_create_rejects_empty_unused_timestamp(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             store = Store(Path(directory) / "momoi.sqlite3")
             result = AgendaTools(store).execute(
@@ -460,7 +460,8 @@ class ConfigurationTest(unittest.TestCase):
                 TurnDraft(),
                 source_event_id="test",
             )
-            self.assertTrue(result["ok"], result)
+            self.assertFalse(result["ok"], result)
+            self.assertIn("next_review_at", result["invalid_fields"])
             store.close()
 
     def test_loads_generic_mcp_json_and_skips_disabled_servers(self) -> None:

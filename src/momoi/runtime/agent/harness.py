@@ -141,12 +141,15 @@ class TurnHarness:
             terminal == "end_turn" and names[-1:] == [terminal]
             and all(name in {"send_bubbles", "send_voice"} for name in names[:-1])
         )
-        if self.spec.terminal_alone and terminal in names and not send_and_end and (len(names) != 1 or names[0] != terminal):
+        review_and_end = self.spec.stage == "goal" and names == ["goal_review", "end_turn"]
+        if self.spec.terminal_alone and terminal in names and not review_and_end and not send_and_end and (len(names) != 1 or names[0] != terminal):
             return f"{terminal}_must_be_alone"
         if "end_turn" in names and has_assistant_text and "send_bubbles" not in names:
             return "send_bubbles_required_before_end_turn"
         if terminal in names:
             missing = self.spec.required_before_end - self.completed_tools
+            if review_and_end:
+                missing = missing - {"goal_review"}
             if missing:
                 return f"{sorted(missing)[0]}_required_before_end_turn"
         permitted = (

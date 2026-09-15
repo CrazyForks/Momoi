@@ -383,7 +383,8 @@ def test_invalid_ttl_is_repaired_without_partial_changes(daemon):
         nonlocal count
         count += 1
         if count == 2:
-            assert "invalid_ttl" in str(messages[-1])
+            assert "ttl_seconds" in str(messages[-1])
+            assert "invalid_tool_arguments" in str(messages[-1])
             assert daemon.store.current_state.snapshot().revision == 0
         return finish(
             {

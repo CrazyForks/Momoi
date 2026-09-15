@@ -40,6 +40,12 @@ class AgendaTools:
         *,
         source_event_id: str,
     ) -> dict[str, Any]:
+        spec = next((spec for spec in AGENDA_TOOL_SPECS if spec["name"] == call.name), None)
+        if spec:
+            arguments, error = validate_tool_arguments(call.name, call.arguments, spec["input_schema"])
+            if error:
+                return error
+            call = ToolCall(call.id, call.name, arguments, call.argument_error)
         try:
             if call.name == "goal_create":
                 return self._create(call.arguments, draft, source_event_id)
@@ -121,9 +127,11 @@ class AgendaTools:
             raise ValueError("closed goal cannot be updated")
         status = str(arguments.get("status") or "")
         goal["status"] = status
-        for field in ("next_action", "waiting_for", "blocked_reason", "latest_result"):
+        for field in ("next_action", "waiting_for", "blocked_reason"):
             if field in arguments:
                 goal[field] = str(arguments[field] or "")[:2000]
+        if "result" in arguments:
+            goal["latest_result"] = arguments["result"]
         clear_schedule = arguments.get("clear_schedule", False)
         if clear_schedule:
             goal["schedule"] = None
@@ -189,10 +197,6 @@ class AgendaTools:
             if self._current(goal_id, draft)["status"] in {"done", "cancelled"}:
                 raise ValueError("current goal is already closed")
             if status in {"done", "cancelled"}:
-                if set(decision) != {"status", "result"}:
-                    raise ValueError(
-                        "closed goal outcome accepts only status and result"
-                    )
                 return self._close(
                     "goal_finish" if status == "done" else "goal_cancel",
                     {
@@ -201,19 +205,10 @@ class AgendaTools:
                     },
                     draft,
                 )
-            required = {
-                "active": "next_action",
-                "waiting": "waiting_for",
-                "blocked": "blocked_reason",
-            }[status]
-            if not str(decision.get(required) or "").strip():
-                raise ValueError(f"goal.{required} is required for {status}")
-            if status == "blocked" and "next_review_at" in decision:
-                raise ValueError("blocked goal cannot schedule a review")
             arguments = {
                 key: value for key, value in decision.items() if key != "result"
             }
-            arguments.update(goal_id=goal_id, latest_result=result)
+            arguments.update(goal_id=goal_id, result=result)
             return self._update(arguments, draft)
         except (TypeError, ValueError) as error:
             return {"ok": False, "error": "invalid_goal_outcome", "message": str(error)}

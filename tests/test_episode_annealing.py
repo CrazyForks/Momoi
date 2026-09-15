@@ -697,7 +697,7 @@ class EpisodeAnnealingTest(unittest.IsolatedAsyncioTestCase):
                                 "assistant": "",
                                 "tone": "",
                             },
-                            "outcomes": [],
+                            "outcomes": [], "recall_cues": [],
                         },
                     )
 
@@ -862,8 +862,8 @@ class EpisodeAnnealingTest(unittest.IsolatedAsyncioTestCase):
                             }
                         ],
                         "narrative_summary": "",
-                        "emotional_context": {},
-                        "outcomes": [],
+                        "emotional_context": {"owner": "", "assistant": "", "tone": ""},
+                        "outcomes": [], "recall_cues": [],
                     }
                     return workflow_response(
                         "episode_summary_finish",
@@ -1118,7 +1118,7 @@ class EpisodeAnnealingTest(unittest.IsolatedAsyncioTestCase):
                                 "assistant": "",
                                 "tone": "",
                             },
-                            "outcomes": [],
+                            "outcomes": [], "recall_cues": [],
                         },
                     )
 

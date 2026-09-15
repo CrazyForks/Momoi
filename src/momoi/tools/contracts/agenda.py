@@ -104,7 +104,7 @@ AGENDA_TOOL_SPECS: list[dict[str, Any]] = [
                     "type": "string",
                     "description": "Obstacle preventing progress; blocked Goals need one.",
                 },
-                "latest_result": {
+                "result": {
                     "type": "string",
                     "description": (
                         "Concrete checks, actions, and verified outcome. "
@@ -175,7 +175,7 @@ GOAL_REVIEW_SCHEMA: dict[str, Any] = {
         **{
             key: value
             for key, value in AGENDA_TOOL_SPECS[1]["input_schema"]["properties"].items()
-            if key not in {"goal_id", "status", "latest_result"}
+            if key not in {"goal_id", "status", "result"}
         },
         "next_review_at": {
             **_REVIEW_TIME_SCHEMA,
@@ -214,6 +214,8 @@ GOAL_REVIEW_SCHEMA: dict[str, Any] = {
             "next_review_at": "2026-09-16T09:00:00+08:00",
         },
         {"status": "done", "result": "目标已完成并验证结果。"},
+        {"status": "blocked", "result": "无法连接服务。", "blocked_reason": "等待恢复访问权限。"},
+        {"status": "cancelled", "result": "用户取消此任务。"},
     ],
     "oneOf": [
         {

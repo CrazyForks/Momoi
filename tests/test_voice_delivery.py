@@ -250,9 +250,9 @@ class VoiceDeliveryTest(unittest.IsolatedAsyncioTestCase):
                     daemon.prepare_heartbeat_context = AsyncMock(return_value={"context": recalled, "memory_snapshots": {}})
                     calls = []
                     if stage == "owner":
-                        calls.append(ToolCall("recall", "recall", {}))
+                        calls.append(ToolCall("recall", "recall", {"units": [{"intent": "Respond to owner", "recall_mode": "skip", "recall_queries": [], "recall_from_turn_id": "", "episode": {"action": "none"}}]}))
                     elif stage == "heartbeat":
-                        calls.append(ToolCall("begin", "heartbeat_begin", {"tool_groups": []}))
+                        calls.append(ToolCall("begin", "heartbeat_begin", {"activity": "resting", "mode": "rest", "recall_mode": "skip", "recall_queries": [], "tool_groups": [], "strategy": []}))
                         calls.append(ToolCall("activity", "heartbeat_activity", {"activity": "resting", "result": "", "next_check_minutes": 30, "reason": "rest"}))
                     calls.append(ToolCall("voice", "send_voice", {"text": self.text}))
                     end = {"reply_wait": {"wait": False}, "mood": {"decision": "unchanged"}}
@@ -269,7 +269,7 @@ class VoiceDeliveryTest(unittest.IsolatedAsyncioTestCase):
                         call = calls.pop(0)
                         if call.name == "end_turn":
                             sent = json.loads(_messages[-1]["content"][0]["content"])
-                            self.assertTrue(sent["ok"])
+                            self.assertTrue(sent["ok"], str(sent))
                             self.assertEqual(sent["state"], "staged" if stage == "goal" else "committed")
                             self.assertEqual(daemon.store.due_outbox()[0].kind, "voice")
                             self.assertTrue(daemon.outbox_changed.is_set())

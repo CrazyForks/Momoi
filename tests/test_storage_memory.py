@@ -2268,7 +2268,7 @@ class StorageMemoryTest(unittest.TestCase):
                         "goal_id": goal_id,
                         "status": "waiting",
                         "waiting_for": "下一次检查时间",
-                        "latest_result": "本次检查正常",
+                        "result": "本次检查正常",
                         "next_review_at": (
                             datetime.now(ZoneInfo("UTC")) + timedelta(hours=1)
                         ).isoformat(),
@@ -3228,7 +3228,7 @@ class StorageMemoryTest(unittest.TestCase):
                     {
                         "goal_id": goal_id,
                         "status": "active",
-                        "latest_result": "本次检查正常",
+                        "result": "本次检查正常",
                     },
                 ),
                 occurrence_draft,

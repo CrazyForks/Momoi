@@ -98,7 +98,7 @@ def due_goal_lines(
     for tag, field in (
         ("next_action", "next_action"),
         ("waiting_for", "waiting_for"),
-        ("latest_result", "latest_result"),
+        ("result", "latest_result"),
     ):
         if goal.get(field) not in (None, ""):
             SubElement(record, tag).text = str(goal[field])

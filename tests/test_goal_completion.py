@@ -48,7 +48,7 @@ class GoalBoundaryTest(unittest.TestCase):
             GOAL_REVIEW_SCHEMA,
         )
         self.assertEqual(error["unexpected_fields"], ["goal_id"])
-        self.assertEqual(error["missing_fields"], ["result"])
+        self.assertEqual(error["missing_fields"], ["next_action", "result"])
 
         _, error = validate_tool_arguments(
             "goal_review",
@@ -138,7 +138,7 @@ class GoalBoundaryTest(unittest.TestCase):
             harness.validate([end]), "goal_review_required_before_end_turn"
         )
         self.assertIsNone(harness.validate([review]))
-        self.assertEqual(harness.validate([review, end]), "end_turn_must_be_alone")
+        self.assertIsNone(harness.validate([review, end]))
         harness.accept("goal_review")
         self.assertIsNone(harness.validate([end]))
         for args in ({"goal": {}}, {"mood": {}}, {"reply_wait": {"wait": False}}):
@@ -210,6 +210,49 @@ class GoalCompletionTest(unittest.IsolatedAsyncioTestCase):
             config=SimpleNamespace(api_format="anthropic"), complete=complete
         )
         return remaining, seen
+
+    async def test_review_and_end_share_batch_but_failed_review_cannot_commit(self):
+        rounds = 0
+
+        async def complete(system, messages, tools, **kwargs):
+            nonlocal rounds
+            rounds += 1
+            if rounds == 2:
+                results = [json.loads(block["content"]) for block in messages[-1]["content"]]
+                self.assertTrue(all(not result["ok"] for result in results))
+                self.assertEqual(self.daemon.store.goal(self.goal_id)["status"], "active")
+            self.assertLessEqual(rounds, 2)
+            calls = [
+                ToolCall(f"review-{rounds}", "goal_review", {"status": "done", "result": "" if rounds == 1 else "verified"}),
+                ToolCall(f"end-{rounds}", "end_turn", {}),
+            ]
+            return ProviderResponse([
+                {"type": "tool_use", "id": call.id, "name": call.name, "input": call.arguments}
+                for call in calls
+            ], calls)
+
+        self.daemon.provider = SimpleNamespace(complete=complete)
+        await self.daemon._complete_goal_turn(self.goal_id, asyncio.Event())
+        self.assertEqual(rounds, 2)
+        self.assertEqual(self.daemon.store.goal(self.goal_id)["status"], "done")
+
+    async def test_retry_after_committed_delivery_cannot_send_again(self):
+        def fail_after_delivery(index, messages):
+            if index == 1:
+                raise RuntimeError("provider unavailable")
+
+        self.provider([ToolCall("notice", "send_bubbles", {"bubbles": ["once"]})], fail_after_delivery)
+        await self.daemon._complete_goal_turn(self.goal_id, asyncio.Event())
+        self.assertEqual(len(self.daemon.store.due_outbox()), 1)
+        remaining, _ = self.provider([
+            ToolCall("duplicate", "send_bubbles", {"bubbles": ["twice"]}),
+            ToolCall("review", "goal_review", {"status": "done", "result": "Delivery already committed"}),
+            ToolCall("end", "end_turn", {}),
+        ])
+        await self.daemon._complete_goal_turn(self.goal_id, asyncio.Event())
+        self.assertEqual(remaining, [])
+        self.assertEqual([row.text for row in self.daemon.store.due_outbox()], ["once"])
+        self.assertEqual(self.daemon.store.goal(self.goal_id)["status"], "done")
 
     async def test_all_outcomes_stage_then_commit_goal_turn(self):
         outcomes = [
@@ -449,7 +492,7 @@ class GoalCompletionTest(unittest.IsolatedAsyncioTestCase):
             if index == 2:
                 error = json.loads(messages[-1]["content"][0]["content"])
                 self.assertFalse(error["ok"])
-                self.assertEqual(error["error"], "invalid_goal_outcome")
+                self.assertEqual(error["error"], "invalid_tool_arguments")
             if index == 3:
                 self.assertEqual(
                     self.daemon.store.due_outbox()[0].text, "下载目录也清理完了"
@@ -576,7 +619,7 @@ class GoalCompletionTest(unittest.IsolatedAsyncioTestCase):
 
         def inspect(index, messages):
             if index == 1:
-                self.assertIn("unexpected_end_turn_fields", str(messages[-1]))
+                self.assertIn("invalid_tool_arguments", str(messages[-1]))
                 self.assertEqual(self.daemon.store.goal(self.goal_id), original)
 
         remaining, seen = self.provider(
