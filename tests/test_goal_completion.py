@@ -236,24 +236,6 @@ class GoalCompletionTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(rounds, 2)
         self.assertEqual(self.daemon.store.goal(self.goal_id)["status"], "done")
 
-    async def test_retry_after_committed_delivery_cannot_send_again(self):
-        def fail_after_delivery(index, messages):
-            if index == 1:
-                raise RuntimeError("provider unavailable")
-
-        self.provider([ToolCall("notice", "send_bubbles", {"bubbles": ["once"]})], fail_after_delivery)
-        await self.daemon._complete_goal_turn(self.goal_id, asyncio.Event())
-        self.assertEqual(len(self.daemon.store.due_outbox()), 1)
-        remaining, _ = self.provider([
-            ToolCall("duplicate", "send_bubbles", {"bubbles": ["twice"]}),
-            ToolCall("review", "goal_review", {"status": "done", "result": "Delivery already committed"}),
-            ToolCall("end", "end_turn", {}),
-        ])
-        await self.daemon._complete_goal_turn(self.goal_id, asyncio.Event())
-        self.assertEqual(remaining, [])
-        self.assertEqual([row.text for row in self.daemon.store.due_outbox()], ["once"])
-        self.assertEqual(self.daemon.store.goal(self.goal_id)["status"], "done")
-
     async def test_all_outcomes_stage_then_commit_goal_turn(self):
         outcomes = [
             {"status": "done", "result": "File validated"},

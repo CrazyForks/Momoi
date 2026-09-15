@@ -126,11 +126,6 @@ class TurnStore:
                 (time.time(), turn_id),
             )
 
-    def turn_has_committed_delivery(self, turn_id: str) -> bool:
-        return self._db.execute(
-            "SELECT 1 FROM outbox WHERE turn_id=? LIMIT 1", (turn_id,)
-        ).fetchone() is not None
-
     def turn_has_external_effect(self, turn_id: str) -> bool:
         row = self._db.execute(
             "SELECT external_effect_started FROM turns WHERE id=?", (turn_id,)
