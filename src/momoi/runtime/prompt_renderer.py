@@ -7,6 +7,7 @@ from ..mcp.prompt import MCP_TOOL_POLICY
 from ..storage.delivery.emotions import EMOTION_REACTION_POLICY
 from ..tools.contracts.memory import MEMORY_TOOL_POLICY
 from ..tools.contracts.thinking import THINKING_TOOL_POLICY
+from ..tools.contracts.images import IMAGE_TOOL_POLICY
 from .turn_support import (
     AGENDA_POLICY_TOOLS,
     HEARTBEAT_PROMPT_PATH,
@@ -123,6 +124,8 @@ class PromptRenderer:
             policies.append(AGENDA_TOOL_POLICY.strip())
         if names & MEMORY_POLICY_TOOLS:
             policies.append(MEMORY_TOOL_POLICY.strip())
+        if "read_image" in names:
+            policies.append(IMAGE_TOOL_POLICY.strip())
         if names & THINKING_POLICY_TOOLS:
             policies.append(THINKING_TOOL_POLICY.strip())
         mcp_names = {str(tool.get("name") or "") for tool in self.mcp.tool_specs}

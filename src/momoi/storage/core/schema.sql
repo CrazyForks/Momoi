@@ -727,3 +727,14 @@ AFTER UPDATE OF state ON turns WHEN NEW.state='cancelled'
 BEGIN
     DELETE FROM current_state_tasks WHERE source_turn_id=NEW.id;
 END;
+
+-- Original visual input is deduplicated; summaries are internal observations.
+CREATE TABLE IF NOT EXISTS visual_images (
+    id TEXT PRIMARY KEY,
+    media_type TEXT NOT NULL,
+    data BLOB NOT NULL
+);
+CREATE TABLE IF NOT EXISTS visual_image_summaries (
+    image_id TEXT PRIMARY KEY REFERENCES visual_images(id),
+    summary TEXT NOT NULL
+);

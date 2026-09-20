@@ -31,6 +31,7 @@ from .agenda.crontabs import GoalStore
 from .delivery.emotions import EmotionStore
 from .conversation.turns import TurnStore
 from .conversation.inbox import InboxStore
+from .conversation.images import ImageStore
 from .agenda.heartbeat_commits import HeartbeatCommitStore
 from .agenda.heartbeat_schedule import HeartbeatScheduleStore
 from .agenda.heartbeat_state import HeartbeatStateStore
@@ -63,6 +64,7 @@ from .core.lifecycle import LifecycleStore
 from .agenda.plans import PlanStore
 
 class Store(
+    ImageStore,
     PlanStore,
     CurrentStateTaskStore,
     LifecycleStore,

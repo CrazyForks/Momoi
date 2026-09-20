@@ -560,6 +560,8 @@ class WeixinChannel:
                 continue
             if segment.get("type") != "image" or not isinstance(data, dict):
                 continue
+            if data.get("_image_id"):
+                blocks.append({"type": "text", "text": f"[Image attachment id={data['_image_id']}]"})
             source = data.get("file")
             if not isinstance(source, str):
                 continue

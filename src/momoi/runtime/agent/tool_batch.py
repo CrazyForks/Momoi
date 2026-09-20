@@ -126,6 +126,7 @@ class ToolBatchExecutor:
             assistant_history_message(request.response.content, request.response.continuation)
         )
         results: list[dict[str, Any]] = []
+        image_blocks: list[dict[str, Any]] = []
         owner_updates: list[IncomingMessage] = []
         allowed_tool_names = {str(spec["name"]) for spec in request.request_tools}
 
@@ -263,6 +264,18 @@ class ToolBatchExecutor:
                     request.draft.memory_context.update(self.store.memory_snapshots(
                         [item["id"] for item in recalled if isinstance(item.get("id"), int)]
                     ))
+            elif call.name == "end_turn" and (
+                missing_images := self.store.missing_image_summaries(request.current_events)
+            ):
+                result = {
+                    "ok": False,
+                    "error": "image_summary_required",
+                    "image_ids": missing_images,
+                    "message": (
+                        "Privately call save_image_summary for these images before "
+                        "end_turn. Do not resend delivered messages."
+                    ),
+                }
             elif call.name == "end_turn":
                 fields = dict(
                     stage=execution.stage, turn_id=request.turn_id,
@@ -410,6 +423,23 @@ class ToolBatchExecutor:
                 result = await self.memory_tools.execute_async(
                     call, request.current_events, request.draft
                 )
+            elif source == "image" and call.name == "save_image_summary":
+                result = self.store.save_image_summary(
+                    str(call.arguments.get("image_id") or ""), call.arguments.get("summary")
+                )
+            elif source == "image":
+                identifier = str(call.arguments.get("image_id") or "")
+                image = self.store.read_image(identifier)
+                result = {"ok": image is not None, "image_id": identifier}
+                if image is None:
+                    result["error"] = "image_not_found"
+                else:
+                    # Keep binary input outside JSON results, result storage and logs.
+                    # Both providers accept image blocks in this user-role message.
+                    image_blocks.extend([
+                        {"type": "text", "text": f"[read_image attachment id={identifier}]"},
+                        image,
+                    ])
             elif source == "thinking":
                 result = self.thinking_tools.execute(call)
             else:
@@ -447,7 +477,7 @@ class ToolBatchExecutor:
                     )
                     break
 
-        request.messages.append({"role": "user", "content": results})
+        request.messages.append({"role": "user", "content": [*results, *image_blocks]})
         return ToolBatchResult(
             results=results,
             owner_updates=owner_updates,

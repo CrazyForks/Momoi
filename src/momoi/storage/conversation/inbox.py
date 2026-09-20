@@ -20,6 +20,7 @@ class InboxStore:
     def add_event(self, message: IncomingMessage) -> bool:
         payload = {"channel": message.channel, "segments": message.segments}
         with self._db:
+            self.register_images(message.segments, channel=message.channel)
             cursor = self._db.execute(
                 """INSERT OR IGNORE INTO events
                    (id, message_id, kind, content, occurred_at, received_at, payload_json)
