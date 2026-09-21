@@ -11,10 +11,10 @@ from ...observability.events import log_event
 from ...storage.memory.current_state import StateConflict
 from ..agent import AgentWorkflow
 from ..context.current_state import pack_current_turn_context
+from ..tool_contracts.current_state import current_state_finish_spec
 from ..transcript.maintenance import maintenance_transcript
 from ..transcript.rendering import render_pending_turns
 from ..turn_support import PROMPT_ROOT, live_prompt, context_data_message
-
 
 logger = logging.getLogger(__name__)
 PROMPT_PATH = PROMPT_ROOT.joinpath("current_state.md")
@@ -102,16 +102,35 @@ class CurrentStateWorkflow:
         latest = pack_current_turn_context(
             self.store,
             tasks[-1]["source_stage"],
-            ("self_state", f"Current local time: {self.store.context_timestamp(time())}"),
+            (
+                "self_state",
+                f"Current local time: {self.store.context_timestamp(time())}",
+            ),
             ("state_update_contract", live_prompt(PROMPT_PATH, "")),
             include_empty=True,
+            maintenance=True,
         )
-        rows = {row["id"]: row for row in self._recent_conversation_rows()}
-        rows.update({row["id"]: row for row in
-                     self.store.conversation_messages_for_turns(source_turn_ids)})
+        recent = self._recent_conversation_rows()
+        # Resolve provenance against original records, never request-only annotations
+        # such as generated image summaries.
+        rows = {
+            row["id"]: row
+            for row in self.store.conversation_messages_for_turns(
+                list(dict.fromkeys(str(row["turn_id"]) for row in recent))
+            )
+        }
+        rows.update(
+            {
+                row["id"]: row
+                for row in self.store.conversation_messages_for_turns(source_turn_ids)
+            }
+        )
         messages, turn_labels = maintenance_transcript(
-            self.store, list(rows.values()), source_turn_ids,
+            self.store,
+            list(rows.values()),
+            source_turn_ids,
         )
+        evidence_rows = state_evidence_rows(self.store, rows.values())
         injected = self.store.injected_memory_snapshots()
         events = self._source_turn_owner_events(source_turn_ids)
         # Snapshot the transcript before the tool loop mutates the live list;
@@ -131,17 +150,25 @@ class CurrentStateWorkflow:
         if tools is None:
             tools = self.tool_surface.conversation_specs()
 
+        # Upgrade queued snapshots too: older tool contracts cannot submit evidence.
+        tools = [
+            (
+                current_state_finish_spec()
+                if spec["name"] == "current_state_finish"
+                else spec
+            )
+            for spec in tools
+        ]
+
         async def execute_tool(call):
             nonlocal complete
-            if not self.store.current_state_batch_is_current(
-                source_turn_ids, turn_id
-            ):
+            if not self.store.current_state_batch_is_current(source_turn_ids, turn_id):
                 raise StateConflict("source_turn_no_longer_current")
             if call.name == "memory_operation":
                 return self.memory_tools.execute(call, events, draft)
             try:
                 self.store.current_state.apply_arguments(
-                    call.arguments,
+                    resolve_state_evidence(call.arguments, evidence_rows, turn_labels),
                     source_turn_id=source_turn_id,
                     operation_id=f"current-state:{turn_id}",
                     expected_revision=snapshot.revision,
@@ -170,3 +197,62 @@ class CurrentStateWorkflow:
         )
         if not complete:
             raise RuntimeError("state_maintenance_incomplete")
+
+
+def resolve_state_evidence(arguments, rows, labels):
+    """Resolve exact quotes against supplied records, never model-provided clocks."""
+    resolved = copy.deepcopy(arguments)
+    by_label = {label: turn_id for turn_id, label in labels.items()}
+    for item in resolved.get("add", []):
+        label = item.pop("source_turn", "")
+        quote = item.pop("source", "")
+        turn_id = by_label.get(label)
+        matches = [
+            row
+            for row in rows
+            if row.get("turn_id") == turn_id
+            and row.get("role") in {"user", "assistant", "event"}
+            and isinstance(quote, str)
+            and quote.strip()
+            and quote in str(row.get("content") or "")
+        ]
+        if len(matches) != 1:
+            raise ValueError("source_quote_must_match_one_message_in_source_turn")
+        row = matches[0]
+        # A spoken assistant claim is not evidence about somebody else's state.
+        if row["role"] == "assistant" and item.get("status") == "observed":
+            raise ValueError("assistant_source_requires_inferred_status")
+        item.update(
+            evidence_turn_id=turn_id,
+            source_quote=quote,
+            source_role=row["role"],
+            observed_at=float(row["created_at"]),
+        )
+    return resolved
+
+
+def state_evidence_rows(store, rows):
+    """A batched user bubble's timestamp is not each source event's timestamp."""
+    result = []
+    for row in rows:
+        if row.get("role") != "user":
+            result.append(row)
+            continue
+        record = store._db.execute(
+            "SELECT source_event_ids_json FROM messages WHERE id=?", (row["id"],)
+        ).fetchone()
+        events = []
+        for event_id in json.loads(record[0] or "[]") if record else []:
+            event = store._db.execute(
+                "SELECT content,received_at FROM events WHERE id=?", (event_id,)
+            ).fetchone()
+            if event is not None:
+                events.append(
+                    {
+                        **row,
+                        "content": event["content"],
+                        "created_at": event["received_at"],
+                    }
+                )
+        result.extend(events or [row])
+    return result

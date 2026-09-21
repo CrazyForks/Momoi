@@ -4,7 +4,7 @@ from xml.etree import ElementTree
 import pytest
 
 from momoi.storage import Store
-from momoi.storage.core.migrations import SCHEMA_VERSION
+from momoi.storage.core.migrations import MIGRATIONS, _add_turn_parent
 from momoi.runtime.turn_support import pack_user_context
 
 
@@ -14,7 +14,7 @@ def test_old_database_upgrades_before_parent_index(tmp_path):
     store.begin_turn("owner", "owner", [])
     store._db.execute("DROP INDEX turns_parent")
     store._db.execute("ALTER TABLE turns DROP COLUMN parent_turn_id")
-    store._db.execute(f"PRAGMA user_version={SCHEMA_VERSION - 1}")
+    store._db.execute(f"PRAGMA user_version={MIGRATIONS.index(_add_turn_parent)}")
     store._db.commit()
     store.close()
     store = Store(path)

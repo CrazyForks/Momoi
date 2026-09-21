@@ -12,7 +12,9 @@ Examples:
 * "Off work today" — overrides default work schedule. Ends at midnight.
 * Anti-example: person jokingly calls you a nickname, teases you. Forgetting it breaks nothing — belongs to mood tracking, not state. Do not add.
 
-Each slot = one concise current fact only. No dialogue, source, timestamps, narrative, or backstory. Normalize "At 8am they said they took a taxi" → "Today's commute mode: taxi."
+Each value is one concise state; keep evidence separate. Submit status=observed only for what the source directly states; deductions require status=inferred and a nonempty uncertainty. Supply source_turn using its T-N transcript label and source as an exact quote from one message. Runtime validates the quote and derives its speaker and time. Never invent evidence or timestamps. Assistant suggestions are not owner promises. A recorded inventory issue does not establish whether a meal is still cooking or already eaten. Lack of a follow-up message does not keep a short activity ongoing.
+
+Existing states expose source time, speaker and uncertainty. Read these before relying on a state. Old unverified states are marked inferred; do not upgrade them to observed without direct evidence. Preserve original evidence time when rephrasing. Expiry controls retention, not certainty. Maintenance-only IDs identify slots for deletion; no owner message is sent.
 
 Every pass: review and normalize all slots. Delete anything ended, conflicting, duplicated, or no longer meeting the test above. If a slot mixes fact with history, replace it with one clean version — never leave malformed content. Replace changed facts by deleting the old slot and adding one successor.
 

@@ -10,7 +10,6 @@ from ...storage.memory.current_state_contract import (
 )
 from ..turn_support import pack_user_context
 
-
 CURRENT_STATE_STAGES = CURRENT_STATE_SOURCE_STAGES
 
 
@@ -19,6 +18,7 @@ def pack_current_turn_context(
     stage: str,
     *items: tuple[str, str],
     include_empty: bool = False,
+    maintenance: bool = False,
 ) -> str:
     if stage not in CURRENT_STATE_STAGES:
         raise ValueError(f"current state is not available in {stage}")
@@ -26,15 +26,32 @@ def pack_current_turn_context(
     slots = []
     for slot in snapshot.slots:
         attributes = {
-            "id": slot.id,
-            "subject": slot.subject,
-            "key": slot.key,
-            "expires_at": store.context_timestamp(slot.expires_at),
+            "key": f"{slot.subject}.{slot.key}",
+            "status": slot.status,
+            "observed_at": (
+                store.context_timestamp(slot.observed_at)
+                if slot.observed_at
+                else "unknown"
+            ),
         }
+        if slot.evidence_turn_id:
+            attributes["source_turn"] = slot.evidence_turn_id
+        if maintenance:
+            attributes.update(
+                id=slot.id,
+                subject=slot.subject,
+                expires_at=store.context_timestamp(slot.expires_at),
+            )
+            attributes["key"] = slot.key
         rendered = "".join(
             f" {key}={quoteattr(value)}" for key, value in attributes.items()
         )
-        slots.append(f"<slot{rendered}>{escape(slot.value)}</slot>")
+        body = f"<value>{escape(slot.value)}</value>"
+        if slot.source_quote:
+            body += f"<source role={quoteattr(slot.source_role)}>{escape(slot.source_quote)}</source>"
+        if slot.uncertainty:
+            body += f"<uncertainty>{escape(slot.uncertainty)}</uncertainty>"
+        slots.append(f"<state{rendered}>{body}</state>")
     if len(slots) > SLOT_SOFT_WARNING_THRESHOLD:
         slots.append(
             f"<capacity used={quoteattr(str(len(slots)))} "

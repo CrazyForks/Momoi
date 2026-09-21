@@ -121,16 +121,15 @@ def test_real_workflows_inject_only_current_input_and_preserve_history(daemon, s
     text = "".join(block.get("text", "") for block in messages[-1]["content"])
     assert text.startswith("<current_state>")
     root = ElementTree.fromstring("<input>" + text + "</input>")
-    entries = root.findall("current_state/slot")
+    entries = root.findall("current_state/state")
     assert len(entries) == 1
     assert entries[0].attrib == {
-        "id": slot.id,
-        "subject": slot.subject,
-        "key": slot.key,
-        "expires_at": daemon.store.context_timestamp(slot.expires_at),
+        "key": f"{slot.subject}.{slot.key}",
+        "status": "inferred",
+        "observed_at": "unknown",
     }
-    assert entries[0].text == slot.value
-    assert list(entries[0]) == []
+    assert entries[0].findtext("value") == slot.value
+    assert entries[0].findtext("uncertainty") == "Legacy state: source not verified."
     assert "EXPIRED_STATE" not in text
     assert "private-source-turn" not in text
     assert [

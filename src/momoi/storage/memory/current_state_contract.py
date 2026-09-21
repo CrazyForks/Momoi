@@ -73,6 +73,22 @@ CURRENT_STATE_CHANGE_SCHEMA = {
                         "pattern": r"\S",
                         "description": "A concise current fact supported by the supplied evidence, preserving attribution and uncertainty.",
                     },
+                    "status": {
+                        "type": "string", "enum": ["observed", "inferred"],
+                        "description": "Observed means directly stated by the source, not independently proven. Mark deductions inferred.",
+                    },
+                    "source_turn": {
+                        "type": "string", "minLength": 1,
+                        "description": "Exact T-N label of the evidence Turn in this transcript.",
+                    },
+                    "source": {
+                        "type": "string", "minLength": 1, "maxLength": 512,
+                        "description": "Exact contiguous quote from one source message. Never attribute assistant words to the owner. Runtime resolves speaker and evidence time.",
+                    },
+                    "uncertainty": {
+                        "type": "string", "maxLength": 512,
+                        "description": "What remains unconfirmed; required nonempty for inferred states, otherwise may be empty.",
+                    },
                     "ttl_seconds": {
                         "type": "integer",
                         "minimum": 1,
@@ -86,7 +102,7 @@ CURRENT_STATE_CHANGE_SCHEMA = {
                         ),
                     },
                 },
-                "required": ["subject", "key", "value", "ttl_seconds"],
+                "required": ["subject", "key", "value", "ttl_seconds", "status", "source_turn", "source", "uncertainty"],
                 "additionalProperties": False,
             },
         },

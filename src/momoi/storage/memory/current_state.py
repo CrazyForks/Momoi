@@ -37,6 +37,12 @@ class SlotInput:
     key: str
     value: str
     ttl_seconds: int
+    status: str = "inferred"
+    observed_at: float = 0.0
+    evidence_turn_id: str = ""
+    source_quote: str = ""
+    source_role: str = ""
+    uncertainty: str = "Legacy state: source not verified."
 
 
 @dataclass(frozen=True)
@@ -48,6 +54,12 @@ class StateSlot:
     created_at: float
     expires_at: float
     source_turn_id: str
+    status: str = "inferred"
+    observed_at: float = 0.0
+    evidence_turn_id: str = ""
+    source_quote: str = ""
+    source_role: str = ""
+    uncertainty: str = "Legacy state: source not verified."
 
 
 @dataclass(frozen=True)
@@ -115,9 +127,9 @@ class CurrentStateManager:
         schema = copy.deepcopy(CURRENT_STATE_CHANGE_SCHEMA)
         schema["properties"]["add"]["maxItems"] = cls.MAX_SLOTS
         schema["properties"]["delete"]["maxItems"] = cls.MAX_SLOTS
-        schema["properties"]["add"]["items"]["properties"]["ttl_seconds"]["maximum"] = (
-            cls.MAX_TTL_SECONDS
-        )
+        schema["properties"]["add"]["items"]["properties"]["ttl_seconds"][
+            "maximum"
+        ] = cls.MAX_TTL_SECONDS
         return schema
 
     def apply_arguments(
@@ -128,16 +140,24 @@ class CurrentStateManager:
         operation_id: str,
         expected_revision: int,
     ) -> StateChange:
-        """Consume the schema's JSON shape, keeping runtime metadata caller-owned."""
+        """Consume normalized slots after the workflow resolves model citations.
+
+        Source role, timestamp and full turn ID are runtime-owned. Older internal
+        callers remain valid but produce explicitly unverified inferred states.
+        """
         if not isinstance(arguments, dict) or set(arguments) != {"add", "delete"}:
             raise ValueError("invalid_change_set")
         added, deleted = arguments["add"], arguments["delete"]
         if not isinstance(added, list) or not isinstance(deleted, list):
             raise ValueError("invalid_change_set")
-        fields = set(
-            CURRENT_STATE_CHANGE_SCHEMA["properties"]["add"]["items"]["required"]
-        )
-        if any(not isinstance(item, dict) or set(item) != fields for item in added):
+        required = {"subject", "key", "value", "ttl_seconds"}
+        fields = set(SlotInput.__dataclass_fields__)
+        if any(
+            not isinstance(item, dict)
+            or not required <= set(item)
+            or not set(item) <= fields
+            for item in added
+        ):
             raise ValueError("invalid_slot_input")
         return self.apply(
             add=[SlotInput(**item) for item in added],
@@ -208,7 +228,33 @@ class CurrentStateManager:
                 or not 1 <= item.ttl_seconds <= self.MAX_TTL_SECONDS
             ):
                 raise ValueError("invalid_ttl")
-            inputs.append(asdict(SlotInput(subject, key, value, item.ttl_seconds)))
+            if item.status not in {"observed", "inferred"}:
+                raise ValueError("invalid_state_status")
+            if (
+                type(item.observed_at) not in {int, float}
+                or not math.isfinite(item.observed_at)
+                or item.observed_at < 0
+                or item.observed_at > self._now()
+            ):
+                raise ValueError("invalid_observed_at")
+            for name, limit in (
+                ("source_quote", 512),
+                ("uncertainty", 512),
+                ("evidence_turn_id", 128),
+                ("source_role", 32),
+            ):
+                value_field = getattr(item, name)
+                if not isinstance(value_field, str) or len(value_field) > limit:
+                    raise ValueError(f"invalid_{name}")
+            if item.status == "observed" and not (
+                item.source_quote and item.evidence_turn_id and item.observed_at
+            ):
+                raise ValueError("observed_state_requires_evidence")
+            if item.status == "inferred" and not item.uncertainty.strip():
+                raise ValueError("inferred_state_requires_uncertainty")
+            inputs.append(
+                {**asdict(item), "subject": subject, "key": key, "value": value}
+            )
         ids = [_text(value, "slot_id", ID_MAX_LENGTH) for value in delete]
         if len(set(ids)) != len(ids):
             raise ValueError("duplicate_delete")
@@ -308,6 +354,12 @@ class CurrentStateManager:
                         now,
                         now + item["ttl_seconds"],
                         source,
+                        item["status"],
+                        item["observed_at"],
+                        item["evidence_turn_id"],
+                        item["source_quote"],
+                        item["source_role"],
+                        item["uncertainty"],
                     )
                     after[slot.id] = slot
             if len(after) > self.MAX_SLOTS:
@@ -322,7 +374,7 @@ class CurrentStateManager:
                 ((slot.id,) for slot in removed),
             )
             self._db.executemany(
-                "INSERT INTO current_state_slots VALUES (?,?,?,?,?,?,?)",
+                "INSERT INTO current_state_slots VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
                 (tuple(asdict(slot).values()) for slot in added),
             )
             self._db.execute(
