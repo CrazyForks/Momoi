@@ -172,7 +172,7 @@ MEMORY_TOOL_SPECS: list[dict[str, Any]] = [
             "properties": {
                 "type": {
                     "type": "string", "enum": ["add", "replace", "forget"],
-                    "description": "add for a new fact; replace for correction; forget for deletion or explicit disproof.",
+                    "description": "Operation, not memory category. add creates; replace updates or corrects an existing fact; forget deletes an ended, disproved, or explicitly unwanted fact. For current_state, replace atomically replaces the existing subject/key value and TTL; no separate forget is needed.",
                 },
                 "content": {
                     "type": "string",
@@ -187,18 +187,18 @@ MEMORY_TOOL_SPECS: list[dict[str, Any]] = [
                     "description": "Exact contiguous quote from a current authenticated owner message.",
                 },
                 "scope": {"type": "string", "enum": ["memory", "current_state"],
-                          "description": "Defaults to memory. Temporary facts and time-limited behavior use current_state."},
+                          "description": "Storage category: memory (default) for durable facts, preferences, rules, or relationships; current_state for temporary facts or time-limited behavior (up to 24 hours). Durable memory kind and activation are classified by background review, not by the type parameter."},
                 "subject": {"type": "string", "minLength": 1, "maxLength": 128,
                             "description": "current_state only: owner, assistant, or an established entity."},
                 "key": {"type": "string", "minLength": 1, "maxLength": 64,
                         "pattern": "^[a-z][a-z0-9_.-]*$",
-                        "description": "current_state only: dimension without the subject prefix; reuse the existing key."},
+                        "description": "current_state only: dimension without the subject prefix; reuse the existing key. For owner.diet.intake use subject=owner, key=diet.intake. replace/forget require an existing dimension; add requires a new one."},
                 "ttl_seconds": {"type": "integer", "minimum": 1, "maximum": 86400,
                                 "description": "current_state add/replace only: evidence-supported remaining duration from this write."},
                 "target_id": {
                     "type": "integer",
                     "minimum": 1,
-                    "description": "Optional memory_id already displayed in this Turn. Omit when unknown.",
+                    "description": "Durable memory only: optional memory_id already displayed in this Turn. Omit when unknown. For current_state use subject/key instead.",
                 },
             },
             "required": ["type", "content", "evidence"],
