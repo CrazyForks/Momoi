@@ -151,6 +151,7 @@ class TranscriptStore:
         turn_limit: int,
         token_budget: int,
         before_timestamp: float | None = None,
+        *, include_images: bool = False,
     ) -> list[dict[str, object]]:
         if turn_limit <= 0 or token_budget <= 0:
             return []
@@ -173,6 +174,8 @@ class TranscriptStore:
             return []
         turn_ids = [str(row["id"]) for row in turns]
         rows = self.conversation_messages_for_turns(turn_ids)
+        if include_images:
+            rows = self.image_history_rows(rows)
         by_turn: dict[str, list[dict[str, object]]] = {}
         for item in rows:
             by_turn.setdefault(str(item["turn_id"]), []).append(item)

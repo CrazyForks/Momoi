@@ -76,6 +76,7 @@ class ContextService:
             turn_limit,
             self._context_compaction_tokens(),
             before_timestamp,
+            include_images=True,
         )
 
     def _plan_from_submission(

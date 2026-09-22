@@ -559,6 +559,20 @@ def _retire_episodic_and_recent_memories(database: sqlite3.Connection) -> None:
         )
 
 
+def _add_current_state_evidence(database):
+    columns = {row[1] for row in database.execute("PRAGMA table_info(current_state_slots)")}
+    for name, declaration in (
+        ("status", "TEXT NOT NULL DEFAULT 'inferred'"),
+        ("observed_at", "REAL NOT NULL DEFAULT 0"),
+        ("evidence_turn_id", "TEXT NOT NULL DEFAULT ''"),
+        ("source_quote", "TEXT NOT NULL DEFAULT ''"),
+        ("source_role", "TEXT NOT NULL DEFAULT ''"),
+        ("uncertainty", "TEXT NOT NULL DEFAULT 'Legacy state: source not verified.'"),
+    ):
+        if name not in columns:
+            database.execute(f"ALTER TABLE current_state_slots ADD COLUMN {name} {declaration}")
+
+
 MIGRATIONS: tuple[Migration, ...] = (
     _add_runtime_archive_metadata,
     _add_turn_workflow_kind,
@@ -582,6 +596,7 @@ MIGRATIONS: tuple[Migration, ...] = (
     _add_plan_context,
     _add_plan_version,
     _add_turn_parent,
+    _add_current_state_evidence,
 )
 SCHEMA_VERSION = len(MIGRATIONS)
 

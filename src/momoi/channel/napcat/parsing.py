@@ -95,6 +95,8 @@ def image_blocks(
             continue
         if not is_visual_image(segment):
             continue
+        if data.get("_image_id"):
+            blocks.append({"type": "text", "text": f"[Image attachment id={data['_image_id']}]"})
         source = data.get("url") or data.get("file")
         if not isinstance(source, str):
             continue

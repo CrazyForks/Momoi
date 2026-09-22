@@ -54,11 +54,70 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 ARG CHROME_DEVTOOLS_MCP_VERSION=1.6.0
 
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends ca-certificates chromium ffmpeg git nodejs npm tzdata \
+    && apt-get install -y --no-install-recommends ca-certificates chromium ffmpeg git nodejs npm tini tzdata \
     && mkdir -p /opt/google/chrome \
     && ln -s /usr/bin/chromium /opt/google/chrome/chrome \
     && npm install --global "chrome-devtools-mcp@${CHROME_DEVTOOLS_MCP_VERSION}" \
     && rm -rf /var/lib/apt/lists/*
+
+# This image owns its browser profiles; do not share them between live containers.
+# Recover locks left on the persistent volume by a replaced container. Preserve
+# live or ambiguous profiles and move stale links aside rather than deleting data.
+COPY --chmod=755 <<'PY' /usr/local/bin/momoi-chrome-entrypoint
+#!/usr/local/bin/python
+import os
+import socket
+import sys
+import tempfile
+from pathlib import Path
+
+
+def recover_profiles(home):
+    for process in Path('/proc').glob('[0-9]*'):
+        try:
+            executable = (process / 'exe').resolve(strict=True).name
+        except FileNotFoundError:
+            continue
+        except OSError:
+            return  # Cannot establish whether a browser is alive.
+        if executable in {'chromium', 'chrome', 'chrome-headless-shell'}:
+            return
+
+    roots = [home / '.momoi', home / '.cache/chrome-devtools-mcp']
+    for root in roots:
+        if not root.is_dir():
+            continue
+        for lock in root.rglob('SingletonLock'):
+            if any(part.startswith('.stale-chrome-locks-') for part in lock.parts):
+                continue
+            if not lock.is_symlink():
+                continue
+            profile = lock.parent
+            link_names = ('SingletonLock', 'SingletonSocket', 'SingletonCookie')
+            links = [profile / name for name in link_names]
+            if any(link.exists() and not link.is_symlink() for link in links):
+                continue
+            with socket.socket(socket.AF_UNIX) as client:
+                client.settimeout(1)
+                try:
+                    client.connect(str((profile / 'SingletonSocket').resolve()))
+                except (FileNotFoundError, ConnectionRefusedError):
+                    pass
+                except OSError:
+                    continue  # Includes timeout and permission errors.
+                else:
+                    continue
+            backup = Path(tempfile.mkdtemp(prefix='.stale-chrome-locks-', dir=profile))
+            for link in links:
+                if link.is_symlink():
+                    link.rename(backup / link.name)
+            print(f'Chrome: backed up stale profile locks to {backup}', file=sys.stderr)
+
+
+if __name__ == '__main__':
+    recover_profiles(Path.home())
+    os.execvp('momoi', ['momoi', *sys.argv[1:]])
+PY
 
 WORKDIR /app
 COPY --from=build /wheels /wheels
@@ -66,5 +125,5 @@ RUN pip install --no-cache-dir --no-index /wheels/*.whl \
     && rm -rf /wheels
 
 EXPOSE 8787 8788
-ENTRYPOINT ["momoi"]
+ENTRYPOINT ["/usr/bin/tini", "-g", "--", "/usr/local/bin/momoi-chrome-entrypoint"]
 CMD ["run"]

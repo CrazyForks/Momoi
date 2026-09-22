@@ -331,19 +331,7 @@ def test_maintenance_preserves_tools_without_replaying_source_chain(daemon):
         assert root.find("current_state").findall("slot") == []
         assert root.find("state_update_contract").text.strip()
         assert tools == original_tools
-        return finish(
-            {
-                "delete": [],
-                "add": [
-                    {
-                        "subject": "owner",
-                        "key": "availability",
-                        "value": "busy",
-                        "ttl_seconds": 60,
-                    }
-                ],
-            }
-        )
+        return finish()
 
     daemon.provider = SimpleNamespace(
         complete=complete, config=SimpleNamespace(api_format="anthropic")
@@ -357,7 +345,7 @@ def test_maintenance_preserves_tools_without_replaying_source_chain(daemon):
     assert len(requests) == 1
     assert task_row(daemon.store)["state"] == "completed"
     assert task_row(daemon.store)["payload_json"] is None
-    assert daemon.store.current_state.snapshot().slots[0].value == "busy"
+    assert daemon.store.current_state.snapshot().slots == ()
     assert [
         tuple(row) for row in daemon.store._db.execute("SELECT * FROM messages")
     ] == before
@@ -377,6 +365,11 @@ def test_maintenance_preserves_tools_without_replaying_source_chain(daemon):
 
 def test_invalid_ttl_is_repaired_without_partial_changes(daemon):
     stage(daemon.store)
+    with daemon.store._db:
+        daemon.store._db.execute(
+            "INSERT INTO messages(turn_id,role,content,created_at,source_event_ids_json) VALUES ('source','user','I am busy',?,'[]')",
+            (time.time(),),
+        )
     count = 0
 
     async def complete(_system, messages, _tools, **kwargs):
@@ -394,6 +387,8 @@ def test_invalid_ttl_is_repaired_without_partial_changes(daemon):
                         "subject": "owner",
                         "key": "availability",
                         "value": "busy",
+                        "status": "observed", "source_turn": "T-1",
+                        "source": "I am busy", "uncertainty": "",
                         "ttl_seconds": 86401 if count == 1 else 60,
                     }
                 ],
@@ -415,6 +410,11 @@ def test_failed_maintenance_preserves_source_and_retries_without_overwriting(
     daemon, failure
 ):
     stage(daemon.store)
+    with daemon.store._db:
+        daemon.store._db.execute(
+            "INSERT INTO messages(turn_id,role,content,created_at,source_event_ids_json) VALUES ('source','user','I am busy',?,'[]')",
+            (time.time(),),
+        )
 
     async def complete(*args, **kwargs):
         if failure == "provider":
@@ -441,6 +441,8 @@ def test_failed_maintenance_preserves_source_and_retries_without_overwriting(
                         "subject": "owner",
                         "key": "availability",
                         "value": "busy",
+                        "status": "observed", "source_turn": "T-1",
+                        "source": "I am busy", "uncertainty": "",
                         "ttl_seconds": 60,
                     }
                 ],
@@ -676,7 +678,7 @@ def test_retry_uses_latest_snapshot_and_then_advances_queue(daemon):
         )
 
     async def complete(_system, messages, _tools, **kwargs):
-        assert ">home</slot>" in messages[-1]["content"]
+        assert "<value>home</value>" in messages[-1]["content"]
         return finish()
 
     daemon.provider = SimpleNamespace(

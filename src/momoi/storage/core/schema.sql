@@ -689,6 +689,12 @@ CREATE TABLE IF NOT EXISTS current_state_slots (
     created_at REAL NOT NULL,
     expires_at REAL NOT NULL CHECK(expires_at>created_at),
     source_turn_id TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'inferred',
+    observed_at REAL NOT NULL DEFAULT 0,
+    evidence_turn_id TEXT NOT NULL DEFAULT '',
+    source_quote TEXT NOT NULL DEFAULT '',
+    source_role TEXT NOT NULL DEFAULT '',
+    uncertainty TEXT NOT NULL DEFAULT 'Legacy state: source not verified.',
     UNIQUE(subject,key)
 );
 CREATE INDEX IF NOT EXISTS current_state_expiry ON current_state_slots(expires_at);
@@ -727,3 +733,14 @@ AFTER UPDATE OF state ON turns WHEN NEW.state='cancelled'
 BEGIN
     DELETE FROM current_state_tasks WHERE source_turn_id=NEW.id;
 END;
+
+-- Original visual input is deduplicated; summaries are internal observations.
+CREATE TABLE IF NOT EXISTS visual_images (
+    id TEXT PRIMARY KEY,
+    media_type TEXT NOT NULL,
+    data BLOB NOT NULL
+);
+CREATE TABLE IF NOT EXISTS visual_image_summaries (
+    image_id TEXT PRIMARY KEY REFERENCES visual_images(id),
+    summary TEXT NOT NULL
+);

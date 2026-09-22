@@ -8,6 +8,7 @@ from ...tools.contracts.builtin import BUILTIN_TOOL_SPECS
 from ...observability.events import TRACE, log_event
 from ...tools.contracts.memory import MEMORY_TOOL_SPECS
 from ...tools.contracts.thinking import THINKING_TOOL_SPECS
+from ...tools.contracts.images import IMAGE_TOOL_SPECS
 from ...storage import estimate_tokens
 from ..tool_contracts.context import RECALL_TOOL_SPEC, heartbeat_begin_spec
 from ..tool_contracts.current_state import current_state_finish_spec
@@ -105,6 +106,7 @@ class ToolSurface:
             READ_TOOL_RESULT_SPEC,
             *copy.deepcopy(MEMORY_TOOL_SPECS),
             *copy.deepcopy(THINKING_TOOL_SPECS),
+            *copy.deepcopy(IMAGE_TOOL_SPECS),
             *self.public_specs(AGENDA_TOOL_SPECS),
             *self.public_specs(PLAN_TOOLS),
             copy.deepcopy(PLAN_STEP_FINISH),
@@ -124,7 +126,7 @@ class ToolSurface:
         agenda = {str(spec["name"]) for spec in AGENDA_TOOL_SPECS}
         memory = {str(spec["name"]) for spec in MEMORY_TOOL_SPECS}
         thinking = {str(spec["name"]) for spec in THINKING_TOOL_SPECS}
-        shared = {"send_bubbles", "read_tool_result"}
+        shared = {"send_bubbles", "read_tool_result", *(spec["name"] for spec in IMAGE_TOOL_SPECS)}
         voice = {"send_voice"} if self.voice_enabled else set()
         shared.update(voice)
         general_chat = {
