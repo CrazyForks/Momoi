@@ -1,3 +1,4 @@
+import json
 import logging
 from dataclasses import replace
 from typing import Any
@@ -73,6 +74,8 @@ class AgentLoop:
         dynamic_tool_policies = execution.dynamic_tool_policies
         external_tool_used = False
         protocol_failures = 0
+        circuit_reason = ""
+        circuit_rounds = 0
         last_tool_error = ""
         history_messages = max(0, len(messages) - 1)
         batch_state = ToolBatchState()
@@ -93,8 +96,41 @@ class AgentLoop:
             blocked_tool_names=frozenset() if voice_allowed else frozenset({"send_voice"}),
         )
         harness.validate_surface({str(tool["name"]) for tool in tools})
+        def open_circuit(reason: str) -> bool:
+            nonlocal circuit_reason, harness, permitted_tools, tools
+            if circuit_reason or workflow is not None or stage not in {"owner", "webhook", "reply_followup"}:
+                return False
+            circuit_reason = reason
+            if stage == "owner" and (external_tool_used or self.store.turn_has_external_effect(turn_id)):
+                self.store.open_reconciliation(turn_id, "protocol_circuit_open")
+            permitted_tools = frozenset({"send_bubbles", "end_turn"})
+            tools = [tool for tool in tools if tool["name"] in permitted_tools]
+            # The task has stopped. Its opening and business requirements must not
+            # block the final notification, nor may recovery reopen task tools.
+            harness = TurnHarness(
+                replace(harness.spec, first_tool=None,
+                        required_before_end=frozenset({"send_bubbles"})),
+                permitted_tool_names=permitted_tools,
+            )
+            messages.append({"role": "user", "content": (
+                "[运行时通知] 本轮连续多次工具或协议错误，已触发熔断，任务执行已停止。"
+                "现在只允许 send_bubbles 和 end_turn；此前的开场和任务流程要求不再适用。"
+                "请用你的语气通过 send_bubbles 简短告诉用户这次处理出错、未完成的部分，"
+                "不要照抄内部错误、堆栈或工具参数，不要声称已完成或承诺自动重试。"
+                "已有操作可能生效时如实说明不确定性。发出通知后调用 end_turn，"
+                "不要要求等待用户回复。错误摘要仅供理解："
+                + json.dumps(reason[:500], ensure_ascii=False)
+            )})
+            return True
+
         while True:
-            if execution.max_rounds and llm_round >= execution.max_rounds:
+            if circuit_reason:
+                if circuit_rounds >= 3:
+                    if "send_bubbles" in harness.completed_tools:
+                        return AgentReply([])
+                    raise WorkflowProtocolError("circuit_notification_failed")
+                circuit_rounds += 1
+            if not circuit_reason and execution.max_rounds and llm_round >= execution.max_rounds:
                 raise TurnBudgetExceeded("model round limit reached")
             if reply_wait_turn and self.store.pending_owner_reply() is None:
                 return None
@@ -169,6 +205,11 @@ class AgentLoop:
                 + ", ".join(callable_names)
                 + "。其余可见工具仅供接口参考，本轮不可调用。开场、结束及依赖顺序仍按本轮契约和工具说明执行。"
             )}]
+            if circuit_reason:
+                scoped_system.append({"type": "text", "text": (
+                    "本轮已熔断，停止任务执行。仅用 send_bubbles 通知用户失败，然后 end_turn。"
+                    "不再执行此前的 recall、任务或其他开场要求，不安排自动重试或等待回复。"
+                )})
             try:
                 model_round = await self.model_round.run(
                     scoped_system,
@@ -208,6 +249,10 @@ class AgentLoop:
                 remind_owner_bubbles = False
                 continue
             except Exception as error:
+                if circuit_reason:
+                    if "send_bubbles" in harness.completed_tools:
+                        return AgentReply([])
+                    raise WorkflowProtocolError("circuit_notification_failed") from error
                 if external_tool_used:
                     raise ExternalToolTurnError(type(error).__name__) from error
                 raise
@@ -290,6 +335,11 @@ class AgentLoop:
                               failures=protocol_failures + 1,
                               failure_limit=self.config.turn_max_protocol_retries,
                               reason=str(error))
+                    if open_circuit(str(error)):
+                        protocol_failures = 0
+                        continue
+                    if circuit_reason and "send_bubbles" in harness.completed_tools:
+                        return AgentReply([])
                     raise
                 protocol_failures = resolution.failed_rounds
                 if resolution.log_rejection:
@@ -327,22 +377,6 @@ class AgentLoop:
                     consecutive_failures=protocol_failures,
                     failure_limit=self.config.turn_max_protocol_retries,
                 )
-                if protocol_failures >= self.config.turn_max_protocol_retries:
-                    log_event(logger, logging.WARNING, "protocol_circuit_open",
-                              stage=stage, turn_id=turn_id, round=llm_round,
-                              failures=protocol_failures,
-                              failure_limit=self.config.turn_max_protocol_retries,
-                              reason=harness_error)
-                    error_type = (
-                        WorkflowProtocolError
-                        if workflow is not None
-                        else (
-                            ExternalToolTurnError
-                            if external_tool_used
-                            else WorkflowProtocolError
-                        )
-                    )
-                    raise error_type(harness_error)
                 correction = []
                 # Stage-specific guidance belongs only in appended error results.
                 end_schema = (
@@ -370,6 +404,27 @@ class AgentLoop:
                         {"role": "user", "content": correction},
                     ]
                 )
+                if protocol_failures >= self.config.turn_max_protocol_retries:
+                    log_event(logger, logging.WARNING, "protocol_circuit_open",
+                              stage=stage, turn_id=turn_id, round=llm_round,
+                              failures=protocol_failures,
+                              failure_limit=self.config.turn_max_protocol_retries,
+                              reason=harness_error)
+                    error_type = (
+                        WorkflowProtocolError
+                        if workflow is not None
+                        else (
+                            ExternalToolTurnError
+                            if external_tool_used
+                            else WorkflowProtocolError
+                        )
+                    )
+                    if open_circuit(harness_error):
+                        protocol_failures = 0
+                        continue
+                    if circuit_reason and "send_bubbles" in harness.completed_tools:
+                        return AgentReply([])
+                    raise error_type(harness_error)
                 continue
             harness.observe_calls(response.tool_calls)
             assistant_text = response_text(response.content)
@@ -426,12 +481,12 @@ class AgentLoop:
                 protocol_failures = 0
                 continue
             if batch.ended:
-                if stage in CURRENT_STATE_TRIGGER_STAGES:
+                if stage in CURRENT_STATE_TRIGGER_STAGES and not circuit_reason:
                     self.store.stage_current_state_task(
                         turn_id, stage, model_round.request_system,
                         model_round.request_tools,
                     )
-                return batch.reply
+                return AgentReply([]) if circuit_reason else batch.reply
             if workflow is not None and workflow.is_complete():
                 return workflow.completion_result() or {"ok": True}
             if any(not block["is_error"] for block in results):
@@ -450,6 +505,11 @@ class AgentLoop:
                 if external_tool_used and workflow is None
                 else WorkflowProtocolError
             )
+            if open_circuit(last_tool_error or "repeated tool validation failures"):
+                protocol_failures = 0
+                continue
+            if circuit_reason and "send_bubbles" in harness.completed_tools:
+                return AgentReply([])
             raise error_type(last_tool_error or "repeated tool validation failures")
 
     async def _run_agent_workflow(

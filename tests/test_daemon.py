@@ -1210,7 +1210,9 @@ class DaemonAsyncTest(unittest.IsolatedAsyncioTestCase):
                             )
                         )
                     else:
-                        raise AssertionError("protocol circuit should open after 3 failures")
+                        assert {tool["name"] for tool in tools} == {"send_bubbles", "end_turn"}
+                        calls = [ToolCall("notify", "send_bubbles", {"bubbles": ["创建任务没成功，我先停下了。"]}),
+                                 ToolCall("end", "end_turn", {"mood": {"decision": "unchanged"}, "reply_wait": {"wait": False}})]
                     return ProviderResponse(
                         [
                             {
@@ -1240,9 +1242,9 @@ class DaemonAsyncTest(unittest.IsolatedAsyncioTestCase):
                 await daemon._complete_batch_turn(
                     [event], asyncio.Event(), daemon._turn_id(event.event_id)
                 )
-            self.assertEqual(provider.calls, 3)
+            self.assertEqual(provider.calls, 4)
             self.assertTrue(
-                any("repeated protocol/tool errors" in row.text for row in daemon.store.due_outbox())
+                any("创建任务没成功" in row.text for row in daemon.store.due_outbox())
             )
             tool_starts = [
                 record
@@ -1730,7 +1732,11 @@ class DaemonAsyncTest(unittest.IsolatedAsyncioTestCase):
                                 async def complete(self, *_args, **_kwargs):
                                     self.calls += 1
                                     if self.calls > 3:
-                                        raise AssertionError("protocol retry limit was exceeded")
+                                        assert self.calls == 4
+                                        assert {tool["name"] for tool in _args[2]} == {"send_bubbles", "end_turn"}
+                                        calls = [ToolCall("notify", "send_bubbles", {"bubbles": ["这次出错了，我先停下来，结果还没确认。"]}),
+                                                 ToolCall("end", "end_turn", {"mood": {"decision": "unchanged"}, "reply_wait": {"wait": False}})]
+                                        return ProviderResponse([{"type": "tool_use", "id": c.id, "name": c.name, "input": c.arguments} for c in calls], calls)
                                     if external_effect and self.calls == 1:
                                         daemon.store.begin_tool_call(
                                             turn_id, "external", "write_file", {}, "write",
@@ -1753,7 +1759,7 @@ class DaemonAsyncTest(unittest.IsolatedAsyncioTestCase):
                                 daemon._complete_batch_turn([event], asyncio.Event(), turn_id),
                                 timeout=2,
                             )
-                            self.assertEqual(provider.calls, 3)
+                            self.assertEqual(provider.calls, 4)
                             reconciliations = daemon.store._db.execute(
                                 "SELECT status FROM reconciliations WHERE turn_id=?", (turn_id,),
                             ).fetchall()
@@ -1761,12 +1767,10 @@ class DaemonAsyncTest(unittest.IsolatedAsyncioTestCase):
                             failure = daemon.store.due_outbox()[0].text
                             if external_effect:
                                 self.assertEqual(reconciliations[0]["status"], "open")
-                                self.assertIn("/resolve", failure)
+                                self.assertIn("这次出错了", failure)
                             else:
-                                self.assertNotIn("/resolve", failure)
-                                self.assertEqual(daemon.store._db.execute(
-                                    "SELECT failure_reason FROM turns WHERE id=?", (turn_id,),
-                                ).fetchone()["failure_reason"], "WorkflowProtocolError")
+                                self.assertIn("这次出错了", failure)
+                            self.assertEqual(len(daemon.store.due_outbox()), 1)
                         finally:
                             daemon.store.close()
 

@@ -110,7 +110,7 @@ class OwnerWorkflow:
         try:
             try:
                 await self._complete_batch(batch, turn_id)
-            except (ExternalToolTurnError, TurnBudgetExceeded, asyncio.CancelledError):
+            except (ExternalToolTurnError, WorkflowProtocolError, TurnBudgetExceeded, asyncio.CancelledError):
                 raise
             except Exception as error:
                 if self.store.turn_has_external_effect(turn_id):
@@ -160,9 +160,7 @@ class OwnerWorkflow:
                 reason=safe_preview(str(error), 300),
             )
             failure_message = (
-                "This turn stopped after repeated protocol/tool errors. "
-                f"Last reported problem: {safe_preview(str(error), 300)}. "
-                "Please retry the request."
+                "这次处理连续出错，已经停下了，没能完成。"
             )
             failure_reason = type(error).__name__
         except asyncio.CancelledError:

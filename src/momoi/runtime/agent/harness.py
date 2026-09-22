@@ -150,6 +150,8 @@ class TurnHarness:
             missing = self.spec.required_before_end - self.completed_tools
             if review_and_end:
                 missing = missing - {"goal_review"}
+            if send_and_end:
+                missing = missing - set(names[:-1])
             if missing:
                 return f"{sorted(missing)[0]}_required_before_end_turn"
         permitted = (
