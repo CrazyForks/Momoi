@@ -11,7 +11,6 @@ def current_state_finish_spec() -> dict:
             "phase after a conversation Turn has committed. Only callable in "
             "current_state_maintenance; unavailable during the conversation itself. "
             "This is the sole state-writing tool in maintenance; memory_operation is for durable memory here. "
-            "Foreground memory_operation(scope=current_state) may already have changed the snapshot. "
             "Use the current snapshot, not old tool results; do not repeat completed changes or renew their TTL."
         ),
         "input_schema": CurrentStateManager.change_schema(),
