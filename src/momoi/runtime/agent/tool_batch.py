@@ -238,7 +238,9 @@ class ToolBatchExecutor:
                     )
                     if execution.goal_id else {"ok": False, "error": "tool_not_allowed"}
                 )
-            elif call.name == "recall":
+            elif call.name == "recall" and not (
+                request.workflow is not None and call.name in request.workflow.tool_names
+            ):
                 # Recall can issue its own topic-selection model request.  Preserve
                 # the enclosing Turn so that its CUES reasoning is part of this
                 # timeline rather than an orphaned thinking record.

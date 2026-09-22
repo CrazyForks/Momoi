@@ -107,7 +107,15 @@ class ReflectionTest(unittest.IsolatedAsyncioTestCase):
                     tools: list[dict[str, object]],
                     **_kwargs: object,
                 ) -> ProviderResponse:
-                    assert tools == [REFLECTION_FINISH_SPEC]
+                    assert REFLECTION_FINISH_SPEC in tools
+                    assert {"recall", "conversation_search", "memory_search"} <= {t["name"] for t in tools}
+                    step = getattr(self, "retrieval_step", 0)
+                    self.retrieval_step = step + 1
+                    if step < 3:
+                        name = ("conversation_search", "memory_search", "recall")[step]
+                        return ProviderResponse(content=[], tool_calls=[ToolCall(
+                            f"history-{step}", name, {"query": "香菜"},
+                        )])
                     request = json.dumps(_messages, ensure_ascii=False)
                     assert "<workflow_contract>" not in json.dumps(
                         _system, ensure_ascii=False
@@ -462,7 +470,8 @@ class ReflectionTest(unittest.IsolatedAsyncioTestCase):
                     tools: list[dict[str, object]],
                     **_kwargs: object,
                 ) -> ProviderResponse:
-                    assert tools == [REFLECTION_FINISH_SPEC]
+                    assert REFLECTION_FINISH_SPEC in tools
+                    assert {"recall", "conversation_search", "memory_search"} <= {t["name"] for t in tools}
                     request = json.dumps(_messages, ensure_ascii=False)
                     assert "<open_conversations>" in request
                     assert "<always_memory_inventory>" not in request
@@ -609,7 +618,8 @@ class ReflectionTest(unittest.IsolatedAsyncioTestCase):
                     tools: list[dict[str, object]],
                     **_kwargs: object,
                 ) -> ProviderResponse:
-                    assert tools == [REFLECTION_FINISH_SPEC]
+                    assert REFLECTION_FINISH_SPEC in tools
+                    assert {"recall", "conversation_search", "memory_search"} <= {t["name"] for t in tools}
                     call = ToolCall(
                         "finish-reflection",
                         "reflection_finish",
@@ -750,7 +760,8 @@ class ReflectionTest(unittest.IsolatedAsyncioTestCase):
                     tools: list[dict[str, object]],
                     **_kwargs: object,
                 ) -> ProviderResponse:
-                    assert tools == [REFLECTION_FINISH_SPEC]
+                    assert REFLECTION_FINISH_SPEC in tools
+                    assert {"recall", "conversation_search", "memory_search"} <= {t["name"] for t in tools}
                     request = json.dumps(_messages, ensure_ascii=False)
                     assert "<open_conversations>" in request
                     assert "episode_id=trip-kyoto" in request

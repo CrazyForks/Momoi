@@ -16,6 +16,7 @@ from ..turn_support import (
     pack_user_context as _pack_user_context,
 )
 from .memory_maintenance import MEMORY_MAINTENANCE_RUN_VERSION
+from .reflection_retrieval import REFLECTION_RETRIEVAL_SPECS, ReflectionRetrieval
 
 logger = logging.getLogger("momoi.runtime.turns")
 
@@ -174,12 +175,15 @@ class ReflectionWorkflow:
                 ],
             }
         ]
-        tools = [REFLECTION_FINISH_SPEC]
+        tools = [REFLECTION_FINISH_SPEC, *REFLECTION_RETRIEVAL_SPECS]
+        retrieval = ReflectionRetrieval(self.store, self.memory_tools, window[1])
         workflow_complete = False
         workflow_result: dict[str, object] | None = None
 
         async def execute_tool(call: ToolCall) -> dict[str, Any]:
             nonlocal workflow_complete, workflow_result
+            if call.name != "reflection_finish":
+                return await retrieval.execute(call)
             decision, error = parse_reflection_finish(
                 call.arguments,
                 reflection_evidence,
@@ -216,7 +220,7 @@ class ReflectionWorkflow:
         workflow = AgentWorkflow(
             stage="reflection",
             preserve_transcript=True,
-            tool_names=frozenset({"reflection_finish"}),
+            tool_names=frozenset(str(tool["name"]) for tool in tools),
             execute_tool=execute_tool,
             is_complete=lambda: workflow_complete,
             completion_result=lambda: workflow_result,

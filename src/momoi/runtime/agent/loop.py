@@ -158,9 +158,20 @@ class AgentLoop:
                     required_tool=selected_tool,
                 )
 
+            allowed = permitted_tools if permitted_tools is not None else harness.spec.permitted_tools
+            callable_names = sorted(
+                str(tool["name"]) for tool in request_tools
+                if (allowed is None or tool["name"] in allowed)
+                and tool["name"] not in harness.blocked_tool_names
+            )
+            scoped_system = [*system, {"type": "text", "text": (
+                f"当前阶段：{stage}。本轮允许调用的已加载工具："
+                + ", ".join(callable_names)
+                + "。其余可见工具仅供接口参考，本轮不可调用。开场、结束及依赖顺序仍按本轮契约和工具说明执行。"
+            )}]
             try:
                 model_round = await self.model_round.run(
-                    system,
+                    scoped_system,
                     messages,
                     request_tools,
                     complete=complete,
