@@ -1,3 +1,4 @@
+import copy
 import re
 import uuid
 
@@ -281,9 +282,6 @@ class ContextService:
             turn_id=turn_id,
             revision=revision,
         )
-        saved = self.store.save_context_plan(
-            turn_id, revision, [event.event_id for event in events], plan
-        )
         selected, _reused, _emitted, _skipped = select_plan_recall_queries(plan)
         dense_evidence = None
         if selected:
@@ -310,6 +308,31 @@ class ContextService:
             selected_memory_rows=[*selection.memories, *selection.reflections],
             topic_selection=topic_selection,
         )
+        source_ids = [event.event_id for event in events]
+        if record is not None and record["state"] == "recalled":
+            # A new query angle is not a new owner request. Only new owner input
+            # can revise the original intent/routing. Keep each search separately.
+            if record["source_event_ids"] == source_ids:
+                query_plan = plan
+                plan = copy.deepcopy(record["plan"])
+                plan.setdefault("supplemental_queries", []).append(query_plan)
+            for field, identity in (
+                ("recall_memories", "id"), ("reflection_memories", "id"),
+                ("episodes", "episode_id"),
+            ):
+                combined = {item[identity]: item for item in record["retrieval"].get(field, [])}
+                combined.update({item[identity]: item for item in retrieval.get(field, [])})
+                retrieval[field] = list(combined.values())
+            retrieval["effective_recall_queries"] = list(dict.fromkeys([
+                *record["retrieval"].get("effective_recall_queries", []),
+                *retrieval.get("effective_recall_queries", []),
+            ]))
+            retrieval["query_recall"] = "\n".join(filter(None, [
+                record["retrieval"].get("query_recall", ""),
+                f"recall_revision={revision}", retrieval.get("query_recall", ""),
+            ]))
+        # Do not supersede the previous successful recall before retrieval succeeds.
+        saved = self.store.save_context_plan(turn_id, revision, source_ids, plan)
         stored = self.store.save_context_retrieval(
             turn_id, int(saved["revision"]), retrieval, state="recalled"
         )

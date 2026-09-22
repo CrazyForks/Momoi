@@ -87,6 +87,60 @@ class RecallEpisodeBindingTest(unittest.IsolatedAsyncioTestCase):
                 ["preference"],
             )
 
+            # A different search angle adds evidence; later skip preserves both.
+            unit["kind"] = ["practice"]
+            unit["intent"] = "补查泡茶方法"
+            await daemon.submit_owner_context([event], turn_id, {"units": [unit]})
+            unit.update(recall_mode="skip", recall_queries=[])
+            result = await daemon.submit_owner_context([event], turn_id, {"units": [unit]})
+            self.assertIn("主人偏好绿茶", result["recall_memories"])
+            self.assertIn("泡茶用八十度水", result["recall_memories"])
+            record = daemon.store.context_plan(turn_id)
+            self.assertEqual(record["plan"]["intent_units"][0]["intent"], "茶的信息")
+            self.assertEqual(record["retrieval"]["effective_recall_queries"], ["茶"])
+            self.assertEqual(len(record["plan"]["supplemental_queries"]), 2)
+            with patch.object(daemon, "_select_recall_topics", side_effect=RuntimeError("lookup failed")):
+                with self.assertRaises(RuntimeError):
+                    await daemon.submit_owner_context([event], turn_id, {"units": [unit]})
+            self.assertEqual(daemon.store.context_plan(turn_id), record)
+
+
+    async def test_recall_journal_retains_each_full_result(self):
+        with tempfile.TemporaryDirectory() as directory:
+            daemon = MomoiDaemon(config(directory))
+            self.addCleanup(daemon.store.close)
+            from momoi.models import TurnDraft
+            turn_id = "recall-journal"
+            daemon.store.begin_turn(turn_id, "owner", [])
+            for index in range(2):
+                call = ToolCall(f"recall-{index}", "recall", {"query": str(index)})
+                trace = daemon.tool_executor.begin_trace(
+                    call, daemon.tool_executor.source("recall"), turn_id=turn_id,
+                    stage="owner", call_id=str(index), round_number=index, channel="test",
+                )
+                daemon.tool_executor.finish_trace(
+                    trace, call, {"ok": True, "memory": str(index) * 2000}, TurnDraft(),
+                )
+            rows = daemon.store._db.execute(
+                "SELECT item_type, payload_json FROM turn_journal WHERE turn_id=? ORDER BY sequence",
+                (turn_id,),
+            ).fetchall()
+            self.assertEqual([r["item_type"] for r in rows], ["tool_call", "tool_result"] * 2)
+            self.assertEqual(json.loads(rows[1]["payload_json"])["result"]["memory"], "0" * 2000)
+            self.assertEqual(json.loads(rows[3]["payload_json"])["result"]["memory"], "1" * 2000)
+            activity = daemon.store.turn_activity([turn_id])[turn_id]
+            self.assertEqual(len(activity), 2)
+            self.assertEqual(activity[0]["recall_result"]["memory"], "0" * 2000)
+            self.assertEqual(activity[1]["recall_arguments"], {"query": "1"})
+            from momoi.runtime.transcript.models import TranscriptGroup
+            from momoi.runtime.transcript.rendering import _assistant_body
+            group = TranscriptGroup("assistant", (), (), (), (turn_id,), 0, 0)
+            rendered = "\n".join(_assistant_body(group, activity, 0, daemon.store.timezone, "T-1"))
+            self.assertEqual(rendered.count("<historical_recall>"), 2)
+            self.assertIn("0" * 2000, rendered)
+            self.assertIn("1" * 2000, rendered)
+
+
     async def test_malformed_recall_returns_actionable_example_without_persistence(self):
         from jsonschema import Draft202012Validator
         from momoi.runtime.tool_contracts.context import RECALL_TOOL_SPEC, RECALL_SKIP_EXAMPLE
@@ -139,7 +193,8 @@ class RecallEpisodeBindingTest(unittest.IsolatedAsyncioTestCase):
             dense.assert_not_awaited()
             self.assertTrue(result["ok"])
             # A second successful recall revises the same Turn without losing routing.
-            unit["intent"] = "主人继续整理书房"
+            unit["intent"] = "补查另一个角度"
+            unit["episode"] = {"action": "none"}
             result = await recall_owner_context(
                 ToolCall("recall-again", "recall", {"units": [unit]}),
                 current_events=[event], turn_id=turn_id,
@@ -150,6 +205,8 @@ class RecallEpisodeBindingTest(unittest.IsolatedAsyncioTestCase):
             self.assertIn("no_retrieval_units=u1", result["status"])
             record = daemon.store.context_plan(turn_id)
             self.assertEqual(record["state"], "recalled")
+            self.assertEqual(record["plan"]["intent_units"][0]["intent"], "主人开始整理书房")
+            self.assertEqual(record["plan"]["supplemental_queries"][0]["intent_units"][0]["intent"], "补查另一个角度")
             self.assertEqual(record["plan"]["intent_units"][0]["recall"]["mode"], "skip")
             for field in ("recall_memories", "reflection_memories", "episodes", "effective_recall_queries"):
                 self.assertEqual(record["retrieval"][field], [])

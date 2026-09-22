@@ -447,6 +447,7 @@ class ToolBatchExecutor:
             else:
                 result = {"ok": False, "error": "tool_not_allowed"}
 
+            recall_result = copy.deepcopy(result) if call.name == "recall" else None
             if "provenance" not in result:
                 result = self.tool_executor.normalize(call, result, source)
             if result.get("ok"):
@@ -456,7 +457,9 @@ class ToolBatchExecutor:
                 last_tool_error = str(
                     result.get("message") or result.get("error") or "tool_failed"
                 )
-            self.tool_executor.finish_trace(trace, call, result, request.draft)
+            self.tool_executor.finish_trace(
+                trace, call, recall_result if recall_result is not None else result, request.draft,
+            )
             results.append(tool_result_block(call.id, result))
             previous_tool_name = call.name
 

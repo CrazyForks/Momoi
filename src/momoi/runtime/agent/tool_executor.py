@@ -82,6 +82,8 @@ class ToolExecutor:
             return "builtin"
         if self.agenda_tools.has_tool(name):
             return "agenda"
+        if name == "recall":
+            return "memory"
         if name in self.memory_tool_names:
             return "memory"
         if name in {spec["name"] for spec in IMAGE_TOOL_SPECS}:
@@ -143,7 +145,7 @@ class ToolExecutor:
                     "tool_call_id": call.id,
                     "name": call.name,
                     "source": source,
-                    "arguments": compact_log_value(
+                    "arguments": arguments if call.name == "recall" else compact_log_value(
                         arguments,
                         string_limit=500,
                         item_limit=20,
@@ -237,7 +239,7 @@ class ToolExecutor:
                     "name": call.name,
                     "ok": bool(result.get("ok")),
                     "error": result.get("error"),
-                    "result": compact_result,
+                    "result": result if call.name == "recall" else compact_result,
                 },
                 trust=(
                     "untrusted_tool_data"

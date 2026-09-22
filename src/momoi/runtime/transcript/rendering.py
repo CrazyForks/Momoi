@@ -242,6 +242,13 @@ def _assistant_body(
             flush_run()
             lines.append(item)
             continue
+        if text_value(item.get("name")) == "recall":
+            flush_run()
+            lines.append("<historical_recall>" + escape(json.dumps({
+                "arguments": item.get("recall_arguments"),
+                "result": item.get("recall_result"),
+            }, ensure_ascii=False)) + "</historical_recall>")
+            continue
         if run and text_value(run[0].get("name")) != text_value(item.get("name")):
             flush_run()
         run.append(item)

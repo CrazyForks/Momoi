@@ -277,6 +277,7 @@ class TranscriptStore:
             if str(row["item_type"]) == "tool_result":
                 result = payload.get("result")
                 outcomes[call_id] = {
+                    **({"recall_result": result} if payload.get("name") == "recall" else {}),
                     "ok": bool(payload.get("ok")),
                     "error": " ".join(str(payload.get("error") or "").split())[:80],
                     "ref": str(result.get("result_ref") or "")
@@ -293,6 +294,7 @@ class TranscriptStore:
                     "call_id": call_id,
                     "name": name,
                     "subject": _tool_call_subject(payload.get("arguments")),
+                    **({"recall_arguments": payload.get("arguments")} if name == "recall" else {}),
                 }
             )
         for records in calls.values():
