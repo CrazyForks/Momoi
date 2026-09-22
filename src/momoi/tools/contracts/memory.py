@@ -7,7 +7,9 @@ Use memory_operation only when authenticated owner evidence warrants adding,
 correcting, or forgetting memory. Do not record every message or fetch old
 memories merely to repeat them as arguments. Pending requests are not confirmed
 facts or completed deletions.
-The background review handles classification, activation, expiry, and duplicates.
+Use scope=current_state for temporary facts or owner-requested temporary behavior,
+with subject/key and an evidence-based TTL; these changes bypass memory review.
+The background review handles durable memory classification, activation, and duplicates.
 """
 
 
@@ -153,7 +155,14 @@ MEMORY_TOOL_SPECS: list[dict[str, Any]] = [
     {
         "name": "memory_operation",
         "description": (
-            "Submit a confirmed-memory change request. "
+            "Change durable memory (default scope=memory) or temporary state (scope=current_state). "
+            "For temporary facts, explicit state corrections, or behavior limited to at most 24 hours, "
+            "use current_state: writes directly without waiting for background maintenance. "
+            "Use subject/key from current_state; add creates, replace updates, forget removes that dimension. "
+            "Provide ttl_seconds for add/replace, omit it for forget. Do not renew without fresh evidence. "
+            "Only record temporary facts or behavior directly supported by current owner input, not your guesses. "
+            "In current_state_maintenance use current_state_finish instead. "
+            "The following review rules apply only to durable memory: "
             "The runtime attaches recalled memories and conversation; private review runs "
             "after this Turn commits. Acceptance does not mean the change is effective. "
             "Do not repeat an accepted request."
@@ -177,6 +186,15 @@ MEMORY_TOOL_SPECS: list[dict[str, Any]] = [
                     "maxLength": 500,
                     "description": "Exact contiguous quote from a current authenticated owner message.",
                 },
+                "scope": {"type": "string", "enum": ["memory", "current_state"],
+                          "description": "Defaults to memory. Temporary facts and time-limited behavior use current_state."},
+                "subject": {"type": "string", "minLength": 1, "maxLength": 128,
+                            "description": "current_state only: owner, assistant, or an established entity."},
+                "key": {"type": "string", "minLength": 1, "maxLength": 64,
+                        "pattern": "^[a-z][a-z0-9_.-]*$",
+                        "description": "current_state only: dimension without the subject prefix; reuse the existing key."},
+                "ttl_seconds": {"type": "integer", "minimum": 1, "maximum": 86400,
+                                "description": "current_state add/replace only: evidence-supported remaining duration from this write."},
                 "target_id": {
                     "type": "integer",
                     "minimum": 1,
@@ -184,6 +202,19 @@ MEMORY_TOOL_SPECS: list[dict[str, Any]] = [
                 },
             },
             "required": ["type", "content", "evidence"],
+            "allOf": [{
+                "if": {"properties": {"scope": {"const": "current_state"}}, "required": ["scope"]},
+                "then": {
+                    "required": ["subject", "key"],
+                    "properties": {"target_id": False, "content": {"maxLength": 512}},
+                    "allOf": [{
+                        "if": {"properties": {"type": {"const": "forget"}}},
+                        "then": {"properties": {"ttl_seconds": False}},
+                        "else": {"required": ["ttl_seconds"]},
+                    }],
+                },
+                "else": {"properties": {"subject": False, "key": False, "ttl_seconds": False}},
+            }],
             "additionalProperties": False,
         },
     },

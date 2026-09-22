@@ -165,6 +165,9 @@ class CurrentStateWorkflow:
             if not self.store.current_state_batch_is_current(source_turn_ids, turn_id):
                 raise StateConflict("source_turn_no_longer_current")
             if call.name == "memory_operation":
+                if call.arguments.get("scope") == "current_state":
+                    return {"ok": False, "error": "use_current_state_finish",
+                            "message": "In this maintenance workflow, submit state changes through current_state_finish."}
                 return self.memory_tools.execute(call, events, draft)
             try:
                 self.store.current_state.apply_arguments(

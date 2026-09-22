@@ -1,3 +1,4 @@
+import hashlib
 import json
 import logging
 from typing import Any
@@ -131,6 +132,7 @@ class MemoryTools:
         call: ToolCall,
         current_events: list[IncomingMessage],
         draft: TurnDraft,
+        *, turn_id: str = "",
     ) -> dict[str, Any]:
         spec = next((item for item in MEMORY_TOOL_SPECS if item["name"] == call.name), None)
         if spec:
@@ -175,7 +177,7 @@ class MemoryTools:
                     else None
                 )
                 return self._episode_search(call.arguments, dense_evidence=dense)
-            return self.execute(call, current_events, draft)
+            return self.execute(call, current_events, draft, turn_id=turn_id)
         except Exception as error:
             log_event(
                 logger,
@@ -197,6 +199,7 @@ class MemoryTools:
         call: ToolCall,
         current_events: list[IncomingMessage],
         draft: TurnDraft,
+        *, turn_id: str = "",
     ) -> dict[str, Any]:
         spec = next((item for item in MEMORY_TOOL_SPECS if item["name"] == call.name), None)
         if spec:
@@ -212,7 +215,7 @@ class MemoryTools:
             if call.name == "episode_read":
                 return self._episode_read(call.arguments)
             if call.name == "memory_operation":
-                return self._operation(call, current_events, draft)
+                return self._operation(call, current_events, draft, turn_id=turn_id)
             return _memory_error("tool_not_allowed")
         except Exception as error:
             log_event(
@@ -411,9 +414,12 @@ class MemoryTools:
         call: ToolCall,
         current_events: list[IncomingMessage],
         draft: TurnDraft,
+        *, turn_id: str = "",
     ) -> dict[str, Any]:
         args = call.arguments
-        if set(args) - {"type", "content", "evidence", "target_id"}:
+        if args.get("scope") == "current_state":
+            return self._state_operation(call, current_events, turn_id)
+        if set(args) - {"type", "content", "evidence", "target_id", "scope"}:
             return {"ok": False, "error": "invalid_memory_operation_fields"}
         if (
             not call.id
@@ -458,3 +464,53 @@ class MemoryTools:
             "operation_id": call.id,
             "message": "Request accepted for private review after this Turn commits. Do not resubmit; the memory change is not effective yet.",
         }
+
+    def _state_operation(self, call, events, turn_id):
+        """Apply owner-evidenced state through the existing atomic revision store."""
+        args = call.arguments
+        action = args["type"]
+        if (not turn_id or not call.id or "target_id" in args
+                or not args.get("subject", "").strip() or not args.get("key")
+                or (action == "forget" and "ttl_seconds" in args)
+                or (action != "forget" and "ttl_seconds" not in args)):
+            return {"ok": False, "error": "invalid_current_state_fields",
+                    "message": "Use subject/key, no target_id; add/replace require ttl_seconds, forget omits it."}
+        evidence = args["evidence"]
+        event = next((e for e in reversed(events) if evidence.strip() and evidence in e.text), None)
+        if event is None:
+            return _memory_error("evidence_not_in_current_input")
+        subject, key = args["subject"].strip(), args["key"]
+        operation_id = "memory-state:" + hashlib.sha256(f"{turn_id}:{call.id}".encode()).hexdigest()
+        manager = self.store.current_state
+        snapshot = manager.snapshot()
+        old = self.store._db.execute(
+            "SELECT request_json FROM current_state_changes WHERE operation_id=?", (operation_id,)
+        ).fetchone()
+        previous = json.loads(old[0]) if old else None
+        slots = [slot for slot in snapshot.slots if (slot.subject, slot.key) == (subject, key)]
+        if previous:
+            # Rebuild exactly the original request so retries cannot renew TTL or overwrite newer state.
+            removed = self.store._db.execute(
+                "SELECT removed_json FROM current_state_changes WHERE operation_id=?", (operation_id,)
+            ).fetchone()
+            dimensions = {(x["subject"], x["key"]) for x in json.loads(removed[0])}
+            dimensions.update((x["subject"], x["key"]) for x in previous["add"])
+            if (subject, key) not in dimensions:
+                return {"ok": False, "error": "tool_call_id_conflict"}
+        elif action == "add" and slots:
+            return {"ok": False, "error": "state_already_exists", "message": "Use replace with this subject/key."}
+        elif action in {"replace", "forget"} and not slots:
+            return {"ok": False, "error": "state_not_found"}
+        added = [] if action == "forget" else [{
+            "subject": subject, "key": key, "value": args["content"].strip(),
+            "ttl_seconds": args["ttl_seconds"], "status": "observed",
+            "observed_at": event.occurred_at, "evidence_turn_id": turn_id,
+            "source_quote": evidence, "source_role": "user", "uncertainty": "",
+        }]
+        change = {"add": added, "delete": previous["delete"] if previous else [slot.id for slot in slots]}
+        try:
+            manager.apply_arguments(change, source_turn_id=turn_id, operation_id=operation_id,
+                                    expected_revision=previous["expected_revision"] if previous else snapshot.revision)
+        except ValueError as error:
+            return {"ok": False, "error": str(error)}
+        return {"ok": True, "operation_id": call.id}

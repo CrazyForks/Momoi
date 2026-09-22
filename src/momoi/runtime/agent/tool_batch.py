@@ -423,7 +423,7 @@ class ToolBatchExecutor:
                 )
             elif source == "memory":
                 result = await self.memory_tools.execute_async(
-                    call, request.current_events, request.draft
+                    call, request.current_events, request.draft, turn_id=request.turn_id
                 )
             elif source == "image" and call.name == "save_image_summary":
                 result = self.store.save_image_summary(

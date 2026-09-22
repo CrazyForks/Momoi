@@ -924,3 +924,106 @@ def test_repaired_conversation_drops_unanswered_tool_calls():
         }
     )
     assert len(_repaired_conversation(conversation)) == 4
+
+
+def state_call(name="state-op", action="add", **overrides):
+    args = {"scope": "current_state", "type": action, "subject": "assistant",
+            "key": "style.override", "content": "按示例中的小桃风格回应",
+            "evidence": "保持24个小时", **({"ttl_seconds": 86400} if action != "forget" else {})}
+    args.update(overrides)
+    return ToolCall(name, "memory_operation", args)
+
+
+def test_temporary_state_writes_immediately_without_memory_review(store):
+    source = event(store, text="按示例回应，保持24个小时")
+    draft = TurnDraft()
+    tools = MemoryTools(store)
+    result = tools.execute(state_call(), [source], draft, turn_id="owner-state")
+    assert result == {"ok": True, "operation_id": "state-op"}
+    snapshot = store.current_state.snapshot()
+    slot, = snapshot.slots
+    assert slot.subject == "assistant" and slot.key == "style.override"
+    assert slot.expires_at - slot.created_at == 86400
+    assert slot.source_quote == "保持24个小时"
+    assert slot.source_role == "user" and slot.observed_at == source.occurred_at
+    assert slot.evidence_turn_id == "owner-state"
+    assert not draft.memory_operations
+    assert tools.execute(state_call(), [source], draft, turn_id="owner-state") == result
+    assert store.current_state.snapshot() == snapshot
+    bad = tools.execute(state_call(content="different"), [source], draft, turn_id="owner-state")
+    assert not bad["ok"]
+    assert store.current_state.snapshot() == snapshot
+
+
+def test_temporary_state_replace_forget_and_retry_do_not_restore_old_state(store):
+    source = event(store, text="保持24个小时；我吃完了，删除晚饭状态")
+    tools, draft = MemoryTools(store), TurnDraft()
+    assert tools.execute(state_call(), [source], draft, turn_id="t")["ok"]
+    replace = state_call("replace", "replace", content="新状态", ttl_seconds=60)
+    assert tools.execute(replace, [source], draft, turn_id="t")["ok"]
+    assert tools.execute(state_call(), [source], draft, turn_id="t")["ok"]
+    assert store.current_state.snapshot().slots[0].value == "新状态"
+    delete = state_call("delete", "forget", evidence="我吃完了", content="清除")
+    assert tools.execute(delete, [source], draft, turn_id="t")["ok"]
+    snapshot = store.current_state.snapshot()
+    assert not snapshot.slots
+    assert tools.execute(delete, [source], draft, turn_id="t")["ok"]
+    assert store.current_state.snapshot() == snapshot
+    assert tools.execute(replace, [source], draft, turn_id="t")["ok"]
+    assert not store.current_state.snapshot().slots
+
+
+@pytest.mark.parametrize("overrides", [
+    {"evidence": "不存在的证据"}, {"ttl_seconds": 86401}, {"ttl_seconds": 0},
+    {"ttl_seconds": True}, {"target_id": 1}, {"content": "x" * 513},
+    {"subject": " "}, {"key": "invalid key"},
+])
+def test_temporary_state_rejects_invalid_evidence_and_fields(store, overrides):
+    source = event(store, text="保持24个小时")
+    result = MemoryTools(store).execute(state_call(**overrides), [source], TurnDraft(), turn_id="t")
+    assert not result["ok"]
+    assert not store.current_state.snapshot().slots
+
+
+def test_temporary_state_requires_ttl_and_existing_dimension_for_replace(store):
+    source = event(store, text="保持24个小时")
+    tools, draft = MemoryTools(store), TurnDraft()
+    missing = state_call()
+    missing.arguments.pop("ttl_seconds")
+    assert not tools.execute(missing, [source], draft, turn_id="t")["ok"]
+    assert not tools.execute(state_call(action="replace"), [source], draft, turn_id="t")["ok"]
+    assert not tools.execute(state_call(action="forget"), [source], draft, turn_id="t")["ok"]
+    assert not tools.execute(state_call(), [source], draft)["ok"]
+
+
+def test_owner_tool_loop_routes_temporary_state_immediately(daemon):
+    from types import SimpleNamespace
+    from momoi.runtime.agent import TurnExecutionSpec
+
+    source = event(daemon.store, text="按示例回应，保持24个小时")
+    daemon.store.begin_turn("state-turn", "owner", [source.event_id])
+    calls = [response(ToolCall("recall", "recall", {"units": [{
+        "intent": source.text, "recall_mode": "skip", "recall_queries": [],
+        "recall_from_turn_id": "", "episode": {"action": "none"},
+    }]})), response(state_call()), response(ToolCall("end", "end_turn", {
+        "mood": {"decision": "unchanged"}, "reply_wait": {"wait": False},
+    }))]
+
+    async def complete(*args, **kwargs):
+        if len(calls) == 1:
+            slot, = daemon.store.current_state.snapshot().slots
+            assert slot.evidence_turn_id == "state-turn"
+            assert slot.value == "按示例中的小桃风格回应"
+        return calls.pop(0)
+
+    daemon.provider = SimpleNamespace(complete=complete, config=SimpleNamespace(api_format="anthropic"))
+    draft = TurnDraft()
+    asyncio.run(daemon._run_tool_loop(
+        [{"type": "text", "text": "system"}], [{"role": "user", "content": source.text}],
+        daemon.tool_surface.conversation_specs(), [source], draft,
+        execution=TurnExecutionSpec("owner", permitted_tools=daemon.tool_surface.permitted_names("owner")),
+        source_event_id=source.event_id, turn_id="state-turn", delivery_channel=daemon.channel,
+    ))
+    assert not calls
+    assert not draft.memory_operations
+    assert daemon.store.pending_memory_operation() is None
