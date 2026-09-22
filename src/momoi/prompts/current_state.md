@@ -1,22 +1,35 @@
-Infer current state changes from the conversation records above for pending_turns. If evidence conflicts, use the latest Turn.
+# 更新眼下需要记住的状态
 
-Maintain current state. State is short-term, TTL-backed working memory for temporary facts that would make your behavior wrong, right now, if forgotten — because they override a long-term default, or because they're a new temporary fact too immediate/short-lived for the 7-day recent memory or on-demand recall to reliably surface in time.
+根据上面的聊天记录，判断 `pending_turns` 带来了哪些当前状态变化。证据冲突时，以最新一轮为准。
 
-Test before adding: "If I forget this, will I say or do something wrong within its real-world time scope?" If no — skip it, no matter how notable or memorable. Weak reasons ("might be useful," "low risk," "could support continuity") never justify adding a slot.
+通常的流程：
+… → memory_operation? → current_state_finish
 
-Check memory before state: if the fact is durable — a rule, preference, relationship, procedure, or cross-event state still worth knowing after its moment passes — record it with `memory_operation` instead of adding a slot. State is only a short-term state or behavior that can change or be forgotten within its real-world scope.
+当前状态是带有效期（TTL）的短期记忆，保存的是现在忘了就容易说错话或做错事的临时事实。有些临时事实覆盖了长期默认情况；有些出现得太近、持续得太短，不能指望最近七天的记忆或按需召回来得及提供。
 
-Examples:
-* "Took a taxi to work today" — overrides long-term default "commutes by bike." Ends at midnight.
-* "Napping until 2pm" — new temporary fact, not a default override. Delete early if person says they can't sleep.
-* "Off work today" — overrides default work schedule. Ends at midnight.
-* Anti-example: person jokingly calls you a nickname, teases you. Forgetting it breaks nothing — belongs to mood tracking, not state. Do not add.
+## 什么值得加入
 
-Each slot = one concise current fact only. No dialogue, source, timestamps, narrative, or backstory. Normalize "At 8am they said they took a taxi" → "Today's commute mode: taxi."
+加入前问自己：“在这件事实际有效的时间里，忘了它会不会让我说错或做错？”如果不会，就不加，无论它多值得记住。“可能有用”“风险不大”“有助于连贯”都不足以成为理由。
 
-Every pass: review and normalize all slots. Delete anything ended, conflicting, duplicated, or no longer meeting the test above. If a slot mixes fact with history, replace it with one clean version — never leave malformed content. Replace changed facts by deleting the old slot and adding one successor.
+先区分长期记忆和临时状态。某条规则、偏好、关系、方法或跨事件状态，在眼前这件事过去后仍值得知道，就通过 `memory_operation` 记录。这里只放在实际适用时段内可能改变、或时段结束后可以忘记的短期状态和行为。
 
-TTL = remaining real-world scope of the fact, not importance. Use explicit duration/date when given; unscoped "today" facts end at local midnight. Never fall back to habitual round numbers like 24/12/8 hours — derive the TTL from the fact's actual lifecycle: a nap ends in minutes, a work arrangement ends at its stated time, being out in the rain ends at dry clothes. When torn between two windows, pick the shorter defensible one. If no clear TTL or ongoing applicability exists, don't add it. Delete early when new evidence ends it.
+例如：
 
-Default to exclusion when ambiguous. Return empty `add`/`delete` when nothing materially changes.
-Typical flow: … → memory_operation? → current_state_finish
+- “今天打车上班”：临时覆盖“平时骑车通勤”，到通常下班时间结束或得知用户下班后手动清除。
+- “午睡到下午两点”：一条新的临时事实，不必覆盖某个默认情况。如果对方又说睡不着了，就提前删除。
+- “今天休息”：临时覆盖平时的工作安排，到下班时间结束。
+- 对方开玩笑叫你昵称、逗你：忘了并不影响行动，属于情绪记录，不加入当前状态。
+
+## 整理已有状态
+
+每个 slot 只写一条简洁的、提炼出的当前事实，不夹带来源、叙事或背景。例如，把“早上八点他说今天打车了”整理成“今天的通勤方式：打车”。
+
+每次都检查并整理所有 slot。已经结束、互相冲突、重复，或不再符合加入条件的内容，都删掉。事实和历史混在一起时，用一条清楚的当前事实替换，不保留混杂的版本。具体替换方式按工具 schema 执行。
+
+## 按实际持续时间设置 TTL
+
+TTL 表示事实还会适用多久，不表示它有多重要。对方给了时长或日期，就据此计算；只说“今天”而没有更具体范围的，按照此事件的常识时间结束。
+
+根据事实的实际过程确定时间，不习惯性地填 24、12 或 8 小时。午睡可能几分钟后结束，工作安排到约定时间结束，衣服淋湿的状态在有证据表明衣服已干或已更换时结束；不知道何时结束，就不要猜测持续时间。两个时段都说得通时，选有依据的较短一个。无法确定有效期或是否仍然适用，就不添加。新证据表明已经结束时，提前删除。
+
+拿不准时默认不加；没有实质变化就不修改。

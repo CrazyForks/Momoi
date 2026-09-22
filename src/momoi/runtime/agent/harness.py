@@ -128,7 +128,7 @@ class TurnHarness:
                     return "recall_required_once_in_opening_batch"
             elif not opening_send_and_end and (len(names) != 1 or names[0] not in first_names):
                 return f"{first}_must_be_first_and_alone"
-        elif first is not None and any(name in first_names for name in names):
+        elif first is not None and first != "recall" and any(name in first_names for name in names):
             return f"{first}_already_completed"
         if (
             required_tool is not None

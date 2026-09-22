@@ -138,6 +138,15 @@ class RecallEpisodeBindingTest(unittest.IsolatedAsyncioTestCase):
                 )
             dense.assert_not_awaited()
             self.assertTrue(result["ok"])
+            # A second successful recall revises the same Turn without losing routing.
+            unit["intent"] = "主人继续整理书房"
+            result = await recall_owner_context(
+                ToolCall("recall-again", "recall", {"units": [unit]}),
+                current_events=[event], turn_id=turn_id,
+                submit_context=daemon.submit_owner_context,
+            )
+            self.assertTrue(result["ok"])
+            self.assertEqual(daemon.store.context_plan(turn_id)["revision"], 2)
             self.assertIn("no_retrieval_units=u1", result["status"])
             record = daemon.store.context_plan(turn_id)
             self.assertEqual(record["state"], "recalled")

@@ -124,10 +124,10 @@ class TurnHarnessTest(unittest.TestCase):
         end = ToolCall("end", "end_turn", {})
         self.assertEqual(harness.validate([recall, end]), "end_turn_must_be_alone")
         harness.accept("recall")
-        self.assertEqual(harness.validate([recall]), "recall_already_completed")
+        self.assertIsNone(harness.validate([recall]))
         self.assertIsNone(harness.validate([send]))
         harness.accept_owner_update()
-        self.assertEqual(harness.validate([send, recall]), "recall_already_completed")
+        self.assertIsNone(harness.validate([send, recall]))
 
     def test_webhook_harness_rejects_tools_outside_its_contract(self) -> None:
         harness = TurnHarness.for_stage("webhook")

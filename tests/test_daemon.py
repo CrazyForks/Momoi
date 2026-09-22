@@ -79,6 +79,8 @@ class DaemonTest(unittest.TestCase):
             self.assertNotIn("{{SOUL}}", rendered_system)
             rendered = daemon._heartbeat_system_prompt()
             self.assertIn("New heartbeat", rendered)
+            self.assertNotIn("{{HEARTBEAT}}", rendered)
+            self.assertEqual(rendered.count("New heartbeat"), 1)
             heartbeat.unlink()
             self.assertNotIn("New heartbeat", daemon._heartbeat_system_prompt())
 
@@ -1382,8 +1384,9 @@ class DaemonAsyncTest(unittest.IsolatedAsyncioTestCase):
                     min_interval_seconds=60,
                     max_interval_seconds=600,
                 ),
-                heartbeat_prompt="偶尔看看最近有什么有趣的新游戏。",
+                heartbeat_prompt_path=Path(directory) / "HEARTBEAT.md",
             )
+            config.heartbeat_prompt_path.write_text("偶尔看看最近有什么有趣的新游戏。")
             daemon = MomoiDaemon(config)
             self.assertTrue((Path(directory) / "artifacts").is_dir())
             self.assertTrue((Path(directory) / "tool-results").is_dir())

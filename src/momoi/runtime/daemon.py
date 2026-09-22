@@ -1,6 +1,7 @@
 import asyncio
 import logging
 from collections import deque
+from dataclasses import replace
 from typing import Any
 
 from ..tools.agenda import AgendaTools
@@ -59,6 +60,18 @@ class MomoiDaemon(
     def _compose(self, config, channel, tts_provider):
         if not config.providers.enabled("llm") or not config.channel_configs:
             raise ValueError("runtime requires an enabled LLM and at least one channel")
+        heartbeat_path = config.heartbeat_prompt_path
+        if config.heartbeat.enabled and (
+            heartbeat_path is None or not heartbeat_path.is_file()
+        ):
+            log_event(
+                logger,
+                logging.WARNING,
+                "heartbeat_disabled_missing_prompt",
+                heartbeat_prompt_path=str(heartbeat_path or ""),
+                reason="HEARTBEAT.md 不存在，已停用自主心跳",
+            )
+            config = replace(config, heartbeat=replace(config.heartbeat, enabled=False))
         self.config = config
         self.ready = asyncio.Event()
         self._loaded_workspace_prompts: dict[str, str] = {}

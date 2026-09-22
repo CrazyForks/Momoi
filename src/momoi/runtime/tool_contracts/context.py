@@ -71,6 +71,9 @@ RECALL_TOOL_SPEC: dict[str, Any] = {
         "the Owner Turn, and bind its archival Episode membership. "
         "Include once in the opening tool batch; independent tools may accompany it. "
         "Retry until successful; wait for its results before dependent calls. "
+        "Later calls in the same Turn may retrieve additional evidence. Each call "
+        "replaces the stored context decision, so preserve the current intent and "
+        "Episode routing unless new evidence changes them. "
         "Arguments must contain units, an array of intent objects; do not flatten its fields "
         "or stringify nested JSON. "
         + RECALL_SCOPE_CONTRACT

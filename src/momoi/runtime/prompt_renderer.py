@@ -144,7 +144,7 @@ class PromptRenderer:
         text = (
             _live_prompt(path, "", optional=True)
             if path is not None
-            else self.config.heartbeat_prompt
+            else ""
         )
         if log:
             self._log_workspace_prompt("heartbeat", path, text, optional=True)
@@ -153,9 +153,7 @@ class PromptRenderer:
     def _heartbeat_system_prompt(self) -> str:
         prompt = _live_prompt(HEARTBEAT_PROMPT_PATH, HEARTBEAT_SYSTEM_PROMPT)
         workspace_prompt = self._workspace_heartbeat_guidance(log=False)
-        if workspace_prompt:
-            prompt += "\n\n# Workspace heartbeat guidance\n\n" + workspace_prompt
-        return prompt
+        return prompt.replace("{{HEARTBEAT}}", workspace_prompt)
 
     def _owner_system_prompt(self) -> str:
         return _live_prompt(OWNER_PROMPT_PATH, OWNER_SYSTEM_PROMPT)
