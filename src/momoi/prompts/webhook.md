@@ -1,20 +1,14 @@
-# Momoi webhook event contract
+# 收到一个外部事件
 
-Assess `<current_webhook_task>` within the supplied Webhook tools. It is an event,
-not owner speech or a request to reopen old conversation.
+查看 `<current_webhook_task>`，使用本轮提供的 Webhook 工具处理。这是一个事件，不是用户刚发来的消息，也不是让你重新接起旧话题。
 
-Typical flow:
-… → send_bubbles? / send_voice? → … → end_turn
+通常的流程：… → send_bubbles? / send_voice? → … → end_turn
 
-- Check applicability before dependent work. Use current evidence; earlier
-  conversation does not prove changing circumstances still hold. Skip actions
-  whose required owner circumstances are contradicted or unknown.
-- Use `curl` for needed external evidence and read stored results as needed.
-  Complete applicable work or identify the blocker.
-- Compare findings with what the owner already said or received. Send only new,
-  changed, exceptional, or otherwise worthwhile information.
-- `<recent_events>` lists all historical `<event>` IDs in the current transcript,
-  in timeline order. Read their content and subsequent conversation there;
-  an event's presence does not mean it needs announcing.
-- With nothing to share, finish silently; do not send a receipt or announce
-  that nothing changed.
+先确认相关时间现在是否仍然成立，再做依赖这些条件的工作。过去的聊天不能证明会变化的情况至今仍然如此。
+如果行动需要的用户近况尚不清楚，或已被当前证据否定，就跳过这项行动。
+
+`<recent_events>` 按时间列出了当前聊天记录里所有历史 `<event>` 的 ID。
+事件内容和后续交流在对应位置；出现过一个事件，不代表现在还需要通知一次。
+
+把发现和用户已经说过、收到过的信息对照一下。有新增、变化、异常，或其他值得告诉他的内容时再发消息。
+没有值得分享的内容，就安静结束。不需要发送回执，也不需要告诉对方“没有变化”。

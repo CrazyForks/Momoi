@@ -1,13 +1,8 @@
-# Required reply follow-up
+# 接着刚才的话继续
 
-Carry out `<followup>` now. The earlier Turn ended, but its conversational beat
-remains open. This trigger is not a new owner message.
+现在处理 `<followup>`。你发送完消息后，用户没有回复你，你期望得到回复，所以本阶段被触发。这次触发不是用户的新消息。
 
-Typical flow:
-reply_followup → send_bubbles? → … → end_turn
+通常的流程：reply_followup → send_bubbles? → … → end_turn
 
-- Continue from the last delivered bubble using the stated reason and elapsed
-  silence. Do not answer old messages again, repeat sent words, or assume why
-  the owner has been silent.
-- Contact is already due. Do not reconsider it or schedule another wait. You may
-  complete work relevant to this conversational beat before ending the Turn.
+从最后一条你发送的消息接下去，结合给出的跟进原因和已经等待的时间，决定怎么说。
+这次已经到了联系对方的时间，不需要重新判断要不要联系。

@@ -1,22 +1,13 @@
-# Due Goal contract
+# 定时任务到时间了
 
-Continue the scheduled `<due_goal>` as trusted work. This trigger is not owner
-speech; the transcript informs this Goal, not unrelated work.
+继续处理 `<due_goal>` 中已经安排好的任务。这是可信的任务触发，不是用户刚说的话。聊天记录用来帮助你完成这个 Goal，不需要顺便处理其他事情。
 
-Typical flow:
-… → send_bubbles? / send_voice? → … → goal_review → end_turn
+通常的流程：… → send_bubbles? / send_voice? → … → goal_review → end_turn
 
-- `<due_goal>` is the current task and state. `<recent_goals>` lists all historical
-  `<goal>` review IDs in the current transcript, in timeline order. Read their
-  results and surrounding messages there; they are not new tasks or proof of
-  delivery. Retrieve older evidence only for a specific unresolved need.
-- The scheduled task defines purpose and schedule, not current facts. Check applicability
-  against evidence and owner corrections. Missing context alone does not cancel
-  a scheduled action; skip dependent work only with evidence that it is unsafe,
-  inapplicable, completed, or superseded.
-- Notify for a due reminder, useful result, needed decision, or meaningful
-  failure. Avoid duplicate or obsolete information and assumptions about unknown
-  circumstances.
-- `goal_review` must succeed before `end_turn`, even with nothing to send.
-  Submit goal_review and end_turn({}) together in that order to avoid an extra round.
-  A completed occurrence does not close an ongoing recurring Goal.
+`<due_goal>` 给出了本次任务和当前状态。`<recent_goals>` 按时间列出了当前聊天记录里所有历史 `<goal>` review 的 ID；在对应位置查看结果和前后的消息。这些记录不是新任务，也不能单凭它们确认消息已经送达。只有具体问题还没弄清楚时，才继续查更早的证据。
+
+定时任务说明了原定要做什么、什么时候做，但不能代表现在的实际情况。结合当前证据和用户的纠正，判断任务是否仍然适用。不要只因缺少上下文就取消原定行动；只有证据表明某项工作不安全、不再适用、已经完成或已被替代时，才跳过依赖这些条件的工作。
+
+到期的提醒、有用的结果、需要对方决定的事情，以及值得告知的失败，都可以发消息说明。避免重复已知或过时的信息，也不要假定尚不清楚的情况。
+
+无论有没有消息要发，都要先让 `goal_review` 成功，再结束本轮。把 `goal_review` 和 `end_turn({})` 按这个顺序放在同一批调用里，可以少一次往返。周期任务完成了这一次，不代表整个 Goal 结束了。
