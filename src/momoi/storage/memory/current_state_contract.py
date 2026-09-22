@@ -33,7 +33,9 @@ CURRENT_STATE_CHANGE_SCHEMA = {
             "description": (
                 "IDs of existing slots contradicted or ended by new evidence. "
                 "A replacement requires deleting the old slot and adding its successor "
-                "in this same change set. The backend handles time-based expiry."
+                "in this same change set, atomically (equivalent to foreground memory_operation type=replace). "
+                "There is no separate replace array. Use IDs from the current maintenance snapshot. "
+                "The backend handles time-based expiry."
             ),
             "items": {
                 "type": "string",
