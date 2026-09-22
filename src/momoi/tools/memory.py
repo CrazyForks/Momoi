@@ -469,12 +469,15 @@ class MemoryTools:
         """Apply owner-evidenced state through the existing atomic revision store."""
         args = call.arguments
         action = args["type"]
+        if action not in {"replace", "forget"}:
+            return {"ok": False, "error": "current_state_add_not_allowed",
+                    "message": "Only replace/forget existing states; new states require background maintenance."}
         if (not turn_id or not call.id or "target_id" in args
                 or not args.get("subject", "").strip() or not args.get("key")
                 or (action == "forget" and "ttl_seconds" in args)
                 or (action != "forget" and "ttl_seconds" not in args)):
             return {"ok": False, "error": "invalid_current_state_fields",
-                    "message": "Use subject/key, no target_id; add/replace require ttl_seconds, forget omits it."}
+                    "message": "Use subject/key, no target_id; replace requires ttl_seconds, forget omits it."}
         evidence = args["evidence"]
         event = next((e for e in reversed(events) if evidence.strip() and evidence in e.text), None)
         if event is None:
@@ -497,9 +500,7 @@ class MemoryTools:
             dimensions.update((x["subject"], x["key"]) for x in previous["add"])
             if (subject, key) not in dimensions:
                 return {"ok": False, "error": "tool_call_id_conflict"}
-        elif action == "add" and slots:
-            return {"ok": False, "error": "state_already_exists", "message": "Use replace with this subject/key."}
-        elif action in {"replace", "forget"} and not slots:
+        elif not slots:
             return {"ok": False, "error": "state_not_found"}
         added = [] if action == "forget" else [{
             "subject": subject, "key": key, "value": args["content"].strip(),

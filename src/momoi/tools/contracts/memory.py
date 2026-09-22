@@ -7,8 +7,8 @@ Use memory_operation only when authenticated owner evidence warrants adding,
 correcting, or forgetting memory. Do not record every message or fetch old
 memories merely to repeat them as arguments. Pending requests are not confirmed
 facts or completed deletions.
-Use scope=current_state for temporary facts or owner-requested temporary behavior,
-with subject/key and an evidence-based TTL; these changes bypass memory review.
+Use scope=current_state only to update or delete an existing temporary state.
+New state creation belongs to background state maintenance.
 The background review handles durable memory classification, activation, and duplicates.
 """
 
@@ -156,10 +156,10 @@ MEMORY_TOOL_SPECS: list[dict[str, Any]] = [
         "name": "memory_operation",
         "description": (
             "Change durable memory (default scope=memory) or temporary state (scope=current_state). "
-            "For temporary facts, explicit state corrections, or behavior limited to at most 24 hours, "
-            "use current_state: writes directly without waiting for background maintenance. "
-            "Use subject/key from current_state; add creates, replace updates, forget removes that dimension. "
-            "Provide ttl_seconds for add/replace, omit it for forget. Do not renew without fresh evidence. "
+            "For existing temporary state, use current_state: replace updates, forget deletes. "
+            "New states can only be added by background state maintenance; add is forbidden in this scope. "
+            "Use the existing subject/key; a missing or expired dimension cannot be created by replace. "
+            "Provide ttl_seconds for replace, omit it for forget. Do not renew without fresh evidence. "
             "Only record temporary facts or behavior directly supported by current owner input, not your guesses. "
             "In current_state_maintenance use current_state_finish instead. "
             "The following review rules apply only to durable memory: "
@@ -172,7 +172,7 @@ MEMORY_TOOL_SPECS: list[dict[str, Any]] = [
             "properties": {
                 "type": {
                     "type": "string", "enum": ["add", "replace", "forget"],
-                    "description": "Operation, not memory category. add creates; replace updates or corrects an existing fact; forget deletes an ended, disproved, or explicitly unwanted fact. For current_state, replace atomically replaces the existing subject/key value and TTL; no separate forget is needed.",
+                    "description": "Operation, not memory category. add creates durable memory requests only; replace updates or corrects an existing fact; forget deletes an ended, disproved, or explicitly unwanted fact. For current_state, replace atomically replaces the existing subject/key value and TTL; no separate forget is needed.",
                 },
                 "content": {
                     "type": "string",
@@ -187,14 +187,14 @@ MEMORY_TOOL_SPECS: list[dict[str, Any]] = [
                     "description": "Exact contiguous quote from a current authenticated owner message.",
                 },
                 "scope": {"type": "string", "enum": ["memory", "current_state"],
-                          "description": "Storage category: memory (default) for durable facts, preferences, rules, or relationships; current_state for temporary facts or time-limited behavior (up to 24 hours). Durable memory kind and activation are classified by background review, not by the type parameter."},
+                          "description": "Storage category: memory (default) for durable facts, preferences, rules, or relationships; current_state only for updating or deleting existing temporary facts or time-limited behavior (up to 24 hours). Durable memory kind and activation are classified by background review, not by the type parameter."},
                 "subject": {"type": "string", "minLength": 1, "maxLength": 128,
                             "description": "current_state only: owner, assistant, or an established entity."},
                 "key": {"type": "string", "minLength": 1, "maxLength": 64,
                         "pattern": "^[a-z][a-z0-9_.-]*$",
-                        "description": "current_state only: dimension without the subject prefix; reuse the existing key. For owner.diet.intake use subject=owner, key=diet.intake. replace/forget require an existing dimension; add requires a new one."},
+                        "description": "current_state only: dimension without the subject prefix; reuse the existing key. For owner.diet.intake use subject=owner, key=diet.intake. replace/forget require an existing dimension; adding is not allowed."},
                 "ttl_seconds": {"type": "integer", "minimum": 1, "maximum": 86400,
-                                "description": "current_state add/replace only: evidence-supported remaining duration from this write."},
+                                "description": "current_state replace only: evidence-supported remaining duration from this write."},
                 "target_id": {
                     "type": "integer",
                     "minimum": 1,
@@ -206,7 +206,8 @@ MEMORY_TOOL_SPECS: list[dict[str, Any]] = [
                 "if": {"properties": {"scope": {"const": "current_state"}}, "required": ["scope"]},
                 "then": {
                     "required": ["subject", "key"],
-                    "properties": {"target_id": False, "content": {"maxLength": 512}},
+                    "properties": {"type": {"enum": ["replace", "forget"]},
+                                   "target_id": False, "content": {"maxLength": 512}},
                     "allOf": [{
                         "if": {"properties": {"type": {"const": "forget"}}},
                         "then": {"properties": {"ttl_seconds": False}},

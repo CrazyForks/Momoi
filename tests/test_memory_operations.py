@@ -926,7 +926,15 @@ def test_repaired_conversation_drops_unanswered_tool_calls():
     assert len(_repaired_conversation(conversation)) == 4
 
 
-def state_call(name="state-op", action="add", **overrides):
+def seed_temporary_state(store):
+    from momoi.storage.memory.current_state import SlotInput
+    store.current_state.apply(
+        add=[SlotInput(subject="assistant", key="style.override", value="旧状态", ttl_seconds=60)],
+        source_turn_id="maintenance", operation_id="seed-state", expected_revision=0,
+    )
+
+
+def state_call(name="state-op", action="replace", **overrides):
     args = {"scope": "current_state", "type": action, "subject": "assistant",
             "key": "style.override", "content": "按示例中的小桃风格回应",
             "evidence": "保持24个小时", **({"ttl_seconds": 86400} if action != "forget" else {})}
@@ -936,6 +944,7 @@ def state_call(name="state-op", action="add", **overrides):
 
 def test_temporary_state_writes_immediately_without_memory_review(store):
     source = event(store, text="按示例回应，保持24个小时")
+    seed_temporary_state(store)
     draft = TurnDraft()
     tools = MemoryTools(store)
     result = tools.execute(state_call(), [source], draft, turn_id="owner-state")
@@ -958,6 +967,7 @@ def test_temporary_state_writes_immediately_without_memory_review(store):
 def test_temporary_state_replace_forget_and_retry_do_not_restore_old_state(store):
     source = event(store, text="保持24个小时；我吃完了，删除晚饭状态")
     tools, draft = MemoryTools(store), TurnDraft()
+    seed_temporary_state(store)
     assert tools.execute(state_call(), [source], draft, turn_id="t")["ok"]
     replace = state_call("replace", "replace", content="新状态", ttl_seconds=60)
     assert tools.execute(replace, [source], draft, turn_id="t")["ok"]
@@ -980,9 +990,11 @@ def test_temporary_state_replace_forget_and_retry_do_not_restore_old_state(store
 ])
 def test_temporary_state_rejects_invalid_evidence_and_fields(store, overrides):
     source = event(store, text="保持24个小时")
+    seed_temporary_state(store)
+    snapshot = store.current_state.snapshot()
     result = MemoryTools(store).execute(state_call(**overrides), [source], TurnDraft(), turn_id="t")
     assert not result["ok"]
-    assert not store.current_state.snapshot().slots
+    assert store.current_state.snapshot() == snapshot
 
 
 def test_temporary_state_requires_ttl_and_existing_dimension_for_replace(store):
@@ -1001,6 +1013,7 @@ def test_owner_tool_loop_routes_temporary_state_immediately(daemon):
     from momoi.runtime.agent import TurnExecutionSpec
 
     source = event(daemon.store, text="按示例回应，保持24个小时")
+    seed_temporary_state(daemon.store)
     daemon.store.begin_turn("state-turn", "owner", [source.event_id])
     calls = [response(ToolCall("recall", "recall", {"units": [{
         "intent": source.text, "recall_mode": "skip", "recall_queries": [],
@@ -1027,3 +1040,22 @@ def test_owner_tool_loop_routes_temporary_state_immediately(daemon):
     assert not calls
     assert not draft.memory_operations
     assert daemon.store.pending_memory_operation() is None
+
+
+def test_temporary_state_add_rejected_by_schema_and_runtime(store):
+    source = event(store, text="保持24个小时")
+    tools = MemoryTools(store)
+    call = state_call(action="add")
+    assert not tools.execute(call, [source], TurnDraft(), turn_id="t")["ok"]
+    assert tools._state_operation(call, [source], "t")["error"] == "current_state_add_not_allowed"
+    assert not store.current_state.snapshot().slots
+
+
+def test_temporary_state_replace_cannot_recreate_expired_slot(store):
+    seed_temporary_state(store)
+    with store._db:
+        store._db.execute("UPDATE current_state_slots SET created_at=0, expires_at=1")
+    source = event(store, text="保持24个小时")
+    result = MemoryTools(store).execute(state_call(), [source], TurnDraft(), turn_id="t")
+    assert result["error"] == "state_not_found"
+    assert not store.current_state.snapshot().slots
