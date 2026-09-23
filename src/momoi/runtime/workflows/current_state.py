@@ -196,7 +196,8 @@ class CurrentStateWorkflow:
             preserve_transcript=True,
         )
         await self._run_agent_workflow(
-            tasks[-1]["system"], messages, tools, turn_id, workflow
+            tasks[-1]["system"], messages, tools, turn_id, workflow,
+            current_events=events,
         )
         if not complete:
             raise RuntimeError("state_maintenance_incomplete")

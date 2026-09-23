@@ -519,12 +519,13 @@ class AgentLoop:
         tools: list[dict[str, Any]],
         turn_id: str,
         workflow: AgentWorkflow,
+        current_events: list[IncomingMessage] | None = None,
     ) -> dict[str, Any]:
         result = await self._run_tool_loop(
             system,
             messages,
             tools,
-            [],
+            current_events or [],
             TurnDraft(),
             execution=TurnExecutionSpec(workflow.stage),
             source_event_id=turn_id,

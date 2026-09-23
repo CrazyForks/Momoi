@@ -140,6 +140,15 @@ class TurnHarnessTest(unittest.TestCase):
             harness.validate([ToolCall("curl", "curl", {"url": "https://x"})])
         )
 
+    def test_current_state_harness_allows_optional_recall(self) -> None:
+        harness = TurnHarness.for_stage("current_state_maintenance")
+        self.assertIsNone(harness.validate([ToolCall("recall", "recall", {})]))
+        self.assertIsNone(harness.validate([ToolCall("finish", "current_state_finish", {})]))
+        self.assertEqual(
+            harness.validate([ToolCall("send", "send_bubbles", {})]),
+            "tool_not_allowed",
+        )
+
     def test_required_tool_is_enforced_without_surface_projection(self) -> None:
         harness = TurnHarness.for_stage("goal")
 

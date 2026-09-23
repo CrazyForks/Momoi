@@ -6,7 +6,7 @@ import time
 from dataclasses import replace
 from importlib.resources import files
 from types import SimpleNamespace
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 from xml.etree import ElementTree
 
 import pytest
@@ -23,6 +23,7 @@ from momoi.models import (
 from momoi.runtime import MomoiDaemon
 from momoi.runtime.agent import TurnExecutionSpec
 from momoi.runtime.agent.harness import TURN_HARNESS_SPECS
+from momoi.runtime.tool_contracts.context import RECALL_TOOL_SPEC
 from momoi.runtime.jobs import AutonomousJob
 from momoi.runtime.tool_contracts.current_state import current_state_finish_spec
 from momoi.storage import Store
@@ -267,7 +268,7 @@ def test_allowed_end_turn_captures_tool_surface_and_waits_for_commit(daemon, kin
 
     async def maintain(system, messages, tools, **kwargs):
         assert tools == surfaces[-1]
-        assert system == systems[-1]
+        assert system[:len(systems[-1])] == systems[-1]
         assert ElementTree.fromstring(messages[0]["content"]).attrib == {
             "id": "T-1", "evidence": "none",
         }
@@ -311,7 +312,7 @@ def test_maintenance_preserves_tools_without_replaying_source_chain(daemon):
 
     async def complete(system, messages, tools, **kwargs):
         requests.append(copy.deepcopy(messages))
-        assert system == original_system
+        assert system[:len(original_system)] == original_system
         assert len(messages) == 2
         assert ElementTree.fromstring(messages[0]["content"]).attrib == {
             "id": "T-1", "evidence": "none",
@@ -361,6 +362,52 @@ def test_maintenance_preserves_tools_without_replaying_source_chain(daemon):
     assert pending_state_source(daemon.store) is None
     asyncio.run(daemon._complete_current_state_task("source"))
     assert len(requests) == 1
+
+
+def test_current_state_can_recall_source_owner_habit(daemon):
+    store = daemon.store
+    event = IncomingMessage("nap-event", "nap-message", "现在睡午觉", 100.0, 100.0)
+    store.add_event(event)
+    store.begin_turn("nap-source", "owner", [event.event_id])
+    assert store.stage_current_state_task(
+        "nap-source", "owner", [{"type": "text", "text": "SYSTEM"}],
+        [copy.deepcopy(RECALL_TOOL_SPEC), current_state_finish_spec()],
+    )
+    with store._db:
+        store._db.execute(
+            """INSERT INTO messages
+               (turn_id,role,content,created_at,source_event_ids_json,delivery_state)
+               VALUES ('nap-source','user','现在睡午觉',100.0,'["nap-event"]','delivered')"""
+        )
+    store.complete_background_turn("nap-source")
+
+    daemon.submit_owner_context = AsyncMock(return_value={
+        "recall_memories": "午睡通常约一小时",
+        "query_recall": "found",
+        "reflection_memories": "",
+        "episodes": "",
+    })
+    calls = [
+        response(ToolCall("lookup", "recall", {"units": [{
+            "intent": "查午睡习惯", "recall_mode": "search",
+            "recall_queries": [{"semantic": "午睡时长", "keywords": []}],
+            "recall_from_turn_id": "", "episode": {"action": "none"},
+        }]})),
+        finish(),
+    ]
+
+    async def complete(_system, messages, _tools, **kwargs):
+        if len(calls) == 1:
+            assert "午睡通常约一小时" in str(messages)
+        return calls.pop(0)
+
+    daemon.provider = SimpleNamespace(
+        complete=complete, config=SimpleNamespace(api_format="anthropic")
+    )
+    asyncio.run(daemon._complete_current_state_task("nap-source"))
+    daemon.submit_owner_context.assert_awaited_once()
+    assert [item.event_id for item in daemon.submit_owner_context.await_args.args[0]] == [event.event_id]
+    assert task_row(store, "nap-source")["state"] == "completed"
 
 
 def test_invalid_ttl_is_repaired_without_partial_changes(daemon):
