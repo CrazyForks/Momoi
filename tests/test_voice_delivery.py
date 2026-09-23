@@ -252,8 +252,15 @@ class VoiceDeliveryTest(unittest.IsolatedAsyncioTestCase):
                     if stage == "owner":
                         calls.append(ToolCall("recall", "recall", {"units": [{"intent": "Respond to owner", "recall_mode": "skip", "recall_queries": [], "recall_from_turn_id": "", "episode": {"action": "none"}}]}))
                     elif stage == "heartbeat":
-                        calls.append(ToolCall("begin", "heartbeat_begin", {"activity": "resting", "mode": "rest", "recall_mode": "skip", "recall_queries": [], "tool_groups": [], "strategy": []}))
+                        calls.append(ToolCall("begin", "heartbeat_begin", {"activity": "resting", "mode": "rest", "tool_groups": [], "strategy": []}))
                         calls.append(ToolCall("activity", "heartbeat_activity", {"activity": "resting", "result": "", "next_check_minutes": 30, "reason": "rest"}))
+                        calls.append(ToolCall("recall", "recall", {"units": [{
+                            "intent": "Send a voice message",
+                            "recall_mode": "search",
+                            "recall_queries": [{"semantic": "Prior discussion of this message", "keywords": []}],
+                            "recall_from_turn_id": "",
+                            "episode": {"action": "none"},
+                        }]}))
                     calls.append(ToolCall("voice", "send_voice", {"text": self.text}))
                     end = {"reply_wait": {"wait": False}, "mood": {"decision": "unchanged"}}
                     if stage == "goal":

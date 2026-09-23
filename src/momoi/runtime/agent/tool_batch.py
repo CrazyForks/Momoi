@@ -198,14 +198,6 @@ class ToolBatchExecutor:
                     except (ValueError, TypeError, KeyError) as error:
                         result = {"ok": False, "error": "invalid_plan_arguments", "message": str(error)}
             elif call.name == "heartbeat_begin":
-                async def prepare_heartbeat_context(arguments):
-                    prepared = await request.prepare_heartbeat_context(arguments)
-                    request.draft.memory_context.update(prepared["memory_snapshots"])
-                    return prepared
-
-                # Heartbeat context preparation may issue a topic-selection
-                # model call. Keep it attached to this heartbeat turn's
-                # thinking timeline, just like owner recall.
                 with log_context(
                     stage=execution.stage,
                     turn_id=request.turn_id,
@@ -223,7 +215,6 @@ class ToolBatchExecutor:
                         enable_tool_groups=request.enable_tool_groups,
                         tools=request.tools,
                         tool_surface=self.tool_surface,
-                        prepare_context=prepare_heartbeat_context,
                     )
             elif call.name == "heartbeat_activity":
                 result = record_heartbeat_activity(
@@ -254,13 +245,44 @@ class ToolBatchExecutor:
                     tool_call_id=call.id,
                     tool_name=call.name,
                 ):
-                    result = await recall_owner_context(
-                        call,
-                        current_events=request.current_events,
-                        turn_id=request.turn_id,
-                        submit_context=request.submit_owner_context,
-                    )
-                if result.get("ok"):
+                    if execution.heartbeat:
+                        try:
+                            units = call.arguments.get("units")
+                            if not isinstance(units, list) or len(units) != 1 or not isinstance(units[0], dict):
+                                raise ValueError("heartbeat recall requires one search unit")
+                            unit = units[0]
+                            if (
+                                unit.get("recall_mode") != "search"
+                                or unit.get("episode", {}).get("action") != "none"
+                                or not 1 <= len(unit.get("recall_queries", [])) <= 2
+                            ):
+                                raise ValueError("heartbeat recall requires one search unit, 1-2 queries, and episode.action=none")
+                            prepared = await request.prepare_heartbeat_context({
+                                "activity": str(unit["intent"]),
+                                "mode": "work",
+                                "recall_mode": "search",
+                                "recall_queries": unit["recall_queries"],
+                                "strategy": ["Check the candidate message against prior discussion."],
+                            })
+                            request.draft.memory_context.update(prepared["memory_snapshots"])
+                            context = prepared["context"]
+                            result = {
+                                "ok": True, "state": "recalled",
+                                "memory": context["recall_memories"],
+                                "status": context["query_recall"],
+                                "reflection": context["reflection_memories"],
+                                "episodes": context["episodes"],
+                            }
+                        except (KeyError, TypeError, ValueError) as error:
+                            result = {"ok": False, "error": "invalid_recall", "message": str(error)}
+                    else:
+                        result = await recall_owner_context(
+                            call,
+                            current_events=request.current_events,
+                            turn_id=request.turn_id,
+                            submit_context=request.submit_owner_context,
+                        )
+                if result.get("ok") and not execution.heartbeat:
                     record = self.store.context_plan(request.turn_id)
                     recalled = record.get("retrieval", {}).get("recall_memories", []) if record else []
                     request.draft.memory_context.update(self.store.memory_snapshots(

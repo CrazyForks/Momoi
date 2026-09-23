@@ -145,6 +145,7 @@ class ToolSurface:
             return frozenset(
                 {
                     "heartbeat_begin",
+                    "recall",
                     "heartbeat_activity",
                     "end_turn",
                     *shared,

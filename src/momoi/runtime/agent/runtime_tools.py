@@ -55,7 +55,6 @@ async def begin_heartbeat(
     enable_tool_groups: dict[str, list[dict[str, Any]]],
     tools: list[dict[str, Any]],
     tool_surface: ToolSurface,
-    prepare_context: Callable[[dict[str, Any]], Awaitable[dict[str, object]]],
 ) -> dict[str, object]:
     requested = call.arguments.get("tool_groups")
     if (
@@ -68,14 +67,6 @@ async def begin_heartbeat(
         )
     ):
         return {"ok": False, "error": "invalid_heartbeat_begin"}
-    try:
-        prepared = await prepare_context(call.arguments)
-    except ValueError as error:
-        return {
-            "ok": False,
-            "error": "invalid_heartbeat_begin",
-            "message": str(error),
-        }
     selected_tools = tool_surface.append_visible(
         tools,
         [
@@ -84,18 +75,12 @@ async def begin_heartbeat(
             for spec in enable_tool_groups[group]
         ],
     )
-    recalled = prepared["context"]
-    assert isinstance(recalled, dict)
     return {
         "ok": True,
         "state": "started",
         "activity": call.arguments.get("activity"),
         "mode": call.arguments.get("mode"),
         "strategy": call.arguments.get("strategy"),
-        "memory": recalled["recall_memories"],
-        "status": recalled["query_recall"],
-        "reflection": recalled["reflection_memories"],
-        "episodes": recalled["episodes"],
         "enabled_tools": selected_tools,
     }
 

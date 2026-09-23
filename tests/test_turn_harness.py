@@ -184,6 +184,26 @@ class TurnHarnessTest(unittest.TestCase):
             None,
         )
 
+    def test_heartbeat_requires_separate_successful_recall_for_each_send(self) -> None:
+        harness = TurnHarness.for_stage("heartbeat")
+        begin = ToolCall("begin", "heartbeat_begin", {})
+        recall = ToolCall("recall", "recall", {})
+        send = ToolCall("send", "send_bubbles", {})
+        voice = ToolCall("voice", "send_voice", {})
+
+        self.assertIsNone(harness.validate([begin]))
+        harness.accept("heartbeat_begin")
+        self.assertEqual(harness.validate([send]), "heartbeat_recall_required_before_send")
+        self.assertEqual(harness.validate([recall, send]), "heartbeat_recall_required_before_send")
+        harness.accept("recall")
+        self.assertEqual(harness.validate([recall, send]), "heartbeat_recall_required_before_send")
+        self.assertEqual(harness.validate([send, voice]), "heartbeat_one_send_per_recall")
+        self.assertIsNone(harness.validate([send]))
+        harness.accept("send_bubbles")
+        self.assertEqual(harness.validate([voice]), "heartbeat_recall_required_before_send")
+        harness.accept("recall")
+        self.assertIsNone(harness.validate([voice]))
+
     def test_reply_followup_can_work_before_or_after_optional_delivery(self) -> None:
         harness = TurnHarness.for_stage("reply_followup")
         work = ToolCall("work", "read_file", {"path": "notes.txt"})

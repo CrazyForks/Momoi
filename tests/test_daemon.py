@@ -1466,13 +1466,6 @@ class DaemonAsyncTest(unittest.IsolatedAsyncioTestCase):
                             {
                                 "activity": "整理小游戏关卡灵感",
                                 "mode": "work",
-                                "recall_mode": "search",
-                                "recall_queries": [
-                                    {
-                                        "semantic": "近期小游戏关卡灵感与未完成创作",
-                                        "keywords": ["小游戏", "关卡"],
-                                    }
-                                ],
                                 "tool_groups": [],
                                 "strategy": [
                                     "读取一条玩法资讯",
@@ -1508,8 +1501,6 @@ class DaemonAsyncTest(unittest.IsolatedAsyncioTestCase):
                             {
                                 "activity": "把关卡灵感安排成后续草案",
                                 "mode": "work",
-                                "recall_mode": "skip",
-                                "recall_queries": [],
                                 "tool_groups": [],
                                 "strategy": [
                                     "创建后续 Goal",
@@ -1531,12 +1522,20 @@ class DaemonAsyncTest(unittest.IsolatedAsyncioTestCase):
                             },
                         )
                     elif self.calls == 7:
+                        call = ToolCall("heartbeat-recall", "recall", {"units": [{
+                            "intent": "分享刚想到的关卡点子",
+                            "recall_mode": "search",
+                            "recall_queries": [{"semantic": "此前聊过的这个关卡点子", "keywords": ["关卡"]}],
+                            "recall_from_turn_id": "",
+                            "episode": {"action": "none"},
+                        }]})
+                    elif self.calls == 8:
                         call = ToolCall(
                             "heartbeat-live",
                             "send_bubbles",
                             {"bubbles": ["刚想到一个关卡点子！"]},
                         )
-                    elif self.calls == 8:
+                    elif self.calls == 9:
                         call = ToolCall("activity-two", "heartbeat_activity", {
                             "activity": "整理小游戏关卡灵感",
                             "result": "已建立自己的关卡草案任务继续整理",
@@ -1570,6 +1569,14 @@ class DaemonAsyncTest(unittest.IsolatedAsyncioTestCase):
 
             provider = Provider()
             daemon.provider = with_owner_recall(provider)  # type: ignore[assignment]
+
+            async def prepare_heartbeat_context(_arguments):
+                return {"memory_snapshots": {}, "context": {
+                    "recall_memories": [], "query_recall": "no prior match",
+                    "reflection_memories": [], "episodes": [],
+                }}
+
+            daemon.prepare_heartbeat_context = prepare_heartbeat_context
 
             async def read_news(_: ToolCall) -> dict[str, object]:
                 return {"ok": True, "status": 200, "body": "新玩法公开"}
@@ -1610,7 +1617,7 @@ class DaemonAsyncTest(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(daemon.store.due_outbox()[0].text, "刚想到一个关卡点子！")
             goal = daemon.store.list_goals()[0]
             self.assertEqual(goal["title"], "继续整理关卡点子")
-            self.assertEqual(provider.calls, 9)
+            self.assertEqual(provider.calls, 10)
             daemon.store.close()
 
 

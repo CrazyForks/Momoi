@@ -12,6 +12,89 @@ from momoi.runtime import MomoiDaemon
 
 
 class HeartbeatNativeTranscriptTest(unittest.IsolatedAsyncioTestCase):
+    async def test_send_waits_for_successful_targeted_recall(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            daemon = MomoiDaemon(AppConfig(
+                providers=provider_catalog(LLMConfig("http://127.0.0.1", "test", "test", 100, 0, 1, 0)),
+                channel=NapCatConfig("ws://127.0.0.1", "20000", 1, 60, 30, 30, 20),
+                system_prompt="test",
+                transcript_turns_min=4,
+                transcript_turns_max=4,
+                episode_unsummarized_tail_turns=2,
+                memory_results=2,
+                database=Path(directory) / "momoi.sqlite3",
+                log_level="INFO",
+                turn_max_protocol_retries=5,
+            ))
+            self.addCleanup(daemon.store.close)
+            recall_arguments = {"units": [{
+                "intent": "Share a specific show update",
+                "recall_mode": "search",
+                "recall_queries": [{"semantic": "Prior discussion of this show", "keywords": []}],
+                "recall_from_turn_id": "",
+                "episode": {"action": "none"},
+            }]}
+            calls = [
+                ToolCall("begin", "heartbeat_begin", {
+                    "activity": "read news", "mode": "work", "tool_groups": [],
+                    "strategy": ["Read current news"],
+                }),
+                ToolCall("early", "send_bubbles", {"bubbles": ["A show update"]}),
+                ToolCall("bad-recall", "recall", recall_arguments),
+                ToolCall("still-early", "send_bubbles", {"bubbles": ["A show update"]}),
+                ToolCall("good-recall", "recall", recall_arguments),
+                ToolCall("send", "send_bubbles", {"bubbles": ["A show update"]}),
+                ToolCall("activity", "heartbeat_activity", {
+                    "activity": "read news", "result": "Shared one update",
+                    "next_check_minutes": 30, "reason": "Enough for now",
+                }),
+                ToolCall("finish", "end_turn", {
+                    "reply_wait": {"wait": False}, "mood": {"decision": "unchanged"},
+                }),
+            ]
+            recall_count = 0
+
+            async def prepare_context(arguments):
+                nonlocal recall_count
+                recall_count += 1
+                self.assertEqual(arguments["recall_mode"], "search")
+                if recall_count == 1:
+                    raise ValueError("retrieval unavailable")
+                return {"memory_snapshots": {}, "context": {
+                    "recall_memories": [], "query_recall": "no prior match",
+                    "reflection_memories": [], "episodes": [],
+                }}
+
+            daemon.prepare_heartbeat_context = prepare_context
+            case = self
+
+            class Provider:
+                calls = 0
+
+                async def complete(self, _system, messages, _tools, **_kwargs):
+                    call = calls[self.calls]
+                    if self.calls == 2:
+                        case.assertIn("heartbeat_recall_required_before_send", str(messages[-1]))
+                    if self.calls == 4:
+                        case.assertIn("heartbeat_recall_required_before_send", str(messages[-1]))
+                    self.calls += 1
+                    return ProviderResponse(
+                        [{"type": "tool_use", "id": call.id, "name": call.name,
+                          "input": call.arguments}], [call],
+                    )
+
+            provider = Provider()
+            daemon.provider = provider
+            turn_id = daemon._turn_id("heartbeat-recall-gate")
+            daemon.store.begin_turn(turn_id, "heartbeat", [f"heartbeat:{turn_id}"])
+            await daemon._complete_heartbeat(turn_id, owner_event_revision=0)
+            self.assertEqual(provider.calls, len(calls))
+            self.assertEqual(recall_count, 2)
+            self.assertIsNone(daemon.store.context_plan(turn_id))
+            self.assertEqual(daemon.store._db.execute(
+                "SELECT COUNT(*) FROM outbox WHERE turn_id=?", (turn_id,),
+            ).fetchone()[0], 1)
+
     async def test_rest_retries_undelivered_text_then_finishes_silently(self) -> None:
         for with_terminal in (False, True):
             with self.subTest(with_terminal=with_terminal), tempfile.TemporaryDirectory() as directory:
@@ -29,8 +112,8 @@ class HeartbeatNativeTranscriptTest(unittest.IsolatedAsyncioTestCase):
                 self.addCleanup(daemon.store.close)
                 case = self
                 begin = ToolCall("begin", "heartbeat_begin", {
-                    "activity": "resting", "mode": "rest", "recall_mode": "skip",
-                    "recall_queries": [], "tool_groups": [], "strategy": [],
+                    "activity": "resting", "mode": "rest",
+                    "tool_groups": [], "strategy": [],
                 })
                 finish = ToolCall("finish", "end_turn", {
                     "reply_wait": {"wait": False}, "mood": {"decision": "unchanged"},
@@ -144,8 +227,6 @@ class HeartbeatNativeTranscriptTest(unittest.IsolatedAsyncioTestCase):
                             {
                                 "activity": "resting",
                                 "mode": "rest",
-                                "recall_mode": "skip",
-                                "recall_queries": [],
                                 "tool_groups": [],
                                 "strategy": [],
                             },
@@ -306,13 +387,6 @@ class HeartbeatNativeTranscriptTest(unittest.IsolatedAsyncioTestCase):
                             {
                                 "activity": "inspect demo state",
                                 "mode": "work",
-                                "recall_mode": "search",
-                                "recall_queries": [
-                                    {
-                                        "semantic": "Previous demo state observations",
-                                        "keywords": ["demo"],
-                                    }
-                                ],
                                 "tool_groups": ["demo"],
                                 "strategy": [
                                     "Read current state",

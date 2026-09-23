@@ -52,6 +52,7 @@ class TurnHarness:
     started: bool = False
     blocked_tool_names: frozenset[str] = frozenset()
     completed_tools: set[str] = field(default_factory=set)
+    heartbeat_recall_ready: bool = False
 
     def __post_init__(self) -> None:
         self.reset()
@@ -76,6 +77,7 @@ class TurnHarness:
     def reset(self) -> None:
         self.started = self.spec.first_tool is None
         self.completed_tools.clear()
+        self.heartbeat_recall_ready = False
 
     def accept_owner_update(self) -> None:
         """Keep the Turn's completed opening after a new owner message."""
@@ -107,6 +109,19 @@ class TurnHarness:
             return "tool_not_allowed"
         if any(name in self.blocked_tool_names for name in names):
             return "tool_not_allowed"
+        if (
+            self.spec.stage == "heartbeat"
+            and self.permitted_tool_names is not None
+            and any(name not in self.permitted_tool_names for name in names)
+        ):
+            return "tool_not_allowed"
+        if self.spec.stage == "heartbeat" and any(
+            name in {"send_bubbles", "send_voice"} for name in names
+        ):
+            if not self.heartbeat_recall_ready or "recall" in names:
+                return "heartbeat_recall_required_before_send"
+            if sum(name in {"send_bubbles", "send_voice"} for name in names) != 1:
+                return "heartbeat_one_send_per_recall"
         first = self.spec.first_tool
         first_names = {first}
         if (
@@ -177,6 +192,11 @@ class TurnHarness:
 
     def accept(self, tool_name: str) -> None:
         self.completed_tools.add(tool_name)
+        if self.spec.stage == "heartbeat":
+            if tool_name == "recall":
+                self.heartbeat_recall_ready = True
+            elif tool_name in {"send_bubbles", "send_voice"}:
+                self.heartbeat_recall_ready = False
         if tool_name == self.spec.first_tool or (
             self.spec.first_tool == "send_bubbles" and tool_name == "send_voice"
         ):

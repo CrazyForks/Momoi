@@ -112,8 +112,6 @@ def test_real_heartbeat_retries_gate_and_commits_only_on_completion(daemon, canc
         {
             "activity": "reading",
             "mode": "rest",
-            "recall_mode": "skip",
-            "recall_queries": [],
             "tool_groups": [],
             "strategy": [],
         },

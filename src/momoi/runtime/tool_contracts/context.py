@@ -72,9 +72,12 @@ def recall_correction(message: str) -> dict[str, Any]:
 RECALL_TOOL_SPEC: dict[str, Any] = {
     "name": "recall",
     "description": (
-        "Retrieve confirmed memory, dated reflection, and Episode summaries for "
-        "the Owner Turn, and bind its archival Episode membership. "
-        "Include once in the opening tool batch; independent tools may accompany it. "
+        "Retrieve confirmed memory, dated reflection, and Episode summaries. "
+        "In an Owner Turn, include once in the opening tool batch and bind its "
+        "archival Episode membership; independent tools may accompany it. "
+        "In a Heartbeat, search after discovering specific content and before each "
+        "owner-visible send; use one search unit with episode.action=none, and wait "
+        "for the result before sending. Heartbeat recall does not archive an Episode. "
         "Retry until successful; wait for its results before dependent calls. "
         "Later calls in the same Turn may retrieve additional evidence. Each call "
         "adds evidence without replacing the original intent or Episode routing for "
@@ -270,8 +273,8 @@ def heartbeat_begin_spec(group_descriptions: dict[str, str]) -> dict[str, Any]:
     return {
         "name": "heartbeat_begin",
         "description": (
-            "Begin the chosen autonomous activity; retrieve its historical evidence "
-            "and enable the selected MCP groups."
+            "Begin the chosen autonomous activity and enable the selected MCP groups. "
+            "For an owner-visible message, use recall after discovering the specific content."
         ),
         "input_schema": {
             "type": "object",
@@ -287,42 +290,6 @@ def heartbeat_begin_spec(group_descriptions: dict[str, str]) -> dict[str, Any]:
                 "mode": {
                     "type": "string",
                     "enum": ["work", "rest"],
-                },
-                "recall_mode": {
-                    "type": "string",
-                    "enum": ["search", "skip"],
-                    "description": (
-                        "Search only when history can change activity choice or "
-                        "execution; skip when it cannot."
-                    ),
-                },
-                "recall_queries": {
-                    "type": "array",
-                    "minItems": 0,
-                    "maxItems": 2,
-                    "description": ("Non-overlapping historical evidence needs."),
-                    "items": {
-                        "type": "object",
-                        "properties": {
-                            "semantic": {
-                                "type": "string",
-                                "minLength": 1,
-                                "maxLength": 240,
-                                "description": CUE_QUERY_CONTRACT,
-                            },
-                            "keywords": {
-                                "type": "array",
-                                "maxItems": 6,
-                                "items": {
-                                    "type": "string",
-                                    "minLength": 1,
-                                    "maxLength": 60,
-                                },
-                            },
-                        },
-                        "required": ["semantic", "keywords"],
-                        "additionalProperties": False,
-                    },
                 },
                 "tool_groups": {
                     "type": "array",
@@ -357,28 +324,10 @@ def heartbeat_begin_spec(group_descriptions: dict[str, str]) -> dict[str, Any]:
             "required": [
                 "activity",
                 "mode",
-                "recall_mode",
-                "recall_queries",
                 "tool_groups",
                 "strategy",
             ],
             "allOf": [
-                {
-                    "oneOf": [
-                        {
-                            "properties": {
-                                "recall_mode": {"enum": ["search"]},
-                                "recall_queries": {"minItems": 1},
-                            }
-                        },
-                        {
-                            "properties": {
-                                "recall_mode": {"enum": ["skip"]},
-                                "recall_queries": {"maxItems": 0},
-                            }
-                        },
-                    ]
-                },
                 {
                     "oneOf": [
                         {
