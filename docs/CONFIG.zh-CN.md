@@ -267,7 +267,7 @@ QQ 可能异步生成文字，接口拒绝或返回空文字时会分别等待 2
 | `memory_results` | `6` | 已确认召回记忆与复盘记忆各自的 top-k；范围为 `0`–`6`，设为 `0` 时关闭两者（合计最多 `12` 条） |
 | `max_input_tokens` | `142222` | 完整模型输入的上限预算；最小值为 `1000` |
 | `context_compaction_ratio` | `0.9` | 达到 `max_input_tokens` 此比例时开始压缩旧 transcript 和当前 Turn 工具结果；范围为 `(0, 1]`。默认在 128,000 tokens 开始压缩。 |
-| `summary_results` | `8` | 查询召回的 Episode 上限，最多可配置为 `12`；`0` 关闭查询召回 |
+| `summary_results` | `8` | 查询召回的 Episode 和 Owner Turn 中最近 Episode 候选列表的上限，最多可配置为 `12`；`0` 关闭两者 |
 | `summary_tokens` | `6000` | 合并后 Episode 摘要的 token 预算；`0` 关闭该层 |
 
 `max_input_tokens` 应低于 Provider 的实际上下文窗口。默认 32–80 Turn transcript

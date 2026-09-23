@@ -37,7 +37,7 @@ def test_episode_catalog_and_recall_context_are_nested_xml():
     title = '标题 </title> & "内容"'
     queries = ['查询 </query> & 内容', '分号 ; 保留独立查询']
     episodes = recent_episode_lines([
-        {"id": "ep-1", "title": title, "turn_ids": ["a", "b"], "last_activity_timestamp": "2026-09-08T22:26:03+08:00"},
+        {"id": "ep-1", "title": title, "narrative_summary": '摘要 </summary> & "内容"', "turn_ids": ["a", "b"], "last_activity_timestamp": "2026-09-08T22:26:03+08:00"},
         {"id": "ep-2", "title": "无窗口轮次", "turn_ids": ["outside"]},
     ], {"a": "T-21", "b": "T-22"})
     message = context_data_message(
@@ -48,10 +48,24 @@ def test_episode_catalog_and_recall_context_are_nested_xml():
     entries = root.findall("recent_episodes/episode")
     assert entries[0].attrib == {"id": "ep-1", "turns": "T-21..T-22", "last_activity": "2026-09-08T22:26:03+08:00"}
     assert entries[0].find("title").text == title
+    assert entries[0].find("summary").text == '摘要 </summary> & "内容"'
     assert entries[1].attrib == {"id": "ep-2"}
+    assert entries[1].find("summary") is not None
+    assert entries[1].find("summary").text is None
+    assert "<summary></summary>" in episodes
     recall = root.find("recent_recall_context/recall")
     assert recall.get("turn") == 'raw-"<&'
     assert [query.text for query in recall.findall("query")] == queries
+
+
+def test_episode_catalog_does_not_use_working_summary():
+    rendered = recent_episode_lines([{
+        "id": "ep-1", "title": "未整理经历", "narrative_summary": "",
+        "working_summary": "证" * 600, "turn_ids": [],
+    }], {})
+    episode = ElementTree.fromstring(rendered)
+    assert episode.find("summary") is not None
+    assert episode.find("summary").text is None
 
 
 def test_self_state_preserves_metadata_and_text_boundaries():

@@ -30,7 +30,11 @@ RECALL_SCOPE_CONTRACT = (
     "only when the displayed recent_recall_context query set covers the entire need; "
     "proximity, mood, or Episode membership is not coverage. Keep Episode action "
     "independent of retrieval: continue only for the same concrete experience, new "
-    "only for a distinct experience worth keeping, otherwise none. Split independent "
+    "only for a distinct experience worth keeping, otherwise none. For continue or new, "
+    "give a specific reason comparing the current topic with the candidate Episode or "
+    "recent conversation: is this truly the same experience, or has the topic changed? "
+    "Do not continue merely because the candidate is recent or is the only candidate. "
+    "Split independent "
     "outcomes into separate units; corrections replace revoked intent. Preserve known "
     "subjects, literal identifiers, and uncertainty; do not invent unresolved identity. "
     "If identity is unresolved, search for it first and ask if the evidence cannot "
@@ -55,7 +59,8 @@ def recall_correction(message: str) -> dict[str, Any]:
             "Use JSON arrays/objects, never JSON-encoded strings. search requires 1-3 queries "
             "and an empty recall_from_turn_id; reuse requires [] and a displayed recalled Turn id; "
             "skip requires [] and an empty id. episode is an object: none, continue with a "
-            "candidate ref, or new with new:<slug> and title. Choose from actual evidence; "
+            "candidate ref and reason, or new with new:<slug>, title, and reason. "
+            "The reason must explain topic continuity or a distinct new experience. Choose from actual evidence; "
             "the example only illustrates skip when supplied context is sufficient. "
             "Each unit may optionally set kind to [] (all canonical memory kinds) or a "
             "list such as [\"profile\", \"preference\"]; Episodes are separate."
@@ -185,16 +190,29 @@ RECALL_TOOL_SPEC: dict[str, Any] = {
                                     "maxLength": 80,
                                     "description": "Specific title for new; otherwise empty.",
                                 },
+                                "reason": {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "maxLength": 300,
+                                    "pattern": r"\S",
+                                    "description": (
+                                        "For continue, explain the concrete continuity with the "
+                                        "candidate Episode and why this is not a topic switch. "
+                                        "For new, explain why this is a distinct experience "
+                                        "worth archiving rather than a continuation."
+                                    ),
+                                },
                             },
                             "required": ["action"],
                             "oneOf": [
                                 {"properties": {"action": {"const": "none"},
-                                                "ref": {"const": ""}, "title": {"const": ""}}},
-                                {"required": ["ref"], "properties": {
+                                                "ref": {"const": ""}, "title": {"const": ""},
+                                                "reason": {"const": ""}}},
+                                {"required": ["ref", "reason"], "properties": {
                                     "action": {"const": "continue"},
                                     "ref": {"minLength": 1, "description": "Copy an actual candidate Episode id."},
                                     "title": {"const": ""}}},
-                                {"required": ["ref", "title"], "properties": {
+                                {"required": ["ref", "title", "reason"], "properties": {
                                     "action": {"const": "new"},
                                     "ref": {"pattern": "^new:[a-z0-9][a-z0-9_-]{0,39}$"},
                                     "title": {"minLength": 1, "pattern": r"\S"}}},

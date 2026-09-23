@@ -52,7 +52,10 @@ def recent_episode_lines(
             "id": episode["id"], "turns": episode_labels,
             "last_activity": episode.get("last_activity_timestamp"),
         })
-        lines.append(f"<episode{attributes}><title>{escape(str(episode['title'])[:120])}</title></episode>")
+        summary = str(episode.get("narrative_summary") or "").strip()
+        body = f"<title>{escape(str(episode['title'])[:120])}</title>"
+        body += f"<summary>{escape(summary)}</summary>"
+        lines.append(f"<episode{attributes}>{body}</episode>")
     return "\n".join(lines)
 
 

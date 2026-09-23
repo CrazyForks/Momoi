@@ -111,11 +111,9 @@ class ContextService:
         )
         candidate_ids = {
             str(item["id"])
-            for item in self.store.episode_directory_for_turns(
-                [str(row["turn_id"]) for row in candidate_rows],
-                exclude_runtime_archives=True,
+            for item in self._recent_episode_candidates(
+                [str(row["turn_id"]) for row in candidate_rows]
             )
-            if item.get("id")
         }
         for index, raw in enumerate(raw_units if isinstance(raw_units, list) else [], 1):
             if not isinstance(raw, dict):
@@ -201,6 +199,11 @@ class ContextService:
             binding: dict[str, object] = {"action": action, "unit_ids": [unit_id]}
             reference = str(episode.get("ref") or "") if isinstance(episode, dict) else ""
             title = str(episode.get("title") or "") if isinstance(episode, dict) else ""
+            raw_reason = episode.get("reason") if isinstance(episode, dict) else None
+            reason = raw_reason.strip() if isinstance(raw_reason, str) else ""
+            if not reason or len(reason) > 300:
+                raise ValueError(f"{path}.episode.reason: new and continue require a concise nonempty reason for topic continuity or change")
+            binding["reason"] = reason
             if action == "continue" and reference in candidate_ids:
                 binding["episode_id"] = reference
                 binding["episode_ref"] = reference
@@ -242,6 +245,33 @@ class ContextService:
             self.config.summary_tokens,
         )
 
+    def _recent_episode_candidates(self, turn_ids: list[str]) -> list[dict[str, object]]:
+        limit = max(0, self.config.summary_results)
+        if not limit:
+            return []
+        selected = self.store.episode_directory_for_turns(
+            turn_ids, exclude_runtime_archives=True
+        )[:limit]
+        seen = {str(item["id"]) for item in selected}
+        if len(selected) < limit:
+            for episode in self.store.list_recent_episode_directory(
+                limit + len(selected), exclude_runtime_archives=True
+            ):
+                episode_id = str(episode["id"])
+                if episode_id in seen:
+                    continue
+                selected.append({
+                    "id": episode_id,
+                    "title": episode["title"],
+                    "narrative_summary": episode["narrative_summary"],
+                    "last_activity_timestamp": episode["last_activity_timestamp"],
+                    "turn_ids": [],
+                })
+                seen.add(episode_id)
+                if len(selected) == limit:
+                    break
+        return selected
+
     def owner_context_candidates(
         self, turn_ids: list[str], labels: dict[str, str] | None = None
     ) -> dict[str, str]:
@@ -255,10 +285,7 @@ class ContextService:
 
         return {
             "recent_episodes": recent_episode_lines(
-                self.store.episode_directory_for_turns(
-                    turn_ids,
-                    exclude_runtime_archives=True,
-                ),
+                self._recent_episode_candidates(turn_ids),
                 labels or {},
             ),
             "recent_recall_context": recall_context_lines(

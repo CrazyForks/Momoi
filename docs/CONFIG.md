@@ -287,7 +287,7 @@ All fields must be positive.
 | `memory_results` | `6` | Per-category top-k for confirmed recall memory and reflection memory; range `0`–`6`, and `0` disables both (combined maximum `12`) |
 | `max_input_tokens` | `142222` | Upper budget for the complete model input; minimum `1000` |
 | `context_compaction_ratio` | `0.9` | Fraction of `max_input_tokens` at which old transcript and current-Turn tool results begin compacting; range `(0, 1]`. The defaults compact at 128,000 tokens. |
-| `summary_results` | `8` | Maximum query-recalled Episodes, configurable up to `12`; `0` disables query recall |
+| `summary_results` | `8` | Maximum query-recalled Episodes and recent Episode candidates shown to the owner Turn, configurable up to `12`; `0` disables both |
 | `summary_tokens` | `6000` | Merged Episode-summary token budget; `0` disables this layer |
 
 `max_input_tokens` should remain below the provider's actual context window. The

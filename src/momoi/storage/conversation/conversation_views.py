@@ -103,6 +103,7 @@ class ConversationViewStore:
                 {
                     "id": episode_id,
                     "title": str(row["title"]),
+                    "narrative_summary": str(row["narrative_summary"] or ""),
                     "last_activity_timestamp": self.context_timestamp(
                         row["last_activity_at"]
                     ),

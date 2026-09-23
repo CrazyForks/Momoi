@@ -3,6 +3,7 @@ import tempfile
 import unittest
 import uuid
 import json
+from dataclasses import replace
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
@@ -182,7 +183,8 @@ class RecallEpisodeBindingTest(unittest.IsolatedAsyncioTestCase):
             unit = {
                 "intent": "主人开始整理书房",
                 "recall_mode": "skip", "recall_queries": [], "recall_from_turn_id": "",
-                "episode": {"action": "new", "ref": "new:study", "title": "整理书房"},
+                "episode": {"action": "new", "ref": "new:study", "title": "整理书房",
+                            "reason": "开始整理书房是独立的新经历，不是此前话题的延续"},
             }
             with patch.object(daemon.semantic_recall, "prepare", new_callable=AsyncMock) as dense:
                 result = await recall_owner_context(
@@ -208,6 +210,10 @@ class RecallEpisodeBindingTest(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(record["plan"]["intent_units"][0]["intent"], "主人开始整理书房")
             self.assertEqual(record["plan"]["supplemental_queries"][0]["intent_units"][0]["intent"], "补查另一个角度")
             self.assertEqual(record["plan"]["intent_units"][0]["recall"]["mode"], "skip")
+            self.assertEqual(
+                record["plan"]["episode_actions"][0]["reason"],
+                "开始整理书房是独立的新经历，不是此前话题的延续",
+            )
             for field in ("recall_memories", "reflection_memories", "episodes", "effective_recall_queries"):
                 self.assertEqual(record["retrieval"][field], [])
             self.assertEqual(daemon.store.recall_reuse_candidates([turn_id]), [])
@@ -216,6 +222,33 @@ class RecallEpisodeBindingTest(unittest.IsolatedAsyncioTestCase):
                 "SELECT episode_id FROM episode_turns WHERE turn_id=?", (turn_id,),
             ).fetchone()
             self.assertEqual(daemon.store.episode(linked["episode_id"])["title"], "整理书房")
+
+    async def test_episode_binding_requires_reason_before_persistence(self) -> None:
+        from jsonschema import Draft202012Validator
+        from momoi.runtime.tool_contracts.context import RECALL_TOOL_SPEC
+
+        with tempfile.TemporaryDirectory() as directory:
+            daemon = MomoiDaemon(config(directory))
+            self.addCleanup(daemon.store.close)
+            event = IncomingMessage("episode:reason", "1", "开始整理书房", 1, 1)
+            daemon.store.add_event(event)
+            turn_id = daemon._turn_id(event.event_id)
+            daemon.store.begin_turn(turn_id, "owner", [event.event_id])
+            base = {
+                "intent": "开始整理书房", "recall_mode": "skip",
+                "recall_queries": [], "recall_from_turn_id": "",
+            }
+            validator = Draft202012Validator(RECALL_TOOL_SPEC["input_schema"])
+            for episode in (
+                {"action": "new", "ref": "new:study", "title": "整理书房"},
+                {"action": "continue", "ref": "candidate-id"},
+                {"action": "new", "ref": "new:study", "title": "整理书房", "reason": "  "},
+            ):
+                arguments = {"units": [{**base, "episode": episode}]}
+                self.assertFalse(validator.is_valid(arguments))
+                with self.assertRaisesRegex(ValueError, "episode.reason"):
+                    await daemon.submit_owner_context([event], turn_id, arguments)
+                self.assertIsNone(daemon.store.context_plan(turn_id))
 
     async def test_skip_rejects_search_arguments_instead_of_discarding_them(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -332,10 +365,15 @@ class RecallEpisodeBindingTest(unittest.IsolatedAsyncioTestCase):
                     self.assertEqual(diagnostics["request_ms"], 0)
             encoder.assert_not_awaited()
 
-    async def test_candidate_directory_follows_transcript_episode_ids(self) -> None:
+    async def test_candidate_directory_fills_from_recent_episodes(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             daemon = MomoiDaemon(config(directory))
-            for suffix, title in (("inside", "窗口内经历"), ("outside", "窗口外经历")):
+            daemon.config = replace(daemon.config, summary_results=2)
+            for suffix, title in (
+                ("inside", "窗口内经历"),
+                ("outside-old", "较早的窗口外经历"),
+                ("outside-new", "较新的窗口外经历"),
+            ):
                 event = IncomingMessage(suffix, suffix, title, 1, 1)
                 daemon.store.add_event(event)
                 turn_id = f"turn-{suffix}"
@@ -349,6 +387,19 @@ class RecallEpisodeBindingTest(unittest.IsolatedAsyncioTestCase):
                 daemon.store.create_episode(title, episode_id=f"episode-{suffix}")
                 daemon.store.link_turn_to_episode(f"episode-{suffix}", turn_id)
 
+            with daemon.store._db:
+                daemon.store._db.execute(
+                    "UPDATE conversation_episodes SET narrative_summary=? WHERE id=?",
+                    ("从整理书房开始，后来讨论书架摆放。", "episode-inside"),
+                )
+                for suffix, updated_at in (
+                    ("inside", 10.0), ("outside-old", 20.0), ("outside-new", 30.0)
+                ):
+                    daemon.store._db.execute(
+                        "UPDATE turns SET updated_at=? WHERE id=?",
+                        (updated_at, f"turn-{suffix}"),
+                    )
+
             candidates = daemon.owner_context_candidates(
                 ["turn-inside"],
                 {"turn-inside": "T-1"},
@@ -356,12 +407,33 @@ class RecallEpisodeBindingTest(unittest.IsolatedAsyncioTestCase):
 
             self.assertIn('id="episode-inside"', candidates)
             self.assertIn("<title>窗口内经历</title>", candidates)
+            self.assertIn("<summary>从整理书房开始，后来讨论书架摆放。</summary>", candidates)
             self.assertIn('turns="T-1"', candidates)
             self.assertIn("last_activity=", candidates)
-            self.assertNotIn("episode-outside", candidates)
+            self.assertIn('id="episode-outside-new"', candidates)
+            self.assertIn("<title>较新的窗口外经历</title><summary></summary>", candidates)
+            self.assertNotIn("episode-outside-old", candidates)
+            self.assertEqual(candidates.count("<episode "), 2)
+            self.assertLess(
+                candidates.index('id="episode-inside"'),
+                candidates.index('id="episode-outside-new"'),
+            )
+            self.assertNotIn('turns=""', candidates)
             self.assertNotIn("status=", candidates)
-            self.assertNotIn("summary=", candidates)
             self.assertNotIn("open_loops=", candidates)
+            daemon.config = replace(daemon.config, summary_results=0)
+            self.assertEqual(
+                daemon.owner_context_candidates(["turn-inside"])["recent_episodes"],
+                "",
+            )
+            daemon.config = replace(daemon.config, summary_results=2)
+            self.assertNotIn(
+                'id="episode-outside-new"',
+                daemon.owner_context_candidates(
+                    ["turn-inside", "turn-outside-old"],
+                    {"turn-inside": "T-1", "turn-outside-old": "T-2"},
+                )["recent_episodes"],
+            )
             daemon.store.close()
 
     async def test_new_episode_ref_is_resolved_before_owner_commit(self) -> None:
@@ -391,6 +463,7 @@ class RecallEpisodeBindingTest(unittest.IsolatedAsyncioTestCase):
                                 "action": "new",
                                 "ref": "new:study-cleanup",
                                 "title": "整理书房",
+                                "reason": "开始整理书房是一段新的具体经历，而非延续旧话题",
                             },
                         }
                     ]
@@ -443,6 +516,7 @@ class RecallEpisodeBindingTest(unittest.IsolatedAsyncioTestCase):
                                     "action": "continue",
                                     "ref": "not-a-candidate",
                                     "title": "",
+                                    "reason": "仍在谈同一件事，但引用的 Episode 不是候选项",
                                 },
                             }
                         ]
