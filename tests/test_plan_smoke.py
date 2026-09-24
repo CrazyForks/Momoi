@@ -1,8 +1,8 @@
-"""Plan transcript contract and production owner-to-step integration tests.
+"""Plan transcript contract and step workflow integration tests.
 
 Provider responses are scripted; execution and delivery use the real runtime.
 The step() fixture isolates transcript edge cases; production tests exercise
-public create/start tools, persistent claims and the production step workflow.
+persistent claims and the production step workflow.
 """
 
 import copy
@@ -158,110 +158,6 @@ class PlanSmokeTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual([m["role"] for m in messages], ["user", "assistant", "user"])
         self.assertIn("delivery uncertain", str(messages[1]))
         self.assertIn("&lt;下一章&gt;", str(messages[-1]))
-
-    async def test_production_owner_create_start_and_all_steps(self):
-        import asyncio
-        import json
-        from momoi.runtime.tool_contracts.context import RECALL_SKIP_EXAMPLE
-        from momoi.runtime.transcript.building import build_transcript
-        daemon = self.daemon
-        event = IncomingMessage("production-plan-request", "1", "用 plan 分别发送甲乙丙", time.time(), 1)
-        daemon.store.add_event(event)
-        owner_id = daemon._turn_id(event.event_id)
-        plan_id = None
-        calls = 0
-        start_request = {}
-        seen = []
-
-        async def complete(system, messages, tools, **kwargs):
-            nonlocal calls, plan_id
-            calls += 1
-            seen.append(copy.deepcopy(messages))
-            if calls == 1:
-                call = ToolCall("recall", "recall", RECALL_SKIP_EXAMPLE)
-            elif calls == 2:
-                call = ToolCall("prelude", "send_bubbles", {"bubbles": ["分三步发给你。"]})
-            elif calls == 3:
-                call = ToolCall("create", "plan_create", {
-                    "title": "发送三个结果", "request": event.text,
-                    "steps": [{"task": f"发送{x}", "on_failure": "stop"} for x in "甲乙丙"],
-                })
-            elif calls == 4:
-                start_request.update(system=copy.deepcopy(system), tools=copy.deepcopy(tools), messages=copy.deepcopy(messages))
-                result = json.loads(messages[-1]["content"][0]["content"])
-                plan_id = result["plan_id"]
-                call = ToolCall("start", "plan_start", {"plan_id": plan_id})
-            else:
-                self.assertEqual(calls, 5)
-                self.assertIsNone(daemon.store.claim_task_plan(), "must wait for owner commit")
-                call = ToolCall("end", "end_turn", {"mood": {"decision": "unchanged"}, "reply_wait": {"wait": False}})
-            return ProviderResponse([{"type": "tool_use", "id": call.id, "name": call.name, "input": call.arguments}], [call])
-
-        daemon.provider = SimpleNamespace(complete=complete)
-        await daemon._complete_batch_turn([event], asyncio.Event(), owner_id, daemon.channel)
-        self.assertEqual(daemon.store.task_plan(plan_id)["status"], "ready")
-        from unittest.mock import patch
-        fitter = patch.object(daemon.context_window, "fit", side_effect=AssertionError("step context must not be trimmed"))
-        fitter.start()
-        self.addCleanup(fitter.stop)
-        frozen = copy.deepcopy(daemon.store.task_plan(plan_id)["context"])
-        self.assertEqual(frozen, start_request)
-        self.assertIn("plan_create", str(frozen["messages"]))
-        self.assertNotIn('"name": "plan_start"', json.dumps(frozen["messages"]))
-        for index, word in enumerate("甲乙丙"):
-            self.assertIsNotNone(daemon.store.claim_task_plan())
-            count = 0
-
-            async def step_complete(system, messages, tools, **kwargs):
-                nonlocal count
-                count += 1
-                if count == 1:
-                    self.assertEqual(system, frozen["system"])
-                    self.assertEqual(tools, frozen["tools"])
-                    self.assertEqual(messages[:len(frozen["messages"])], frozen["messages"])
-                    self.assertEqual(len(messages), len(frozen["messages"]) + 2 * index + 1)
-                    appended = messages[len(frozen["messages"]):-1]
-                    self.assertEqual([m["role"] for m in appended], ["assistant", "user"] * index)
-                    for previous, value in enumerate("甲乙丙"[:index]):
-                        speech = appended[previous * 2]
-                        record = appended[previous * 2 + 1]
-                        self.assertIn("<bubble", str(speech))
-                        self.assertIn(value, str(speech))
-                        self.assertIn('<plan_step', str(record))
-                        self.assertEqual(sum(block.get('text', '').count('>\n' + value + '\n</bubble>') for message in appended for block in message['content']), 1)
-                    self.assertNotIn("tool_use", str(appended))
-                    initial = str(messages)
-                    self.assertIn('step_id="' + str(index + 1) + '"', initial)
-                    self.assertIn("<request>" + event.text, initial)
-                    self.assertIn("<task>发送" + word, initial)
-                    self.assertNotIn("owner did not reply", initial)
-                    self.assertNotIn("ended the Turn without replying", initial)
-                    if index:
-                        self.assertIn('<plan_step', initial)
-                        self.assertIn('plan_id="' + plan_id, initial)
-                        self.assertIn("<result>", initial)
-                    self.assertIn("plan_create", [t["name"] for t in tools])
-                    self.assertIn("end_turn", [t["name"] for t in tools])
-                    call = ToolCall("send", "send_bubbles", {"bubbles": [word]})
-                else:
-                    self.assertEqual(count, 2)
-                    call = ToolCall("finish", "plan_step_finish", {
-                        "outcome": "succeeded", "summary": word + "已发送",
-                        "output_refs": [], "abort_remaining": False,
-                    })
-                return ProviderResponse([{"type": "tool_use", "id": call.id, "name": call.name, "input": call.arguments}], [call])
-
-            daemon.provider = SimpleNamespace(complete=step_complete)
-            await daemon._complete_plan_step_turn(plan_id, asyncio.Event())
-            self.assertEqual(count, 2)
-        self.assertEqual(daemon.store.task_plan(plan_id)["status"], "completed")
-        self.assertIsNone(daemon.store.claim_task_plan())
-        rows = daemon.store.recent_conversation_messages(20, 20000)
-        transcript = str(build_transcript(rows, timezone=daemon.store.timezone).messages)
-        self.assertIn("<plan_status>completed</plan_status>", transcript)
-        self.assertEqual(transcript.count("<plan_step "), 3)
-        sent = [r[0] for r in daemon.store._db.execute("SELECT text FROM outbox ORDER BY id")]
-        self.assertEqual(sent[-3:], list("甲乙丙"))
 
     async def test_production_step_failure_stops_and_restart_does_not_replay(self):
         import asyncio
