@@ -1560,7 +1560,7 @@ class ProvidersToolsAsyncTest(unittest.IsolatedAsyncioTestCase):
                 read = await workspace_tools.execute(
                     ToolCall("read-1", "read_file", {"path": "note.txt"})
                 )
-                self.assertEqual(read["content"], "old\n")
+                self.assertEqual(read["lines"], [{"line": 1, "text": "old\n"}])
                 self.assertEqual(read["content_offset"], 0)
                 self.assertIsNone(read["next_content_offset"])
                 path.write_text("first\nsecond\n", encoding="utf-8")
@@ -1571,7 +1571,10 @@ class ProvidersToolsAsyncTest(unittest.IsolatedAsyncioTestCase):
                         {"path": "note.txt", "content_offset": 3},
                     )
                 )
-                self.assertEqual(continued["content"], "st\nsecond\n")
+                self.assertEqual(continued["lines"], [
+                    {"line": 1, "text": "st\n"},
+                    {"line": 2, "text": "second\n"},
+                ])
                 self.assertEqual(continued["content_offset"], 3)
                 self.assertEqual(continued["start_line"], 1)
                 path.write_text("old\n", encoding="utf-8")

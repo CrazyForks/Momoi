@@ -96,7 +96,7 @@ class ToolResultFitter:
             parsed.get("ok") is True
             and isinstance(provenance, dict)
             and provenance.get("tool") == "read_file"
-            and isinstance(parsed.get("content"), str)
+            and (isinstance(parsed.get("content"), str) or isinstance(parsed.get("lines"), list))
         ):
             return self._fit_read_file(parsed, value, limit)
         preserved = {
@@ -136,6 +136,8 @@ class ToolResultFitter:
 
     @staticmethod
     def _fit_read_file(parsed: dict[str, object], value: str, limit: int) -> str:
+        if isinstance(parsed.get("lines"), list):
+            return ToolResultFitter._fit_numbered_read_file(parsed, value, limit)
         content = str(parsed["content"])
         content_offset = int(parsed.get("content_offset") or 0)
         start_line = int(parsed.get("start_line") or 1)
@@ -177,6 +179,52 @@ class ToolResultFitter:
                 candidate(middle), ensure_ascii=False, default=str
             )
             if len(rendered) <= limit:
+                low = middle
+            else:
+                high = middle - 1
+        return json.dumps(candidate(low), ensure_ascii=False, default=str)
+
+    @staticmethod
+    def _fit_numbered_read_file(parsed: dict[str, object], value: str, limit: int) -> str:
+        lines = parsed["lines"]
+        assert isinstance(lines, list)
+        base = {
+            key: parsed[key]
+            for key in (
+                "ok", "error", "message", "provenance", "path", "start_line",
+                "end_line", "total_lines", "sha256", "content_offset",
+            )
+            if key in parsed
+        }
+        base.update({"truncated": True, "original_chars": len(value)})
+        start = int(parsed.get("content_offset") or 0)
+
+        def candidate(characters: int) -> dict[str, object]:
+            visible: list[dict[str, object]] = []
+            remaining = characters
+            for item in lines:
+                if not isinstance(item, dict) or not isinstance(item.get("text"), str):
+                    break
+                part = item["text"][:remaining]
+                if not part:
+                    break
+                visible.append({"line": item["line"], "text": part})
+                remaining -= len(part)
+                if remaining == 0:
+                    break
+            end = int(visible[-1]["line"]) if visible else int(parsed.get("start_line") or 1) - 1
+            return {
+                **base,
+                "lines": visible,
+                "end_line": end,
+                "next_content_offset": start + characters,
+            }
+
+        total = sum(len(item["text"]) for item in lines if isinstance(item, dict) and isinstance(item.get("text"), str))
+        low, high = 0, total
+        while low < high:
+            middle = (low + high + 1) // 2
+            if len(json.dumps(candidate(middle), ensure_ascii=False, default=str)) <= limit:
                 low = middle
             else:
                 high = middle - 1

@@ -69,7 +69,8 @@ BUILTIN_TOOL_SPECS: list[dict[str, Any]] = [
     {
         "name": "read_file",
         "description": (
-            "Read UTF-8 text by line range or returned character offset."
+            "Read UTF-8 text by line range or returned character offset. "
+            "Returns an array of numbered lines; offsets refer to the original file text."
         ),
         "input_schema": {
             "type": "object",
@@ -94,6 +95,24 @@ BUILTIN_TOOL_SPECS: list[dict[str, Any]] = [
                 },
             },
             "required": ["path"],
+            "additionalProperties": False,
+        },
+    },
+    {
+        "name": "glob_files",
+        "description": (
+            "Find files with a glob pattern relative to path. Path may be absolute "
+            "or workspace-relative. Use ** for recursive search."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "path": {"type": "string", "description": "Search directory; defaults to workspace."},
+                "pattern": {"type": "string", "description": "Relative glob pattern, such as **/*.py."},
+                "include_hidden": {"type": "boolean", "default": False},
+                "max_results": {"type": "integer", "minimum": 1, "maximum": 2000, "default": 200},
+            },
+            "required": ["pattern"],
             "additionalProperties": False,
         },
     },

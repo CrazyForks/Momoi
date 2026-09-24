@@ -53,7 +53,28 @@ class ExecToolTest(unittest.IsolatedAsyncioTestCase):
         result = await self.tools.execute(self.call("printf '%020000d' 0"))
         self.assertTrue(result["ok"])
         self.assertTrue(result["truncated"])
-        self.assertEqual(len(result["stdout_tail"]), 16384)
+        self.assertLessEqual(len(result["stdout_tail"]), 16384)
+        self.assertTrue(result["stdout_tail"].startswith("0"))
+        self.assertIn("[...truncated...]", result["stdout_tail"])
+        self.assertTrue(result["stdout_tail"].endswith("0"))
+
+    async def test_truncated_output_keeps_first_and_last_complete_lines(self):
+        command = (
+            "python -c 'import sys; "
+            "sys.stdout.write(\"first\\n\" + \"middle\\n\" * 4000 + \"last\\n\"); "
+            "sys.stderr.write(\"error first\\n\" + \"error middle\\n\" * 4000 + \"error last\\n\")'"
+        )
+        result = await self.tools.execute(self.call(command))
+        self.assertTrue(result["truncated"])
+        for key, first, last in (
+            ("stdout_tail", "first\n", "last\n"),
+            ("stderr_tail", "error first\n", "error last\n"),
+        ):
+            output = result[key]
+            self.assertTrue(output.startswith(first))
+            self.assertTrue(output.endswith(last))
+            self.assertEqual(output.count("[...truncated...]"), 1)
+            self.assertLessEqual(len(output.encode()), 16384)
 
     async def test_timeout_and_cancellation_stop_children(self):
         for cancel in (False, True):

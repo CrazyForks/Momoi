@@ -30,6 +30,7 @@ class ToolResult(TypedDict, total=False):
     provenance: dict[str, str]
     original_chars: int
     content: object
+    lines: list[dict[str, object]]
     path: str
     start_line: int
     end_line: int

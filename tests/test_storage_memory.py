@@ -2154,6 +2154,10 @@ class StorageMemoryTest(unittest.TestCase):
             BuiltinTools.capability(ToolCall("list", "list_dir", {})),
             "read",
         )
+        self.assertEqual(
+            BuiltinTools.capability(ToolCall("glob", "glob_files", {})),
+            "read",
+        )
         for name in ("makedirs", "move_file", "delete_file"):
             self.assertEqual(
                 BuiltinTools.capability(ToolCall(name, name, {})),

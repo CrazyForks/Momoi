@@ -1,4 +1,5 @@
 import asyncio
+import glob
 import hashlib
 import math
 import os
@@ -60,7 +61,7 @@ class BuiltinTools:
 
     @staticmethod
     def capability(call: ToolCall) -> str:
-        if call.name in {"read_file", "list_dir", "sleep"}:
+        if call.name in {"read_file", "list_dir", "glob_files", "sleep"}:
             return "read"
         if call.name in {
             "write_file",
@@ -87,6 +88,8 @@ class BuiltinTools:
                 return await asyncio.to_thread(self._read_file, call.arguments)
             if call.name == "list_dir":
                 return await asyncio.to_thread(self._list_dir, call.arguments)
+            if call.name == "glob_files":
+                return await asyncio.to_thread(self._glob_files, call.arguments)
             if call.name == "write_file":
                 return await asyncio.to_thread(self._write_file, call.arguments)
             if call.name == "apply_patch":
@@ -203,8 +206,44 @@ class BuiltinTools:
             "sha256": hashlib.sha256(content.encode()).hexdigest(),
             "content_offset": content_offset,
             "next_content_offset": next_content_offset if has_more else None,
-            "content": selected,
+            "lines": [
+                {"line": number, "text": line}
+                for number, line in enumerate(selected.splitlines(keepends=True), start)
+            ],
             "truncated": char_truncated or has_more,
+        }
+
+    def _glob_files(self, arguments: dict[str, Any]) -> dict[str, Any]:
+        root = self.resolve_path(arguments.get("path") or ".")
+        if not root.is_dir():
+            raise NotADirectoryError(f"not a directory: {root}")
+        pattern = arguments.get("pattern")
+        if not isinstance(pattern, str) or not pattern:
+            raise ValueError("pattern must be a nonempty string")
+        if Path(pattern).is_absolute() or ".." in Path(pattern).parts:
+            raise ValueError("pattern must be relative to path and cannot contain '..'")
+        limit = min(2000, max(1, int(arguments.get("max_results", 200))))
+        matches: list[str] = []
+        truncated = False
+        for candidate in glob.iglob(
+            f"{glob.escape(str(root))}/{pattern}",
+            recursive=True,
+            include_hidden=bool(arguments.get("include_hidden", False)),
+        ):
+            path = Path(candidate)
+            if not path.is_file() or not self._is_public_path(path):
+                continue
+            if len(matches) == limit:
+                truncated = True
+                break
+            matches.append(str(path.resolve()))
+        return {
+            "ok": True,
+            "path": str(root),
+            "pattern": pattern,
+            "matches": matches,
+            "count": len(matches),
+            "truncated": truncated,
         }
 
     def _list_dir(self, arguments: dict[str, Any]) -> dict[str, Any]:

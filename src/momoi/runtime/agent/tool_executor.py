@@ -269,7 +269,10 @@ class ToolExecutor:
         budget = self.config.tool_result_max_chars - RESULT_REF_OVERHEAD
         if len(serialized) <= budget:
             return {**envelope, "result_ref": result_ref}
-        if call.name == "read_file" and ok and isinstance(payload.get("content"), str):
+        if call.name == "read_file" and ok and (
+            isinstance(payload.get("content"), str)
+            or isinstance(payload.get("lines"), list)
+        ):
             return {
                 **json.loads(truncate_tool_result_json(serialized, budget)),
                 "result_ref": result_ref,
@@ -314,7 +317,7 @@ class ToolExecutor:
             ), False
         if (
             artifact_root is not None
-            and call.name in {"read_file", "write_file", "list_dir"}
+            and call.name in {"read_file", "write_file", "list_dir", "glob_files"}
             and not self.artifact_path_allowed(call, artifact_root)
         ):
             return self.normalize(

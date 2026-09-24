@@ -33,17 +33,48 @@ async def run_process(
         stderr=asyncio.subprocess.PIPE, start_new_session=True,
     )
 
-    async def tail(stream):
+    async def capture(stream):
+        marker = b"\n[...truncated...]\n"
+        limit = max(1, output_limit)
+        if limit <= len(marker):
+            head_limit = 0
+            tail_limit = limit
+        else:
+            head_limit = (limit - len(marker)) // 2
+            tail_limit = limit - len(marker) - head_limit
         output = bytearray()
+        head: bytes | None = None
+        tail = bytearray()
         truncated = False
         while chunk := await stream.read(8192):
-            output.extend(chunk)
-            if len(output) > output_limit:
-                del output[:-output_limit]
+            if head is None:
+                output.extend(chunk)
+                if len(output) <= limit:
+                    continue
+                head = bytes(output[:head_limit])
+                tail = output[-tail_limit:]
+                output.clear()
                 truncated = True
-        return output.decode(errors="replace"), truncated
+            else:
+                tail.extend(chunk)
+                del tail[:-tail_limit]
+        if not truncated:
+            return output.decode(errors="replace"), False
+        if head_limit == 0:
+            return tail.decode(errors="replace"), True
+        assert head is not None
+        # Keep complete lines at the cut when possible. Very long lines retain
+        # their beginning and end as fragments.
+        head_break = head.rfind(b"\n")
+        if head_break >= 0:
+            head = head[: head_break + 1]
+        tail_break = tail.find(b"\n")
+        if tail_break >= 0:
+            tail = tail[tail_break + 1:]
+        separator = marker.lstrip(b"\n") if head.endswith(b"\n") else marker
+        return (head + separator + tail).decode(errors="replace"), True
 
-    readers = asyncio.gather(tail(process.stdout), tail(process.stderr), process.wait())
+    readers = asyncio.gather(capture(process.stdout), capture(process.stderr), process.wait())
     try:
         stdout, stderr, exit_code = await asyncio.wait_for(asyncio.shield(readers), timeout)
     except BaseException:

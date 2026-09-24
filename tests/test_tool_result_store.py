@@ -162,6 +162,8 @@ class ToolResultStoreTest(unittest.TestCase):
             )
             with self.assertRaisesRegex(PermissionError, "runtime-private"):
                 tools._read_file({"path": f"tool-results/{result_ref}.json"})
+            found = tools._glob_files({"path": ".", "pattern": "**/*.json"})
+            self.assertEqual(found["matches"], [])
 
 
 if __name__ == "__main__":
