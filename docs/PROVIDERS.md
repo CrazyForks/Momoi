@@ -149,6 +149,10 @@ The dashboard queries the balance provider. API failure marks balance unavailabl
 while the rest of the overview remains usable.
 
 The DeepSeek balance provider owns its usage parser and official pricing estimates.
+Pricing uses Beijing time: Monday through Friday, 09:00–12:00 and 14:00–18:00
+are peak hours; all other hours, including weekends, use off-peak rates.
+Chinese public holidays are not yet accounted for.
+
 Its `accounting` boolean defaults to `true`. Turn off **Cost estimation**
 in Account balance when using another model vendor: balance queries continue,
 while model responses use generic token recording. Disabling the entire balance

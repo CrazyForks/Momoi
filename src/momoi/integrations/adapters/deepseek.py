@@ -20,34 +20,9 @@ from ...llm.accounting import (
 # DeepSeek publishes its billing windows in Beijing time. This is a provider
 # pricing rule, not Momoi's application/display timezone.
 DEEPSEEK_BILLING_TIMEZONE = ZoneInfo("Asia/Shanghai")
-PEAK_START = datetime(2026, 8, 17, tzinfo=DEEPSEEK_BILLING_TIMEZONE)
-V41_FLASH_PRICE_START = datetime(
-    2026, 9, 10, 12, tzinfo=DEEPSEEK_BILLING_TIMEZONE
-)
-V4_PRO_FLASH_ROUTING_START = datetime(
-    2026, 9, 14, 12, tzinfo=DEEPSEEK_BILLING_TIMEZONE
-)
-_LEGACY_RATES = {
-    "deepseek-v4-flash": {
-        "flat": (0.02, 1.0, 2.0),
-        "offpeak": (0.05, 1.5, 4.5),
-        "peak": (0.10, 3.0, 9.0),
-    },
-    "deepseek-v4-pro": {
-        "flat": (0.025, 3.0, 6.0),
-        "offpeak": (0.15, 4.5, 13.5),
-        "peak": (0.30, 9.0, 27.0),
-    },
-}
-_CURRENT_RATES = {
-    "flash": {
-        "offpeak": (0.02, 1.0, 4.0),
-        "peak": (0.04, 2.0, 8.0),
-    },
-    "pro": {
-        "offpeak": (0.15, 4.5, 13.5),
-        "peak": (0.30, 9.0, 27.0),
-    },
+_RATES = {
+    "offpeak": (0.02, 1.0, 4.0),
+    "peak": (0.04, 2.0, 8.0),
 }
 
 
@@ -138,22 +113,11 @@ class DeepSeekBalanceProvider:
 class DeepSeekAccounting(UsageAccounting):
     def token_rates(self, model: str, timestamp: float) -> tuple[float, float, float]:
         when = datetime.fromtimestamp(timestamp, DEEPSEEK_BILLING_TIMEZONE)
-        if when < PEAK_START:
-            table = _LEGACY_RATES.get(model) or _LEGACY_RATES["deepseek-v4-flash"]
-            return table["flat"]
-        if when < V41_FLASH_PRICE_START:
-            table = _LEGACY_RATES.get(model) or _LEGACY_RATES["deepseek-v4-flash"]
-            minutes = when.hour * 60 + when.minute
-            peak = 9 * 60 <= minutes < 12 * 60 or 14 * 60 <= minutes < 18 * 60
-            return table["peak"] if peak else table["offpeak"]
-
-        pro = model == "deepseek-v4-pro" and when < V4_PRO_FLASH_ROUTING_START
-        table = _CURRENT_RATES["pro" if pro else "flash"]
         minutes = when.hour * 60 + when.minute
         peak = when.weekday() < 5 and (
             9 * 60 <= minutes < 12 * 60 or 14 * 60 <= minutes < 18 * 60
         )
-        return table["peak"] if peak else table["offpeak"]
+        return _RATES["peak"] if peak else _RATES["offpeak"]
 
     def parse_usage(self, data: dict[str, Any]) -> dict[str, float | int | bool] | None:
         usage = data.get("usage")
