@@ -52,10 +52,7 @@ class CommandRouter:
             )
             if cancelled_outbox:
                 self.outbox_changed.set()
-            active = self._active_turn
-            if active is not None and not active.done():
-                self._stop_requested = True
-                active.cancel()
+            self.owner_arrived(message, stop=True)
             if self.store.add_event(message):
                 log_event(
                     logger,
@@ -160,6 +157,7 @@ class CommandRouter:
                 )
             return
         if self.store.add_event(message):
+            self.owner_arrived(message)
             self.store.cancel_pending_outbox(
                 self._channel_for(message.channel).name,
                 "owner_message_superseded_outbox",

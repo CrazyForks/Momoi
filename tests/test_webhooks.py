@@ -208,6 +208,49 @@ executors:
 
 
 class WebhooksAsyncTest(unittest.IsolatedAsyncioTestCase):
+    async def test_stop_active_webhook_executor_marks_run_failed(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(__file__).resolve().parents[1] / "config.example"
+            store = Store(Path(directory) / "momoi.sqlite3")
+            service = WebhookService(
+                WebhookConfig(
+                    enabled=True, token="test", workflows=root / "workflows",
+                    executors=root / "workflows" / "workflow-executors.yaml",
+                ),
+                {"channel_url": "ws://napcat.test/ws", "owner_id": "20000"},
+                store,
+                lambda prompt, turn_id: asyncio.sleep(0),
+                lambda: None,
+            )
+            plan = bind_workflow(
+                service.workflows["url-check-event"], service.executors,
+                {"event_prompt": "检查完成", "target_url": "http://example.com/health"},
+                service.channel_variables,
+            )
+            created, _ = store.create_webhook_run("url-check-event", "stop-exec", plan)
+            started = asyncio.Event()
+
+            async def blocked_exec(step):
+                started.set()
+                await asyncio.sleep(3600)
+
+            service._run_exec = blocked_exec
+            worker = asyncio.create_task(service.run_worker(asyncio.Event()))
+            try:
+                await asyncio.wait_for(started.wait(), 1)
+                service.stop_active()
+                for _ in range(100):
+                    if store.webhook_run(str(created["id"]))["state"] == "failed":
+                        break
+                    await asyncio.sleep(0.01)
+                self.assertEqual(store.webhook_run(str(created["id"]))["state"], "failed")
+                self.assertEqual(store.webhook_step(str(created["id"]), 0)["state"], "failed")
+            finally:
+                worker.cancel()
+                with self.assertRaises(asyncio.CancelledError):
+                    await worker
+                store.close()
+
     async def test_webhook_turn_uses_normal_curl_and_end_turn_loop(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             config = AppConfig(

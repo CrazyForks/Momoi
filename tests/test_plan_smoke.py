@@ -159,6 +159,76 @@ class PlanSmokeTest(unittest.IsolatedAsyncioTestCase):
         self.assertIn("delivery uncertain", str(messages[1]))
         self.assertIn("&lt;下一章&gt;", str(messages[-1]))
 
+    async def test_owner_message_pauses_running_plan_step(self):
+        import asyncio
+
+        daemon = self.daemon
+        plan = daemon.store.create_task_plan(
+            {"title": "old request", "request": "send old result", "steps": [
+                {"task": "send old result", "on_failure": "stop"},
+            ]}, self.owner_turn, daemon.channel.name,
+        )
+        daemon.store.start_task_plan(plan["id"], daemon.channel.name, {
+            "system": daemon._system(),
+            "tools": daemon.tool_surface.conversation_specs(),
+            "messages": [],
+        })
+        daemon.store.claim_task_plan()
+        started = asyncio.Event()
+
+        async def complete(*args, **kwargs):
+            started.set()
+            await asyncio.sleep(3600)
+
+        daemon.provider = SimpleNamespace(complete=complete)
+        daemon._active_turn_stage = "plan_step"
+        daemon._active_turn_channel = daemon.channel.name
+        daemon._active_turn = asyncio.create_task(
+            daemon._complete_plan_step_turn(plan["id"], asyncio.Event())
+        )
+        await asyncio.wait_for(started.wait(), 1)
+        update = IncomingMessage("plan-update", "plan-update", "改一下要求", time.time(), time.time())
+        await daemon._receive(update)
+        with self.assertRaises(asyncio.CancelledError):
+            await daemon._active_turn
+        self.assertEqual(daemon.store.task_plan(plan["id"])["status"], "blocked")
+        self.assertEqual(daemon.store.pending_events()[-1].text, update.text)
+        self.assertEqual(daemon._interrupt_reason, "owner_update")
+        self.assertIn("paused", daemon._interruption_notices[daemon.channel.name][0])
+
+    async def test_stop_cancels_active_webhook_turn(self):
+        import asyncio
+
+        daemon = self.daemon
+        started = asyncio.Event()
+        turn_id = "webhook:test-stop:0"
+
+        async def complete_webhook(prompt, active_turn_id, channel):
+            daemon.store.begin_turn(active_turn_id, "webhook", [active_turn_id])
+            started.set()
+            await asyncio.sleep(3600)
+
+        daemon._complete_webhook_turn = complete_webhook
+        stop = asyncio.Event()
+        worker = asyncio.create_task(daemon._agent_worker(stop))
+        request = asyncio.create_task(daemon._request_webhook_turn("old event", turn_id))
+        try:
+            await asyncio.wait_for(started.wait(), 1)
+            await daemon._receive(
+                IncomingMessage("stop-webhook", "stop-webhook", "/stop", time.time(), time.time())
+            )
+            with self.assertRaisesRegex(RuntimeError, "owner_stop"):
+                await asyncio.wait_for(request, 1)
+            state = daemon.store._db.execute(
+                "SELECT state FROM turns WHERE id=?", (turn_id,)
+            ).fetchone()[0]
+            self.assertEqual(state, "cancelled")
+            self.assertFalse(daemon._webhook_turn_active)
+        finally:
+            worker.cancel()
+            with self.assertRaises(asyncio.CancelledError):
+                await worker
+
     async def test_production_step_failure_stops_and_restart_does_not_replay(self):
         import asyncio
         daemon = self.daemon

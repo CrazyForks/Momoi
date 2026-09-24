@@ -405,7 +405,6 @@ class WebhookStore:
             )
             self._db.execute(
                 """UPDATE webhook_steps SET state='failed', error=?, completed_at=?
-                   WHERE run_id=? AND state='running'""",
+                   WHERE run_id=? AND state IN ('running', 'waiting_delivery')""",
                 (error[:500], now, run_id),
             )
-

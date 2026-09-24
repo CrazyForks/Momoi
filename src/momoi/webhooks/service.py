@@ -45,6 +45,14 @@ class WebhookService:
             config.workflows, config.executors, set(channel_variables)
         )
         self.changed = asyncio.Event()
+        self._active_run: asyncio.Task[None] | None = None
+        self._owner_stop_requested = False
+
+    def stop_active(self) -> None:
+        """Stop a running webhook executor or delivery wait for /stop."""
+        if self._active_run is not None and not self._active_run.done():
+            self._owner_stop_requested = True
+            self._active_run.cancel()
 
     async def run_api(self, stop: asyncio.Event) -> None:
         @web.middleware
@@ -131,9 +139,14 @@ class WebhookService:
                     pass
                 continue
             try:
-                await self._execute(run, stop)
+                self._active_run = asyncio.create_task(self._execute(run, stop))
+                await self._active_run
             except asyncio.CancelledError:
-                raise
+                if not self._owner_stop_requested:
+                    raise
+                self.store.fail_webhook_run(str(run["id"]), "owner_stop")
+                log_event(logger, logging.INFO, "webhook_run_stopped",
+                          run_id=run["id"], reason="owner_stop")
             except Exception as error:
                 log_event(
                     logger,
@@ -145,6 +158,9 @@ class WebhookService:
                     exc_info=True,
                 )
                 self.store.fail_webhook_run(str(run["id"]), type(error).__name__)
+            finally:
+                self._active_run = None
+                self._owner_stop_requested = False
 
     async def _execute(self, run: dict[str, Any], stop: asyncio.Event) -> None:
         run_id = str(run["id"])

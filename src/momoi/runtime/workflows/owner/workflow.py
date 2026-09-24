@@ -247,6 +247,7 @@ class OwnerWorkflow:
         recalled = self.owner_context_baseline()
         reconciliation_control = self._apply_reconciliation_commands(batch)
         directives: list[str] = []
+        directives.extend(self._interruption_notices.pop(channel.name, []))
         if any(message.text.strip() == "/stop" for message in batch):
             directives.append(
                 "The owner explicitly stopped the previous active task. The runtime has "

@@ -91,7 +91,8 @@ class TurnStore:
         return str(row["workflow_kind"])
 
     def cancel_turn(
-        self, turn_id: str, events: list[IncomingMessage] | None = None
+        self, turn_id: str, events: list[IncomingMessage] | None = None,
+        *, reason: str = "owner_stop",
     ) -> None:
         with self._db:
             row = self._db.execute(
@@ -99,12 +100,12 @@ class TurnStore:
             ).fetchone()
             self._db.execute(
                 """UPDATE turns SET state='cancelled', stage='cancelled',
-                   failure_reason='owner_stop', updated_at=? WHERE id=?""",
-                (time.time(), turn_id),
+                   failure_reason=?, updated_at=? WHERE id=?""",
+                (reason, time.time(), turn_id),
             )
             if row is not None and row["external_effect_started"]:
                 self._open_reconciliation(
-                    turn_id, "owner_stopped_after_external_effect", time.time()
+                    turn_id, f"{reason}_after_external_effect", time.time()
                 )
             self._db.executemany(
                 "UPDATE events SET processed=1 WHERE id=?",

@@ -22,6 +22,7 @@ from ..semantic.service import SemanticRecallService
 from ..storage import Store
 from ..webhooks.service import WebhookService
 from .jobs import AutonomousJob
+from .interruptions import TurnInterruptionRouter
 from .agent.result_store import ToolResultStore
 from .agent.context_window import ContextWindow
 from .agent.delivery import BubbleDelivery, DeliveryPolicy
@@ -42,6 +43,7 @@ class MomoiDaemon(
     Scheduler,
     OutboxWorker,
     TurnRunner,
+    TurnInterruptionRouter,
 ):
     def __init__(
         self,
@@ -197,6 +199,10 @@ class MomoiDaemon(
         )
         self.agenda_changed = asyncio.Event()
         self._active_turn: asyncio.Task[Any] | None = None
+        self._active_turn_stage = "owner"
+        self._active_turn_channel = self.channel.name
+        self._interrupt_reason = ""
+        self._interruption_notices: dict[str, list[str]] = {}
         self._active_annealing: asyncio.Task[None] | None = None
         self._webhook_turn_active = False
         self._stop_requested = False

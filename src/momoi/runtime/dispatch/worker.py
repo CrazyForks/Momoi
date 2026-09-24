@@ -24,14 +24,22 @@ class AgentWorker:
                     if future.cancelled():
                         continue
                     self._webhook_turn_active = True
+                    self.start_active_turn(
+                        self._complete_webhook_turn(prompt, turn_id, self.channel),
+                        stage="webhook", channel=self.channel.name,
+                    )
                     try:
-                        reply = await self._complete_webhook_turn(
-                            prompt, turn_id, self.channel
-                        )
+                        reply = await self._active_turn
                     except asyncio.CancelledError:
+                        if not self._stop_requested:
+                            if not future.done():
+                                future.cancel()
+                            raise
+                        self.store.cancel_turn(turn_id)
                         if not future.done():
-                            future.cancel()
-                        raise
+                            future.set_exception(RuntimeError("owner_stop"))
+                        log_event(logger, logging.INFO, "turn_cancelled", stage="webhook",
+                                  turn_id=turn_id, reason=self._interrupt_reason)
                     except Exception as error:
                         if not future.done():
                             future.set_exception(error)
@@ -41,6 +49,7 @@ class AgentWorker:
                         if committed is not None:
                             await committed
                     finally:
+                        self.finish_active_turn()
                         self._webhook_turn_active = False
                     continue
                 if kind == "goal":
@@ -68,7 +77,11 @@ class AgentWorker:
                         work = self._complete_memory_maintenance_turn(job.id, stop)
                     else:
                         work = self._complete_goal_turn(job.id, stop)
-                    self._active_turn = asyncio.create_task(work)
+                    plan = self.store.task_plan(job.id) if job.kind == "plan_step" else None
+                    self.start_active_turn(
+                        work, stage=job.kind,
+                        channel=plan["channel"] if plan else self.channel.name,
+                    )
                     try:
                         result = await self._active_turn
                         requeue_memory_maintenance = (
@@ -77,12 +90,14 @@ class AgentWorker:
                     except asyncio.CancelledError:
                         if not self._stop_requested:
                             raise
+                        if job.kind == "plan_step":
+                            self.store.recover_task_plans(job.id)
                         log_event(
                             logger,
                             logging.INFO,
                             "turn_cancelled",
                             stage=job.kind,
-                            reason="owner_stop",
+                            reason=self._interrupt_reason or "owner_stop",
                             **self._release_autonomous_claim(job),
                         )
                     finally:
@@ -94,8 +109,7 @@ class AgentWorker:
                             self._queued_memory_maintenance.discard(job.id)
                             if requeue_memory_maintenance and not stop.is_set():
                                 self._enqueue_memory_maintenance(job.id)
-                        self._active_turn = None
-                        self._stop_requested = False
+                        self.finish_active_turn()
                         self.agenda_changed.set()
                     continue
                 message = item
@@ -142,15 +156,15 @@ class AgentWorker:
             except TimeoutError:
                 sealed = batch
                 batch = []
-                self._stop_requested = False
                 sealed_turn_id = self._turn_id(*(event.event_id for event in sealed))
-                self._active_turn = asyncio.create_task(
+                self.start_active_turn(
                     self._complete_batch_turn(
                         sealed,
                         stop,
                         sealed_turn_id,
                         self._channel_for(sealed[0].channel),
-                    )
+                    ),
+                    stage="owner", channel=channel.name,
                 )
                 try:
                     await self._active_turn
@@ -168,8 +182,7 @@ class AgentWorker:
                         reason="owner_stop",
                     )
                 finally:
-                    self._active_turn = None
-                    self._stop_requested = False
+                    self.finish_active_turn()
 
     async def _next_work(self) -> tuple[str, Any]:
         queued: list[IncomingMessage] = []
@@ -285,6 +298,7 @@ class AgentWorker:
         return selected
 
     async def _request_webhook_turn(self, prompt: str, turn_id: str) -> AgentReply:
+        self.external_arrived()
         future: asyncio.Future[AgentReply] = asyncio.get_running_loop().create_future()
         self._webhook_commits[turn_id] = asyncio.get_running_loop().create_future()
         await self.webhook_requests.put((prompt, turn_id, future))

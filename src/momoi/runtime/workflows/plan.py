@@ -80,7 +80,9 @@ class PlanWorkflow:
         except asyncio.CancelledError:
             with self.store._db:
                 self.store._archive_progress_messages(turn_id, '["plan:' + plan_id + '"]')
-            self.store.cancel_turn(turn_id)
+            self.store.cancel_turn(
+                turn_id, reason=self._interrupt_reason or "owner_stop"
+            )
             self.store.recover_task_plans(plan_id)
             raise
         except Exception as error:
