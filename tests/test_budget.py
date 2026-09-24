@@ -60,8 +60,6 @@ class BudgetTests(unittest.TestCase):
                 "ok": True,
                 "provenance": {"source": "builtin", "tool": "read_file"},
                 "path": "/workspace/article.txt",
-                "start_line": 10,
-                "end_line": 30,
                 "total_lines": 100,
                 "sha256": "abc",
                 "content_offset": 500,
@@ -73,7 +71,6 @@ class BudgetTests(unittest.TestCase):
         parsed = json.loads(truncate_tool_result_json(value, 1000))
         for key in (
             "path",
-            "start_line",
             "total_lines",
             "sha256",
             "content_offset",

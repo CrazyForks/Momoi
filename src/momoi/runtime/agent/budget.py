@@ -107,8 +107,6 @@ class ToolResultFitter:
                 "message",
                 "provenance",
                 "path",
-                "start_line",
-                "end_line",
                 "total_lines",
                 "sha256",
                 "content_offset",
@@ -140,7 +138,6 @@ class ToolResultFitter:
             return ToolResultFitter._fit_numbered_read_file(parsed, value, limit)
         content = str(parsed["content"])
         content_offset = int(parsed.get("content_offset") or 0)
-        start_line = int(parsed.get("start_line") or 1)
         base = {
             key: parsed[key]
             for key in (
@@ -149,8 +146,6 @@ class ToolResultFitter:
                 "message",
                 "provenance",
                 "path",
-                "start_line",
-                "end_line",
                 "total_lines",
                 "sha256",
                 "content_offset",
@@ -166,10 +161,7 @@ class ToolResultFitter:
                 **base,
                 "content": visible,
                 "next_content_offset": content_offset + len(visible),
-                "end_line": start_line + visible.count("\n"),
             }
-            if not visible or visible.endswith("\n"):
-                result["end_line"] = int(result["end_line"]) - 1
             return result
 
         low, high = 0, len(content)
@@ -191,8 +183,8 @@ class ToolResultFitter:
         base = {
             key: parsed[key]
             for key in (
-                "ok", "error", "message", "provenance", "path", "start_line",
-                "end_line", "total_lines", "sha256", "content_offset",
+                "ok", "error", "message", "provenance", "path",
+                "total_lines", "sha256", "content_offset",
             )
             if key in parsed
         }
@@ -212,11 +204,9 @@ class ToolResultFitter:
                 remaining -= len(part)
                 if remaining == 0:
                     break
-            end = int(visible[-1]["line"]) if visible else int(parsed.get("start_line") or 1) - 1
             return {
                 **base,
                 "lines": visible,
-                "end_line": end,
                 "next_content_offset": start + characters,
             }
 

@@ -32,8 +32,6 @@ class ToolResult(TypedDict, total=False):
     content: object
     lines: list[dict[str, object]]
     path: str
-    start_line: int
-    end_line: int
     total_lines: int
     sha256: str
     content_offset: int

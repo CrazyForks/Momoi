@@ -191,17 +191,9 @@ class BuiltinTools:
         selected = selected[:200_000]
         next_content_offset = content_offset + len(selected)
         has_more = next_content_offset < len(content)
-        if selected:
-            end_line = start + selected.count("\n")
-            if selected.endswith("\n"):
-                end_line -= 1
-        else:
-            end_line = start - 1
         return {
             "ok": True,
             "path": str(path),
-            "start_line": start,
-            "end_line": end_line,
             "total_lines": len(lines),
             "sha256": hashlib.sha256(content.encode()).hexdigest(),
             "content_offset": content_offset,

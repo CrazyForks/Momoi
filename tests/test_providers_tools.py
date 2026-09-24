@@ -209,8 +209,6 @@ class ProvidersToolsTest(unittest.TestCase):
                 {
                     "ok": True,
                     "path": "/tmp/x",
-                    "start_line": 1,
-                    "end_line": 1,
                     "total_lines": 1,
                     "sha256": "file-sha",
                     "content_offset": 0,
@@ -226,8 +224,8 @@ class ProvidersToolsTest(unittest.TestCase):
                 result["provenance"], {"source": "builtin", "tool": "read_file"}
             )
             self.assertEqual(result["path"], "/tmp/x")
-            self.assertEqual(result["start_line"], 1)
-            self.assertEqual(result["end_line"], 1)
+            self.assertNotIn("start_line", result)
+            self.assertNotIn("end_line", result)
             self.assertEqual(result["total_lines"], 1)
             self.assertEqual(result["sha256"], "file-sha")
             self.assertEqual(result["content_offset"], 0)
@@ -243,8 +241,6 @@ class ProvidersToolsTest(unittest.TestCase):
                 {
                     "ok": True,
                     "path": "/tmp/x",
-                    "start_line": 1,
-                    "end_line": 1,
                     "total_lines": 1,
                     "sha256": "file-sha",
                     "content_offset": 0,
@@ -1576,7 +1572,8 @@ class ProvidersToolsAsyncTest(unittest.IsolatedAsyncioTestCase):
                     {"line": 2, "text": "second\n"},
                 ])
                 self.assertEqual(continued["content_offset"], 3)
-                self.assertEqual(continued["start_line"], 1)
+                self.assertNotIn("start_line", continued)
+                self.assertNotIn("end_line", continued)
                 path.write_text("old\n", encoding="utf-8")
                 listed = await workspace_tools.execute(
                     ToolCall("list-1", "list_dir", {"path": "."})
