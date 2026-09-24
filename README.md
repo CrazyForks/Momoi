@@ -17,6 +17,9 @@ confirmed, what remains unfinished, and which parts of the past matter now.
 > Momoi is built for trusted personal deployment and one authenticated owner.
 > It is not a public or multi-user bot.
 
+<img width="1570" height="917" alt="Clipboard_Screenshot_1790218986" src="https://github.com/user-attachments/assets/a26e993a-3054-471e-a53b-5e4fdf5b795b" />
+
+
 ## What Momoi is designed to preserve
 
 - **One identity across time and entry points.** Owner messages, Goals,
