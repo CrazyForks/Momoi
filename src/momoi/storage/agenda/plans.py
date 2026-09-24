@@ -59,17 +59,79 @@ class PlanStore:
             )
         return self.task_plan(plan_id)
 
-    def update_task_plan(self, plan_id, channel, version, steps):
+    def update_task_plan(self, plan_id, channel, version, steps, request=None):
         plan = self.task_plan(plan_id)
         if plan is None or plan["channel"] != channel: raise ValueError("plan not found")
         if plan["version"] != version: raise ValueError("plan version conflict; reload with plan_get")
-        if plan["status"] in {"running", "completed", "cancelled", "failed", "blocked"}: raise ValueError("only a non-running plan can be updated")
+        if plan["status"] in {"running", "completed", "cancelled", "failed", "blocked"}: raise ValueError("only a draft, ready, or paused plan can be updated")
         if not isinstance(steps, list) or not steps: raise ValueError("steps required")
+        if request is not None and (not isinstance(request, str) or not request.strip() or len(request) > 4000):
+            raise ValueError("invalid request")
+        if len(steps) + (plan["step_index"] if plan["status"] == "paused" else 0) > 12:
+            raise ValueError("plan exceeds 12 steps")
         normalized=[]
         for i, step in enumerate(steps):
             if not isinstance(step, dict) or not str(step.get("task") or "").strip() or step.get("on_failure") not in {"stop","continue"}: raise ValueError("invalid step")
             normalized.append({"id":str(i+1),"task":str(step["task"]),"on_failure":step["on_failure"],"status":"pending"})
-        with self._db: self._db.execute("UPDATE task_plans SET steps_json=?,version=version+1,updated_at=? WHERE id=? AND version=?",(json.dumps(normalized,ensure_ascii=False),time.time(),plan_id,version))
+        if plan["status"] == "paused":
+            completed = plan["steps"][:plan["step_index"]]
+            normalized = [*completed, *[
+                {**step, "id": str(len(completed) + index + 1)}
+                for index, step in enumerate(normalized)
+            ]]
+            interrupted = plan["steps"][plan["step_index"]].get("interrupted_turn_id")
+            if interrupted:
+                normalized[plan["step_index"]]["interrupted_turn_id"] = interrupted
+        with self._db: self._db.execute("UPDATE task_plans SET steps_json=?,request=?,version=version+1,updated_at=? WHERE id=? AND version=?",(json.dumps(normalized,ensure_ascii=False),request if request is not None else plan["request"],time.time(),plan_id,version))
+        return self.task_plan(plan_id)
+
+    def pause_task_plan(self, plan_id, turn_id):
+        with self._db:
+            plan = self.task_plan(plan_id)
+            if plan is not None and plan["status"] == "running":
+                plan["steps"][plan["step_index"]]["interrupted_turn_id"] = turn_id
+                self._db.execute(
+                    "UPDATE task_plans SET status='paused', steps_json=?, version=version+1, updated_at=? WHERE id=? AND status='running'",
+                    (json.dumps(plan["steps"], ensure_ascii=False), time.time(), plan_id),
+                )
+        return self.task_plan(plan_id)
+
+    def paused_task_plans(self, channel):
+        rows = self._db.execute(
+            "SELECT id FROM task_plans WHERE channel=? AND status='paused' ORDER BY updated_at",
+            (channel,),
+        ).fetchall()
+        return [self.task_plan(str(row["id"])) for row in rows]
+
+    def plan_resume_safety(self, plan):
+        if plan["status"] != "paused":
+            return "not_paused"
+        step = plan["steps"][plan["step_index"]]
+        turn_id = step.get("interrupted_turn_id")
+        if not turn_id:
+            return "safe"
+        if self.turn_has_external_effect(turn_id) or self._db.execute(
+            "SELECT 1 FROM turn_progress WHERE turn_id=? LIMIT 1", (turn_id,)
+        ).fetchone():
+            return "requires_review"
+        return "safe"
+
+    def resume_task_plan(self, plan_id, channel, version, context):
+        plan = self.task_plan(plan_id)
+        if plan is None or plan["channel"] != channel or plan["status"] != "paused":
+            raise ValueError("paused plan not found in this channel")
+        if plan["version"] != version:
+            raise ValueError("plan version conflict; reload with plan_get")
+        if plan["step_index"] >= len(plan["steps"]):
+            raise ValueError("plan has no remaining steps")
+        if self.plan_resume_safety(plan) != "safe":
+            raise ValueError("interrupted step may have acted externally; inspect it and create a new plan")
+        context = {**context, "completed_through": plan["step_index"]}
+        with self._db:
+            self._db.execute(
+                "UPDATE task_plans SET status='ready', context_json=?, version=version+1, updated_at=? WHERE id=? AND status='paused' AND version=?",
+                (json.dumps(context, ensure_ascii=False), time.time(), plan_id, version),
+            )
         return self.task_plan(plan_id)
 
     def cancel_task_plan(self, plan_id, channel):

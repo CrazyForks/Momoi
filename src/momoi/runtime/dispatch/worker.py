@@ -90,7 +90,7 @@ class AgentWorker:
                     except asyncio.CancelledError:
                         if not self._stop_requested:
                             raise
-                        if job.kind == "plan_step":
+                        if job.kind == "plan_step" and self._interrupt_reason != "owner_update":
                             self.store.recover_task_plans(job.id)
                         log_event(
                             logger,

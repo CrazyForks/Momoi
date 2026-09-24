@@ -191,10 +191,64 @@ class PlanSmokeTest(unittest.IsolatedAsyncioTestCase):
         await daemon._receive(update)
         with self.assertRaises(asyncio.CancelledError):
             await daemon._active_turn
-        self.assertEqual(daemon.store.task_plan(plan["id"])["status"], "blocked")
+        self.assertEqual(daemon.store.task_plan(plan["id"])["status"], "paused")
         self.assertEqual(daemon.store.pending_events()[-1].text, update.text)
         self.assertEqual(daemon._interrupt_reason, "owner_update")
         self.assertIn("paused", daemon._interruption_notices[daemon.channel.name][0])
+
+    def test_paused_plan_can_resume_or_update_remaining_steps(self):
+        store = self.daemon.store
+        plan = store.create_task_plan({
+            "title": "three steps", "request": "send A B C", "steps": [
+                {"task": f"send {item}", "on_failure": "stop"} for item in "ABC"
+            ],
+        }, self.owner_turn, self.daemon.channel.name)
+        store.start_task_plan(plan["id"], self.daemon.channel.name, {
+            "system": [], "tools": [], "messages": [],
+        })
+        store.claim_task_plan()
+        interrupted = "plan-interrupted-safe"
+        store.begin_turn(interrupted, "plan_step", [f"plan:{plan['id']}"])
+        store.cancel_turn(interrupted, reason="owner_update")
+        paused = store.pause_task_plan(plan["id"], interrupted)
+        self.assertEqual(paused["status"], "paused")
+        self.assertEqual(store.plan_resume_safety(paused), "safe")
+        revised = store.update_task_plan(plan["id"], self.daemon.channel.name,
+                                         paused["version"], [
+            {"task": "send revised A", "on_failure": "stop"},
+            {"task": "send B", "on_failure": "stop"},
+        ], "send revised A and B")
+        self.assertEqual(revised["request"], "send revised A and B")
+        self.assertEqual(revised["steps"][0]["interrupted_turn_id"], interrupted)
+        resumed = store.resume_task_plan(plan["id"], self.daemon.channel.name,
+                                         revised["version"], {
+            "system": [], "tools": [], "messages": [{"role": "user", "content": "BTW and correction"}],
+        })
+        self.assertEqual(resumed["status"], "ready")
+        self.assertEqual(resumed["steps"][0]["task"], "send revised A")
+        self.assertEqual(resumed["context"]["completed_through"], 0)
+        self.assertEqual(store.claim_task_plan()["id"], plan["id"])
+
+    def test_paused_plan_with_visible_progress_cannot_replay(self):
+        store = self.daemon.store
+        plan = store.create_task_plan({
+            "title": "sent something", "request": "send A", "steps": [
+                {"task": "send A", "on_failure": "stop"},
+            ],
+        }, self.owner_turn, self.daemon.channel.name)
+        store.start_task_plan(plan["id"], self.daemon.channel.name, {
+            "system": [], "tools": [], "messages": [],
+        })
+        store.claim_task_plan()
+        interrupted = "plan-interrupted-visible"
+        store.begin_turn(interrupted, "plan_step", [f"plan:{plan['id']}"])
+        store.queue_progress(interrupted, "sent-A", ["A"], self.daemon.channel.name)
+        store.cancel_turn(interrupted, reason="owner_update")
+        paused = store.pause_task_plan(plan["id"], interrupted)
+        self.assertEqual(store.plan_resume_safety(paused), "requires_review")
+        with self.assertRaisesRegex(ValueError, "may have acted externally"):
+            store.resume_task_plan(plan["id"], self.daemon.channel.name,
+                                   paused["version"], {"system": [], "tools": [], "messages": []})
 
     async def test_stop_cancels_active_webhook_turn(self):
         import asyncio

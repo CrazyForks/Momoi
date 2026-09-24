@@ -248,6 +248,18 @@ class OwnerWorkflow:
         reconciliation_control = self._apply_reconciliation_commands(batch)
         directives: list[str] = []
         directives.extend(self._interruption_notices.pop(channel.name, []))
+        for plan in self.store.paused_task_plans(channel.name):
+            directives.append(
+                f"Paused Plan: id={plan['id']} title={plan['title']!r} "
+                f"version={plan['version']} current_step={plan['step_index'] + 1} "
+                f"resume_safety={self.store.plan_resume_safety(plan)}. "
+                "Use plan_get for the full request and step details if needed. "
+                "Resolve the owner's latest intent: if they stopped the work, use plan_cancel; "
+                "if they corrected it, use plan_update for remaining steps and plan_resume; "
+                "if this was an unrelated aside, answer it and use plan_resume. "
+                "If resume_safety requires review, do not replay the interrupted step; "
+                "explain the uncertainty and ask only for information needed to continue safely."
+            )
         if any(message.text.strip() == "/stop" for message in batch):
             directives.append(
                 "The owner explicitly stopped the previous active task. The runtime has "

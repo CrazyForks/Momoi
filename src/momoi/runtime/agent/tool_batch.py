@@ -177,7 +177,7 @@ class ToolBatchExecutor:
                 result = {"ok": False, "error": "tool_not_allowed"}
             elif validation_error:
                 result = validation_error
-            elif call.name in {"plan_create", "plan_start", "plan_get", "plan_update", "plan_cancel"}:
+            elif call.name in {"plan_create", "plan_start", "plan_get", "plan_update", "plan_cancel", "plan_resume"}:
                 if execution.stage != "owner":
                     result = {"ok": False, "error": "tool_not_allowed"}
                 else:
@@ -191,10 +191,13 @@ class ToolBatchExecutor:
                             plan = self.store.task_plan(call.arguments.get("plan_id"))
                             if plan is None: raise ValueError("plan not found")
                         elif call.name == "plan_update":
-                            plan = self.store.update_task_plan(call.arguments.get("plan_id"), request.delivery_channel.name, call.arguments.get("version"), call.arguments.get("steps"))
+                            plan = self.store.update_task_plan(call.arguments.get("plan_id"), request.delivery_channel.name, call.arguments.get("version"), call.arguments.get("steps"), call.arguments.get("request"))
+                        elif call.name == "plan_resume":
+                            context_messages = copy.deepcopy(request.context_messages or request.messages[:-1])
+                            plan = self.store.resume_task_plan(call.arguments.get("plan_id"), request.delivery_channel.name, call.arguments.get("version"), {"system": request.system, "tools": request.request_tools, "messages": context_messages})
                         else:
                             plan = self.store.cancel_task_plan(call.arguments.get("plan_id"), request.delivery_channel.name)
-                        result = {"ok": True, "plan_id": plan["id"], "status": plan["status"], "version": plan.get("version", 1), "steps": plan["steps"]}
+                        result = {"ok": True, "plan_id": plan["id"], "title": plan["title"], "request": plan["request"], "status": plan["status"], "version": plan.get("version", 1), "step_index": plan["step_index"], "resume_safety": self.store.plan_resume_safety(plan), "steps": plan["steps"]}
                     except (ValueError, TypeError, KeyError) as error:
                         result = {"ok": False, "error": "invalid_plan_arguments", "message": str(error)}
             elif call.name == "heartbeat_begin":

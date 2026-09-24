@@ -21,12 +21,15 @@ class PlanWorkflow:
             self.store.recover_task_plans(plan_id)
             return
         step = plan["steps"][plan["step_index"]]
-        turn_id = self._turn_id("plan_step", plan_id, step["id"])
+        turn_id = self._turn_id("plan_step", plan_id, step["id"], plan["version"])
         state = self.store.begin_turn(turn_id, "plan_step", [f"plan:{plan_id}"])
         channel = self._channel_for(plan["channel"])
         completed = None
         if state != "running":
-            self.store.recover_task_plans(plan_id)
+            if self._interrupt_reason == "owner_update":
+                self.store.pause_task_plan(plan_id, turn_id)
+            else:
+                self.store.recover_task_plans(plan_id)
             return
 
         async def finish(call):
@@ -55,7 +58,9 @@ class PlanWorkflow:
             if not context or "tools" not in context:
                 raise ValueError("plan has no start context; create and start a new plan")
             completed_turns = [
-                step["turn_id"] for step in plan["steps"][:plan["step_index"]]
+                step["turn_id"] for step in plan["steps"][
+                    int(context.get("completed_through", 0)):plan["step_index"]
+                ]
             ]
             messages = frozen_plan_messages(
                 context["messages"], plan,
@@ -83,7 +88,10 @@ class PlanWorkflow:
             self.store.cancel_turn(
                 turn_id, reason=self._interrupt_reason or "owner_stop"
             )
-            self.store.recover_task_plans(plan_id)
+            if self._interrupt_reason == "owner_update":
+                self.store.pause_task_plan(plan_id, turn_id)
+            else:
+                self.store.recover_task_plans(plan_id)
             raise
         except Exception as error:
             reason = type(error).__name__
