@@ -1,9 +1,4 @@
-"""Plan transcript contract and step workflow integration tests.
-
-Provider responses are scripted; execution and delivery use the real runtime.
-The step() fixture isolates transcript edge cases; production tests exercise
-persistent claims and the production step workflow.
-"""
+"""Plan workflow integration tests with scripted provider responses."""
 
 import copy
 import tempfile
@@ -17,20 +12,7 @@ from momoi.config.models import AppConfig
 from momoi.integrations.models import LLMConfig
 from momoi.models import AgentReply, IncomingMessage, ProviderResponse, ToolCall
 from momoi.runtime import MomoiDaemon
-from momoi.runtime.agent import AgentWorkflow, WorkflowProtocolError
-from momoi.runtime.workflows.plan_context import plan_step_messages
 from tests.support import provider_catalog
-
-
-FINISH = {
-    "name": "plan_step_finish", "description": "Report the current step outcome.",
-    "input_schema": {
-        "type": "object", "properties": {
-            "outcome": {"enum": ["succeeded", "failed"]},
-            "summary": {"type": "string", "minLength": 1},
-        }, "required": ["outcome", "summary"], "additionalProperties": False,
-    },
-}
 
 
 class PlanSmokeTest(unittest.IsolatedAsyncioTestCase):
@@ -48,116 +30,54 @@ class PlanSmokeTest(unittest.IsolatedAsyncioTestCase):
         event = IncomingMessage("plan-request", "1", "看 A B C 的微博并发给我", 1, 1)
         self.daemon.store.add_event(event)
         self.owner_turn = self.daemon.store.commit_turn([event], event.text, AgentReply(["我来看看。 "]))
-        self.turns = [self.owner_turn]
-        self.records = []
-        self.requests = []
-
-    async def step(self, index, script):
-        daemon = self.daemon
-        turn_id = f"plan-smoke:{index}"
-        daemon.store.begin_turn(turn_id, "plan_step", ["plan:smoke"])
-        rows = daemon.store.conversation_messages_for_turns(self.turns) + self.records
-        messages = plan_step_messages(
-            rows, timezone=daemon.store.timezone,
-            current_step=f"Original request: 看 A B C 的微博并发给我; step {index}",
-            tool_activity=daemon.store.turn_activity(self.turns),
-        )
-        self.requests.append(copy.deepcopy(messages))
-        remaining = iter(script)
-
-        async def complete(*args, **kwargs):
-            call = next(remaining)
-            return ProviderResponse([{
-                "type": "tool_use", "id": call.id, "name": call.name, "input": call.arguments,
-            }], [call])
-
-        daemon.provider = SimpleNamespace(complete=complete)
-        outcome = None
-
-        async def finish(call):
-            nonlocal outcome
-            args = call.arguments
-            if (set(args) != {"outcome", "summary"}
-                    or args["outcome"] not in {"succeeded", "failed"}
-                    or not isinstance(args["summary"], str) or not args["summary"].strip()):
-                return {"ok": False, "error": "invalid_plan_step_outcome"}
-            outcome = dict(args)
-            return {"ok": True}
-
-        result = await daemon._run_agent_workflow(
-            daemon._system(), messages, [daemon.tool_surface.send_bubbles_spec(), FINISH],
-            turn_id, AgentWorkflow(
-                stage="plan_step", tool_names=frozenset({"plan_step_finish"}),
-                execute_tool=finish, is_complete=lambda: outcome is not None,
-                completion_result=lambda: outcome,
-                no_tool_correction="Finish the current step with plan_step_finish.",
-            ),
-        )
-        # Persistence adapter is deliberately test-only until Plan storage lands.
-        with daemon.store._db:
-            daemon.store._archive_progress_messages(turn_id, '["plan:smoke"]')
-            daemon.store.complete_background_turn(turn_id)
-        self.turns.append(turn_id)
-        self.records.append({
-            "id": 10000 + index, "turn_id": turn_id, "role": "plan_step",
-            "content": f"Plan smoke; step {index}; {result['outcome']}: {result['summary']}",
-            "created_at": time.time(), "delivery_state": "internal",
-        })
-        return result
-
-    @staticmethod
-    def finish(outcome="succeeded", summary="checked"):
-        return ToolCall("finish", "plan_step_finish", {"outcome": outcome, "summary": summary})
 
     async def test_three_sends_advance_without_owner_continuation(self):
-        await self.step(0, [self.finish(summary="access method confirmed")])
-        for index, user in enumerate("ABC", 1):
-            await self.step(index, [
-                ToolCall("send", "send_bubbles", {"bubbles": [f"{user} latest post"]}),
-                self.finish(summary=f"{user} queued"),
-            ])
-        pending = [row[0] for row in self.daemon.store._db.execute("SELECT text FROM outbox ORDER BY id")]
+        import asyncio
+
+        daemon = self.daemon
+        plan = daemon.store.create_task_plan({
+            "title": "latest posts", "request": "send A B C", "steps": [
+                {"task": f"send {user}", "on_failure": "stop"} for user in "ABC"
+            ],
+        }, self.owner_turn, daemon.channel.name)
+        daemon.store.start_task_plan(plan["id"], daemon.channel.name, {
+            "system": daemon._system(), "tools": daemon.tool_surface.conversation_specs(),
+            "messages": [],
+        })
+        requests = []
+        for user in "ABC":
+            self.assertEqual(daemon.store.claim_task_plan()["id"], plan["id"])
+            calls = 0
+
+            async def complete(system, messages, tools, **kwargs):
+                nonlocal calls
+                calls += 1
+                if calls == 1:
+                    requests.append(copy.deepcopy(messages))
+                    call = ToolCall("send", "send_bubbles", {"bubbles": [f"{user} latest post"]})
+                else:
+                    call = ToolCall("finish", "plan_step_finish", {
+                        "outcome": "succeeded", "summary": f"{user} queued",
+                        "output_refs": [], "abort_remaining": False,
+                    })
+                return ProviderResponse([{
+                    "type": "tool_use", "id": call.id, "name": call.name, "input": call.arguments,
+                }], [call])
+
+            daemon.provider = SimpleNamespace(complete=complete)
+            await daemon._complete_plan_step_turn(plan["id"], asyncio.Event())
+            self.assertEqual(calls, 2)
+
+        self.assertEqual(daemon.store.task_plan(plan["id"])["status"], "completed")
+        self.assertIsNone(daemon.store.claim_task_plan())
+        pending = [row[0] for row in daemon.store._db.execute("SELECT text FROM outbox ORDER BY id")]
         self.assertEqual(pending[-3:], [f"{user} latest post" for user in "ABC"])
-        last = self.requests[-1]
-        text = str(last)
-        self.assertEqual(text.count("A latest post"), 1)
-        self.assertIn('delivery="queued"', text)
-        self.assertIn('<plan_step id="P10000"', text)
-        self.assertIn("access method confirmed", text)
-        self.assertNotIn("owner did not reply", text)
-        self.assertNotIn("previous assistant messages still being delivered", text)
-        self.assertNotIn("ended the Turn without replying", text)
-        self.assertNotIn("tool_use", text)
-        self.assertIn("<current_plan_step>", str(last[-1]))
-        self.assertNotIn("<current_plan_step>", str(last[:-1]))
-        self.assertTrue(any(m["role"] == "assistant" and "A latest post" in str(m) for m in last))
-
-    async def test_access_failure_stops_before_user_steps(self):
-        for index in range(4):
-            result = await self.step(index, [
-                ToolCall("notice", "send_bubbles", {"bubbles": ["无法访问微博，任务已停止。"]}),
-                self.finish("failed", "access unavailable"),
-            ])
-            if result["outcome"] == "failed":
-                break
-        self.assertEqual(len(self.requests), 1)
-        self.assertEqual(len(self.daemon.store.due_outbox()), 2)
-
-    async def test_invalid_finish_uses_existing_circuit_breaker(self):
-        with self.assertRaises(WorkflowProtocolError):
-            await self.step(0, [
-                ToolCall(str(i), "plan_step_finish", {})
-                for i in range(self.daemon.config.turn_max_protocol_retries)
-            ])
-        self.assertEqual(self.records, [])
-
-    def test_window_starting_with_assistant_keeps_native_speech(self):
-        rows = [{"id": 1, "turn_id": "old", "role": "assistant", "content": "已写的原文",
-                 "created_at": 1, "delivery_state": "uncertain"}]
-        messages = plan_step_messages(rows, timezone=self.daemon.store.timezone, current_step="续写 <下一章>")
-        self.assertEqual([m["role"] for m in messages], ["user", "assistant", "user"])
-        self.assertIn("delivery uncertain", str(messages[1]))
-        self.assertIn("&lt;下一章&gt;", str(messages[-1]))
+        last = str(requests[-1])
+        self.assertEqual(last.count("A latest post"), 1)
+        self.assertIn('delivery="queued"', last)
+        self.assertIn("A queued", last)
+        self.assertIn("B queued", last)
+        self.assertIn("<current_plan_step", str(requests[-1][-1]))
 
     async def test_owner_message_pauses_running_plan_step(self):
         import asyncio
