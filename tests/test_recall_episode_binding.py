@@ -14,6 +14,7 @@ from momoi.integrations.models import LLMConfig
 from momoi.models import AgentReply, IncomingMessage, ProviderResponse, ToolCall
 from momoi.runtime import MomoiDaemon
 from momoi.runtime.agent.runtime_tools import recall_owner_context
+from momoi.runtime.agent.context_window import ContextWindow
 
 
 def config(directory: str) -> AppConfig:
@@ -392,8 +393,16 @@ class RecallEpisodeBindingTest(unittest.IsolatedAsyncioTestCase):
                     "UPDATE conversation_episodes SET narrative_summary=? WHERE id=?",
                     ("从整理书房开始，后来讨论书架摆放。", "episode-inside"),
                 )
+                daemon.store._db.execute(
+                    "UPDATE conversation_episodes SET narrative_summary=? WHERE id=?",
+                    ("更早的话题摘要。", "episode-outside-old"),
+                )
+                daemon.store._db.execute(
+                    "UPDATE conversation_episodes SET narrative_summary=? WHERE id=?",
+                    ("未来的话题摘要。", "episode-outside-new"),
+                )
                 for suffix, updated_at in (
-                    ("inside", 10.0), ("outside-old", 20.0), ("outside-new", 30.0)
+                    ("inside", 10.0), ("outside-old", 5.0), ("outside-new", 30.0)
                 ):
                     daemon.store._db.execute(
                         "UPDATE turns SET updated_at=? WHERE id=?",
@@ -405,14 +414,45 @@ class RecallEpisodeBindingTest(unittest.IsolatedAsyncioTestCase):
                 {"turn-inside": "T-1"},
             )["recent_episodes"]
 
+            summary_message = daemon.episode_context_message(
+                ["turn-inside"], before_timestamp=40.0
+            )
+            self.assertTrue(summary_message["_context_prefix"])
+            self.assertEqual(summary_message["role"], "user")
+            self.assertIn("更早的话题摘要。", str(summary_message["content"]))
+            self.assertNotIn("episode-inside", str(summary_message["content"]))
+            self.assertNotIn("episode-outside-new", str(summary_message["content"]))
+            messages = [
+                {"role": "user", "content": "memory and goal", "_context_prefix": True},
+                summary_message,
+                {"role": "user", "content": "旧消息" * 1000,
+                 "_history_turn_ids": ["turn-inside"]},
+                {"role": "user", "content": "当前消息"},
+            ]
+            window = ContextWindow(
+                SimpleNamespace(max_input_tokens=650, summary_results=3),
+                daemon.store,
+                SimpleNamespace(refit=lambda *args, **kwargs: None),
+            )
+            self.assertEqual(window.fit([], messages, [], 3), 2)
+            self.assertIn("从整理书房开始", str(messages[1]["content"]))
+            self.assertIn("更早的话题摘要。", str(messages[1]["content"]))
+            self.assertIn("未来的话题摘要。", str(messages[1]["content"]))
+            self.assertEqual([message["role"] for message in messages],
+                             ["user", "user", "user"])
             self.assertIn('id="episode-inside"', candidates)
             self.assertIn("<title>窗口内经历</title>", candidates)
             self.assertIn("<summary>从整理书房开始，后来讨论书架摆放。</summary>", candidates)
             self.assertIn('turns="T-1"', candidates)
             self.assertIn("last_activity=", candidates)
             self.assertIn('id="episode-outside-new"', candidates)
-            self.assertIn("<title>较新的窗口外经历</title><summary></summary>", candidates)
+            self.assertIn("<title>较新的窗口外经历</title><summary>未来的话题摘要。</summary>", candidates)
             self.assertNotIn("episode-outside-old", candidates)
+            daemon.store.link_turn_to_episode("episode-outside-old", "turn-inside")
+            crossing = daemon.episode_context_message(
+                ["turn-inside"], before_timestamp=40.0
+            )
+            self.assertNotIn("更早的话题摘要。", str(crossing["content"]))
             self.assertEqual(candidates.count("<episode "), 2)
             self.assertLess(
                 candidates.index('id="episode-inside"'),

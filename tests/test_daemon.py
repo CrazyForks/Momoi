@@ -203,6 +203,40 @@ class DaemonTest(unittest.TestCase):
         self.assertEqual(remaining, 0)
         self.assertEqual(messages, [{"role": "user", "content": "当前问题"}])
 
+    def test_context_fit_preserves_prefix_and_drops_interleaved_complete_turns(self) -> None:
+        window = context_window(SimpleNamespace(max_input_tokens=450))
+        prefix = [
+            {"role": "user", "content": "memory and goal", "_context_prefix": True},
+            {"role": "user", "content": "episode summary", "_context_prefix": True},
+        ]
+        recent = {"role": "user", "content": "recent", "_history_turn_ids": ["c"]}
+        current = {"role": "user", "content": "current"}
+        messages = [*prefix,
+            {"role": "user", "content": "old" * 1500, "_history_turn_ids": ["a"]},
+            {"role": "user", "content": "event", "_history_turn_ids": ["b"]},
+            {"role": "assistant", "content": "first action", "_history_turn_ids": ["a"]},
+            {"role": "assistant", "content": "event result", "_history_turn_ids": ["b"]},
+            recent, current,
+        ]
+        remaining = window.fit([], messages, [], len(messages) - 1)
+        self.assertEqual(messages, [*prefix, recent, current])
+        self.assertEqual(remaining, 3)
+
+    def test_context_fit_drops_multiple_native_exchanges_together(self) -> None:
+        window = context_window(SimpleNamespace(max_input_tokens=350))
+        messages = [
+            {"role": "user", "content": "old" * 1500},
+            {"role": "assistant", "content": "thinking"},
+            {"role": "user", "content": [{"type": "tool_result", "content": "first"}]},
+            {"role": "assistant", "content": "next action"},
+            {"role": "user", "content": [{"type": "tool_result", "content": "second"}]},
+        ]
+        for message in messages:
+            message["_history_turn_ids"] = ["old"]
+        messages.append({"role": "user", "content": "current"})
+        self.assertEqual(window.fit([], messages, [], 5), 0)
+        self.assertEqual(messages, [{"role": "user", "content": "current"}])
+
 
 class DaemonAsyncTest(unittest.IsolatedAsyncioTestCase):
     async def test_input_status_extends_open_owner_batch(self) -> None:

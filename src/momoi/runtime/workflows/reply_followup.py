@@ -78,6 +78,10 @@ class ReplyFollowupWorkflow:
         assert context_message is not None
         messages: list[dict[str, Any]] = [
             context_message,
+            self.episode_context_message(
+                [str(row["turn_id"]) for row in conversation_rows],
+                before_timestamp=datetime.now(self.store.timezone).timestamp(),
+            ),
             *transcript_messages,
             *([idle_gap] if idle_gap is not None else []),
             {

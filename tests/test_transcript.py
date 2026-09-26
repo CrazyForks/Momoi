@@ -341,6 +341,24 @@ def test_event_splitting_a_turn_does_not_duplicate_its_tool_activity():
     assert rendered.index('<event id="E3"') < rendered.index("second()")
 
 
+def test_native_replay_does_not_move_actions_across_an_interleaved_event():
+    groups = build_groups([
+        owner(1, "查一下"), bubble(2, "开始查了", offset=10),
+        event(3, "包裹到了", offset=20), bubble(4, "查好了", offset=30),
+    ])
+    messages = render_messages(
+        groups, tool_activity={"t1": [action("first", at=15), action("second", at=25)]},
+        native_exchanges={"t1": [{
+            "content": [{"type": "text", "text": "不能提前重放的后续判断"}],
+            "results": [],
+        }]},
+    )
+    rendered = str(messages)
+    assert "不能提前重放" not in rendered
+    assert rendered.index("first()") < rendered.index('<event id="E3"')
+    assert rendered.index('<event id="E3"') < rendered.index("second()")
+
+
 @pytest.mark.parametrize("kind,prefix", [("goal", "G"), ("heartbeat", "H")])
 def test_review_follows_committed_speech_without_claiming_delivery(kind, prefix):
     review = {

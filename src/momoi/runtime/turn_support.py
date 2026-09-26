@@ -164,6 +164,7 @@ def context_data_message(
         return None
     return {
         "role": "user",
+        "_context_prefix": True,
         "content": [
             {
                 "type": "text",
@@ -177,7 +178,7 @@ def context_data_message(
 def owner_context_message(*items: tuple[str, str]) -> dict[str, Any] | None:
     """Carry slow-changing Owner context before its native transcript."""
 
-    return context_data_message(*items)
+    return context_data_message(*items, required=True)
 
 
 def owner_content_blocks(

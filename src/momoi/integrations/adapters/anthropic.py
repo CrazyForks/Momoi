@@ -29,7 +29,10 @@ def merge_adjacent_roles(
     """Combine neighbouring same-role messages for alternating-role APIs."""
     merged: list[dict[str, Any]] = []
     for message in messages:
-        message = {key: value for key, value in message.items() if key != "provider_continuation"}
+        message = {
+            key: value for key, value in message.items()
+            if key != "provider_continuation" and not key.startswith("_")
+        }
         previous = merged[-1] if merged else None
         if previous is None or previous.get("role") != message.get("role"):
             merged.append(dict(message))

@@ -210,11 +210,6 @@ class TranscriptStore:
             size = sum(estimate_tokens(str(item["content"])) for item in group)
             if selected and used + size > token_budget:
                 break
-            if not selected and size > token_budget:
-                per_message = max(1, token_budget // len(group))
-                for item in group:
-                    item["content"] = truncate_tokens(str(item["content"]), per_message)
-                size = sum(estimate_tokens(str(item["content"])) for item in group)
             selected.append(group)
             used += size
         return [item for group in reversed(selected) for item in group]

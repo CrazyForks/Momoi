@@ -20,8 +20,6 @@ def maintenance_transcript(store, rows, required_turn_ids, *, window=None):
     labels = turn_labels(groups)
     messages = render_messages(
         groups, timezone=store.timezone, tool_activity=activity, labels=labels,
-        native_exchanges=(store.turn_exchanges(list(labels))
-                          if hasattr(store, "turn_exchanges") else None),
     )
     if messages and messages[0]["role"] == "assistant":
         messages.insert(0, {"role": "user", "content": "<conversation_history />"})

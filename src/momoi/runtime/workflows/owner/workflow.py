@@ -318,7 +318,6 @@ class OwnerWorkflow:
             ),
             ("runtime_directives", "\n\n".join(directives)),
             ("proactive_bubbles", proactive_bubbles),
-            ("recent_episodes", candidates["recent_episodes"]),
             ("recent_recall_context", candidates["recent_recall_context"]),
         )
         current_content = _owner_content_blocks(
@@ -327,6 +326,10 @@ class OwnerWorkflow:
         current_content[-1]["cache_control"] = {"type": "ephemeral"}
         messages: list[dict[str, Any]] = [
             *([context_message] if context_message else []),
+            self.episode_context_message(
+                list(transcript_labels),
+                before_timestamp=min(event.received_at for event in batch),
+            ),
             *transcript_messages,
             {"role": "user", "content": current_content},
         ]

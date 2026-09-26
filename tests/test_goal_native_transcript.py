@@ -175,16 +175,17 @@ class GoalNativeTranscriptTest(unittest.IsolatedAsyncioTestCase):
             self.assertIsNone(due.find("waiting_for"))
             self.assertIsNone(due.find("latest_result"))
             self.assertNotIn("Trusted autonomous event", current)
+            self.assertIn("<recent_episodes>", str(provider.first_messages[1]["content"]))
             self.assertEqual(
                 [message["role"] for message in provider.first_messages],
-                ["user", "user", "assistant", "user", "assistant", "user", "user"],
+                ["user", "user", "user", "assistant", "user", "assistant", "user", "user"],
             )
-            self.assertIn("继续检查", str(provider.first_messages[1]["content"]))
-            self.assertIn("好", str(provider.first_messages[2]["content"]))
-            self.assertIn('<event id="E', str(provider.first_messages[3]["content"]))
-            self.assertIn("贴纸包到站", str(provider.first_messages[3]["content"]))
+            self.assertIn("继续检查", str(provider.first_messages[2]["content"]))
+            self.assertIn("好", str(provider.first_messages[3]["content"]))
+            self.assertIn('<event id="E', str(provider.first_messages[4]["content"]))
+            self.assertIn("贴纸包到站", str(provider.first_messages[4]["content"]))
             self.assertNotIn("<recent_external_events>", rendered)
-            previous_speech = str(provider.first_messages[4]["content"])
+            previous_speech = str(provider.first_messages[5]["content"])
             self.assertIn("两点了", previous_speech)
             self.assertIn("记得喝水", previous_speech)
             self.assertEqual(previous_speech.count('delivery="queued"'), 1)

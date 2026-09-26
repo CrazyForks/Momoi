@@ -8,6 +8,7 @@ from ...storage import MEMORY_KINDS
 from ...storage.episode.episode_ranking import EpisodeRecallQuery
 from ...semantic.topic_selector import RecallSelection, TOPIC_CANDIDATE_LIMIT, select_topics
 from ..agent.context_window import context_compaction_tokens
+from ..turn_support import context_data_message
 from .presentation import recent_episode_lines, recall_context_lines
 from .rendering import assemble_main_context
 from .retrieval import build_plan_retrieval, select_plan_recall_queries
@@ -271,6 +272,24 @@ class ContextService:
                 if len(selected) == limit:
                     break
         return selected
+
+    def episode_context_message(
+        self, turn_ids: list[str], *, before_timestamp: float
+    ) -> dict[str, object]:
+        """Summarize only episodes fully outside the retained transcript."""
+        summaries = recent_episode_lines(
+            self.store.compacted_episode_directory(
+                turn_ids, self.config.summary_results, before_timestamp=before_timestamp
+            ),
+            {},
+        )
+        message = context_data_message(
+            ("recent_episodes", summaries or "No episode summaries available."),
+            required=True,
+        )
+        assert message is not None
+        message["_episode_summary_before"] = before_timestamp
+        return message
 
     def owner_context_candidates(
         self, turn_ids: list[str], labels: dict[str, str] | None = None

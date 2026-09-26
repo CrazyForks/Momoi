@@ -463,7 +463,8 @@ class WebhooksAsyncTest(unittest.IsolatedAsyncioTestCase):
                     str(provider.conversations[0]).count(f'<event id="{event_id}"'), 1,
                 )
             self.assertNotIn("<conversation_state>", context_text)
-            historical = provider.conversations[0][1:3]
+            self.assertIn("<recent_episodes>", str(provider.conversations[0][1]["content"]))
+            historical = provider.conversations[0][2:4]
             self.assertEqual(
                 [message["role"] for message in historical],
                 ["user", "assistant"],

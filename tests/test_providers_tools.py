@@ -75,6 +75,19 @@ MIXED_OWNER_MESSAGE = [
 class OwnerAttachmentOrderTest(unittest.TestCase):
     """An attachment must stay beside the message that carried it."""
 
+    def test_history_metadata_is_not_sent_to_providers(self) -> None:
+        messages = [
+            {"role": "user", "content": "memory", "_context_prefix": True},
+            {"role": "user", "content": "history", "_history_turn_ids": ["old"]},
+        ]
+        self.assertEqual(merge_adjacent_roles(messages),
+                         [{"role": "user", "content": "memory\nhistory"}])
+        self.assertEqual(openai_messages("", messages), [
+            {"role": "user", "content": "memory"},
+            {"role": "user", "content": "history"},
+        ])
+        self.assertTrue(messages[0]["_context_prefix"])
+
     def test_openai_keeps_each_attachment_in_place(self) -> None:
         parts = openai_messages("", MIXED_OWNER_MESSAGE)[0]["content"]
         self.assertEqual(

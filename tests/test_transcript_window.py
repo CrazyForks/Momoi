@@ -54,6 +54,15 @@ class TranscriptWindowTest(unittest.TestCase):
             self.assertNotIn('delivery="queued"', rendered())
             store.close()
 
+    def test_small_budget_does_not_truncate_latest_turn_contents(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            store = Store(Path(directory) / "momoi.sqlite3")
+            self._add_visible_turn(store, 1)
+            expected = store.recent_conversation_messages(1, 10000)
+            actual = store.recent_conversation_messages(1, 1)
+            self.assertEqual(actual, expected)
+            store.close()
+
     @staticmethod
     def _add_visible_turn(
         store: Store,

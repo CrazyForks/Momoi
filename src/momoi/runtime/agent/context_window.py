@@ -5,7 +5,12 @@ from typing import Any
 
 from ...observability.events import TRACE, log_event
 from ...storage import estimate_tokens
-from ..turn_support import TurnBudgetExceeded, truncate_tool_result_json
+from ..context.presentation import recent_episode_lines
+from ..turn_support import (
+    TurnBudgetExceeded,
+    context_data_message,
+    truncate_tool_result_json,
+)
 
 logger = logging.getLogger("momoi.runtime.turns")
 MAX_TOOL_RESULT_TRUNCATION_ATTEMPTS = 16
@@ -23,6 +28,8 @@ def _without_embedded_image_data(value: Any) -> Any:
     )
     sanitized: dict[Any, Any] = {}
     for key, item in value.items():
+        if isinstance(key, str) and key.startswith("_"):
+            continue
         if embedded_source and key == "data":
             sanitized[key] = ""
         elif (
@@ -84,33 +91,79 @@ class ContextWindow:
         tools: list[dict[str, Any]],
         history_messages: int,
     ) -> int:
+        def refresh_episode_summary() -> None:
+            summary = next(
+                (message for message in messages if "_episode_summary_before" in message),
+                None,
+            )
+            if summary is None:
+                return
+            retained = list(dict.fromkeys(
+                str(turn_id)
+                for message in messages[:history_messages]
+                for turn_id in message.get("_history_turn_ids", ())
+            ))
+            episodes = self.store.compacted_episode_directory(
+                retained,
+                self.config.summary_results,
+                before_timestamp=float(summary["_episode_summary_before"]),
+            )
+            rendered = recent_episode_lines(episodes, {})
+            replacement = context_data_message(
+                ("recent_episodes", rendered or "No episode summaries available."),
+                required=True,
+            )
+            assert replacement is not None
+            summary["content"] = replacement["content"]
+
         def size() -> int:
             return _estimate_context_tokens(system, messages, tools)
 
         hard_limit = self.config.max_input_tokens
         compaction_limit = min(hard_limit, context_compaction_tokens(self.config))
+        refresh_episode_summary()
         estimated = size()
         dropped = 0
         truncated = 0
         compression_breakers = 0
         while estimated > compaction_limit and history_messages:
-            messages.pop(0)
-            history_messages -= 1
-            dropped += 1
-            while history_messages and (
-                str(messages[0].get("role")) == "assistant"
-                or (
-                    isinstance(messages[0].get("content"), list)
-                    and any(
-                        isinstance(block, dict) and block.get("type") == "tool_result"
-                        for block in messages[0]["content"]
-                    )
-                )
-                or str(messages[0].get("content") or "").find("message delivery confirmation") >= 0
-            ):
-                messages.pop(0)
+            start = next((i for i in range(history_messages)
+                          if not messages[i].get("_context_prefix")), None)
+            if start is None:
+                break
+            turn_ids = set(messages[start].get("_history_turn_ids", ()))
+            if turn_ids:
+                # Close over interleaved Turns and groups containing several Turns.
+                # Removing a contiguous span preserves chronological/protocol order.
+                end = start
+                while True:
+                    matches = [i for i in range(start, history_messages)
+                               if turn_ids.intersection(messages[i].get("_history_turn_ids", ()))]
+                    next_end = max(matches, default=end)
+                    expanded = turn_ids.union(*(set(messages[i].get("_history_turn_ids", ()))
+                                               for i in range(start, next_end + 1)))
+                    if next_end == end and expanded == turn_ids:
+                        break
+                    end, turn_ids = next_end, expanded
+                count = end - start + 1
+                del messages[start:end + 1]
+                history_messages -= count
+                dropped += count
+            else:
+                messages.pop(start)
                 history_messages -= 1
                 dropped += 1
+                while start < history_messages and (
+                    messages[start].get("role") == "assistant"
+                    or (isinstance(messages[start].get("content"), list)
+                        and any(isinstance(block, dict) and block.get("type") == "tool_result"
+                                for block in messages[start]["content"]))
+                    or "message delivery confirmation" in str(messages[start].get("content"))
+                ):
+                    messages.pop(start)
+                    history_messages -= 1
+                    dropped += 1
+            refresh_episode_summary()
             estimated = size()
         if estimated > compaction_limit:
             for message in messages:

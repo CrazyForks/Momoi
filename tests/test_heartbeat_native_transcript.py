@@ -286,12 +286,13 @@ class HeartbeatNativeTranscriptTest(unittest.IsolatedAsyncioTestCase):
                 ],
             )
             self.assertEqual(provider.calls, 3)
+            self.assertIn("<recent_episodes>", str(provider.first_messages[1]["content"]))
             self.assertEqual(
                 [message["role"] for message in provider.first_messages],
-                ["user", "user", "assistant", "user", "user", "user", "user"],
+                ["user", "user", "user", "assistant", "user", "user", "user", "user"],
             )
-            self.assertIn("我到家了", str(provider.first_messages[1]["content"]))
-            self.assertIn("终于回来了", str(provider.first_messages[2]["content"]))
+            self.assertIn("我到家了", str(provider.first_messages[2]["content"]))
+            self.assertIn("终于回来了", str(provider.first_messages[3]["content"]))
             latest = provider.first_messages[-1]["content"][0]["text"]
             self.assertIn(
                 f"<recent_heartbeats>\n{', '.join(heartbeat_ids)}\n</recent_heartbeats>",
@@ -299,7 +300,7 @@ class HeartbeatNativeTranscriptTest(unittest.IsolatedAsyncioTestCase):
             )
             self.assertNotIn("recent_heartbeat_activities", rendered)
             for index, identifier in enumerate(heartbeat_ids):
-                historical = str(provider.first_messages[index + 3]["content"])
+                historical = str(provider.first_messages[index + 4]["content"])
                 self.assertIn(f'<heartbeat id="{identifier}"', historical)
                 self.assertIn(f"Activity: 历史活动{index}", historical)
                 self.assertIn(f"Result: 历史结果{index}", historical)

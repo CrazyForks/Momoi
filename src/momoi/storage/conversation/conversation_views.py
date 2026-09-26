@@ -72,6 +72,69 @@ class ConversationViewStore:
             results.append(episode)
         return results
 
+    def compacted_episode_directory(
+        self,
+        retained_turn_ids: list[str],
+        limit: int,
+        *,
+        before_timestamp: float | None = None,
+    ) -> list[dict[str, object]]:
+        """Summarized episodes wholly before the retained transcript boundary."""
+        if limit <= 0:
+            return []
+        retained = list(dict.fromkeys(str(value) for value in retained_turn_ids if value))
+        if retained:
+            placeholders = ",".join("?" for _ in retained)
+            boundary_row = self._db.execute(
+                f"SELECT MIN(updated_at) FROM turns WHERE id IN ({placeholders})",
+                retained,
+            ).fetchone()
+            boundary = boundary_row[0] if boundary_row else None
+        else:
+            boundary = None
+        if boundary is None:
+            boundary = before_timestamp
+        elif before_timestamp is not None:
+            boundary = min(float(boundary), before_timestamp)
+        if boundary is None:
+            return []
+        excluded = ""
+        parameters: list[object] = []
+        if retained:
+            placeholders = ",".join("?" for _ in retained)
+            excluded = (
+                "AND NOT EXISTS (SELECT 1 FROM episode_turns AS kept "
+                "WHERE kept.episode_id=e.id "
+                f"AND kept.turn_id IN ({placeholders}))"
+            )
+            parameters.extend(retained)
+        rows = self._db.execute(
+            f"""SELECT e.*, MAX(t.updated_at) AS last_activity_at
+                FROM conversation_episodes AS e
+                JOIN episode_turns AS et ON et.episode_id=e.id
+                JOIN turns AS t ON t.id=et.turn_id
+                WHERE TRIM(COALESCE(e.narrative_summary, '')) != ''
+                  AND {runtime_archive_kind_sql('e')} IS NULL
+                  {excluded}
+                GROUP BY e.id
+                HAVING MAX(t.updated_at) < ?
+                   AND SUM(CASE WHEN t.state='completed' THEN 0 ELSE 1 END)=0
+                ORDER BY last_activity_at DESC, e.id DESC LIMIT ?""",
+            [*parameters, boundary, limit],
+        ).fetchall()
+        return [
+            {
+                "id": str(row["id"]),
+                "title": str(row["title"]),
+                "narrative_summary": str(row["narrative_summary"]),
+                "last_activity_timestamp": self.context_timestamp(
+                    row["last_activity_at"]
+                ),
+                "turn_ids": [],
+            }
+            for row in reversed(rows)
+        ]
+
     def episode_directory_for_turns(
         self,
         turn_ids: list[str],

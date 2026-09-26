@@ -82,13 +82,14 @@ class ReplyWaitNativeTranscriptTest(unittest.IsolatedAsyncioTestCase):
             self.assertGreaterEqual(int(node.attrib["silent_minutes"]), 0)
             self.assertEqual(node.find("reason").text, "这个问题需要老师决定")
             self.assertIsNone(node.find("followup"))
+            self.assertIn("<recent_episodes>", str(messages[1]["content"]))
             self.assertEqual(
                 [message["role"] for message in messages],
-                ["user", "user", "assistant", "user", "user"],
+                ["user", "user", "user", "assistant", "user", "user"],
             )
             self.assertIn("[runtime time gap]", str(messages[-2]["content"]))
-            self.assertIn("晚上选个游戏吧", str(messages[1]["content"]))
-            self.assertIn("那你想玩解谜还是动作呀", str(messages[2]["content"]))
+            self.assertIn("晚上选个游戏吧", str(messages[2]["content"]))
+            self.assertIn("那你想玩解谜还是动作呀", str(messages[3]["content"]))
             self.assertEqual(
                 tools,
                 daemon.tool_surface.conversation_specs(),

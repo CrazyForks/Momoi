@@ -311,6 +311,27 @@ def render_messages(
         turn_id for group in groups if group.role == "assistant"
         for turn_id in group.turn_ids
     }
+    # A webhook/owner update can split one Turn's visible messages around a
+    # different input. Replaying its whole session at the first fragment would
+    # move later actions before that input. Use the ordered legacy projection
+    # for these split Turns until exchanges carry input boundaries.
+    split_turns = {
+        turn_id for turn_id in speech_turns
+        if sum(turn_id in group.turn_ids and group.role == "assistant" for group in groups) > 1
+    }
+    if native_exchanges and split_turns:
+        native_exchanges = {
+            turn_id: exchanges for turn_id, exchanges in native_exchanges.items()
+            if turn_id not in split_turns
+        }
+    def append(message: dict[str, object]) -> None:
+        message["_history_turn_ids"] = list(group.turn_ids)
+        messages.append(message)
+
+    def extend(items: list[dict[str, object]]) -> None:
+        for item in items:
+            append(item)
+
     for group_index, group in enumerate(groups):
         if group.role in {"event", "goal", "heartbeat", "plan_step"}:
             lines = []
@@ -326,12 +347,12 @@ def render_messages(
                         group.role, content, group.message_ids[index], group.part_times[index], timezone,
                     )
                 )
-            messages.append(_message("user", "\n".join(lines)))
+            append(_message("user", "\n".join(lines)))
             for turn_id in group.turn_ids:
                 if (native_exchanges and native_exchanges.get(turn_id)
                         and turn_id not in speech_turns
                         and turn_id not in replayed_turns):
-                    messages.extend(_native_exchange_messages(native_exchanges.get(turn_id, ())))
+                    extend(_native_exchange_messages(native_exchanges.get(turn_id, ())))
                     replayed_turns.add(turn_id)
             # Runtime records are neither owner speech nor unanswered bubbles.
             previous = None
@@ -341,7 +362,7 @@ def render_messages(
             and any(turn_id in replayed_turns for turn_id in previous.turn_ids)
         ) else _silence(group, previous)
         if silence is not None:
-            messages.append(silence)
+            append(silence)
         if group.role == "assistant" and native_exchanges:
             pending = [
                 turn_id for turn_id in group.turn_ids
@@ -349,7 +370,7 @@ def render_messages(
             ]
             if pending or any(turn_id in replayed_turns for turn_id in group.turn_ids):
                 for turn_id in pending:
-                    messages.extend(_native_exchange_messages(native_exchanges[turn_id]))
+                    extend(_native_exchange_messages(native_exchanges[turn_id]))
                     replayed_turns.add(turn_id)
                 # The tool arguments already carry the sent text. Only replay
                 # the delivery state here, avoiding a second copy of each bubble.
@@ -358,7 +379,7 @@ def render_messages(
                     for index in range(len(group.parts))
                 ]
                 if states:
-                    messages.append(_message(
+                    append(_message(
                         "user", "[message delivery confirmation] "
                         + ", ".join(states),
                     ))
@@ -408,12 +429,12 @@ def render_messages(
                 _part_bubble(group, index, timezone, turn)
                 for index in range(len(group.parts))
             )
-        messages.append(_message(group.role, "\n".join(lines)))
+        append(_message(group.role, "\n".join(lines)))
         if group.role == "user" and native_exchanges:
             for turn_id in group.turn_ids:
                 if (native_exchanges.get(turn_id) and turn_id not in speech_turns
                         and turn_id not in replayed_turns):
-                    messages.extend(_native_exchange_messages(native_exchanges.get(turn_id, ())))
+                    extend(_native_exchange_messages(native_exchanges.get(turn_id, ())))
                     replayed_turns.add(turn_id)
         previous = group
     return messages

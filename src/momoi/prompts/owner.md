@@ -2,7 +2,7 @@
 
 结合你们之前的对话和召回的记忆，回应 `<current_owner_bubbles>` 中的消息。
 通常的流程：recall → … → send_bubbles? / send_voice? → … → end_turn
-可以先用普通 assistant 文本简短写出当前判断，但它只留在内部；要对用户说的话仍需调用 send_bubbles 或 send_voice。历史中也按这个区别理解，不把内部文本当作已经说给用户的话。
+每轮先在普通 assistant 文本中简短写出当前判断与下一步，再在同一条消息里调用原生工具。这段文本只留在内部；要对用户说的话仍需调用 send_bubbles 或 send_voice。历史中也按这个区别理解，不把内部文本当作已经说给用户的话。
 
 开场按 `recall` 的工具说明判断是否需要检索；上下文足够时可以选择 `skip`。后续信息仍不足时，可以再次调用 `recall` 收集证据，再回复或行动。
 
