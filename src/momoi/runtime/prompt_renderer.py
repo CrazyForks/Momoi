@@ -118,18 +118,13 @@ class PromptRenderer:
     def _system_with_tool_policies(
         self, system: list[dict[str, Any]], tools: list[dict[str, Any]]
     ) -> list[dict[str, Any]]:
-        names = {str(tool.get("name") or "") for tool in tools}
-        policies: list[str] = []
-        if names & AGENDA_POLICY_TOOLS:
-            policies.append(AGENDA_TOOL_POLICY.strip())
-        if names & MEMORY_POLICY_TOOLS:
-            policies.append(MEMORY_TOOL_POLICY.strip())
-        if "read_image" in names:
-            policies.append(IMAGE_TOOL_POLICY.strip())
-        if names & THINKING_POLICY_TOOLS:
-            policies.append(THINKING_TOOL_POLICY.strip())
-        mcp_names = {str(tool.get("name") or "") for tool in self.mcp.tool_specs}
-        if mcp_names and ("tool_enable" in names or names & mcp_names):
+        # Public capability guidance is identical across execution stages and
+        # does not change when an external MCP group becomes visible.
+        policies = [
+            AGENDA_TOOL_POLICY.strip(), MEMORY_TOOL_POLICY.strip(),
+            IMAGE_TOOL_POLICY.strip(), THINKING_TOOL_POLICY.strip(),
+        ]
+        if self.mcp.tool_specs:
             policies.append(MCP_TOOL_POLICY.strip())
         if not policies:
             return system

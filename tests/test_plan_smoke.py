@@ -12,10 +12,28 @@ from momoi.config.models import AppConfig
 from momoi.integrations.models import LLMConfig
 from momoi.models import AgentReply, IncomingMessage, ProviderResponse, ToolCall
 from momoi.runtime import MomoiDaemon
+from momoi.runtime.workflows.plan_context import frozen_plan_messages
 from tests.support import provider_catalog
 
 
 class PlanSmokeTest(unittest.IsolatedAsyncioTestCase):
+    async def test_plan_keeps_uncommitted_owner_request_after_shared_history(self):
+        plan = {"id": "p", "title": "Check", "request": "look at image",
+                "step_index": 0, "steps": [{"id": "s", "task": "inspect",
+                                              "on_failure": "stop", "status": "running"}]}
+        source = {"role": "user", "content": [
+            {"type": "text", "text": "<current_owner_bubbles>look at image</current_owner_bubbles>"},
+            {"type": "image", "source": {"type": "base64", "data": "AAAA"}},
+        ]}
+        messages = frozen_plan_messages(
+            [{"role": "user", "content": "shared transcript"}], plan,
+            step_rows=[], timezone=self.daemon.store.timezone,
+            source_messages=[source],
+        )
+        self.assertEqual(messages[0]["content"], "shared transcript")
+        self.assertEqual(messages[1], source)
+        self.assertIn("current_plan_step", str(messages[2]["content"]))
+
     async def asyncSetUp(self):
         directory = tempfile.TemporaryDirectory()
         self.addCleanup(directory.cleanup)

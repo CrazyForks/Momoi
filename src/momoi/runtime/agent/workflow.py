@@ -48,6 +48,7 @@ class TurnExecutionSpec:
             "webhook",
             "goal",
             "reply_followup",
+            "plan_step",
         }
 
     @property

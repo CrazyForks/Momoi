@@ -11,14 +11,12 @@ from ...llm.errors import ProviderError
 from ..agent import TurnExecutionSpec
 from ..context.current_state import pack_current_turn_context
 from ..context.presentation import due_goal_lines, heartbeat_self_state_lines
-from ..transcript.building import build_transcript
-from ..transcript.rendering import owner_idle_gap_message, render_messages
+from ..transcript.rendering import owner_idle_gap_message
 from ..turn_support import (
     ExternalToolTurnError,
     GOAL_PROMPT_PATH,
     GOAL_SYSTEM_PROMPT,
     TurnBudgetExceeded,
-    context_data_message as _context_data_message,
     live_prompt as _live_prompt,
     reconciliation_message as _reconciliation_message,
     turn_tool_names as _turn_tool_names,
@@ -149,25 +147,10 @@ class GoalWorkflow:
         now = datetime.now(self.store.timezone).isoformat(timespec="seconds")
         review_at = context_timestamp(goal["next_review_at"], self.store.timezone)
         self_state = heartbeat_self_state_lines(self.store.self_state_context(), current_time=now)
-        long_term_memories = self.store.always_memory_context()
-        conversation_rows = self._recent_conversation_rows()
-        tool_activity = self.store.turn_activity(
-            [str(row["turn_id"]) for row in conversation_rows]
-        )
-        transcript = build_transcript(
-            conversation_rows,
-            timezone=self.store.timezone,
-            tool_activity=tool_activity,
-        )
-        transcript_messages = render_messages(
-            [*transcript.orphaned, *transcript.groups],
-            timezone=self.store.timezone,
-            tool_activity=tool_activity,
-            native_exchanges=self.store.turn_exchanges([
-                turn_id for group in (*transcript.orphaned, *transcript.groups)
-                for turn_id in group.turn_ids
-            ]),
-        )
+        shared = self.shared_turn_context(turn_id)
+        conversation_rows = shared["rows"]
+        transcript = shared["transcript"]
+        transcript_messages = shared["history"]
         idle_gap = owner_idle_gap_message(
             conversation_rows,
             now=datetime.now(self.store.timezone).timestamp(),
@@ -193,25 +176,14 @@ class GoalWorkflow:
             ("self_state", self_state),
             ("recent_goals", recent_goals),
         )
-        context_message = _context_data_message(
-            ("long_term_memories", long_term_memories),
-            required=True,
-        )
-        assert context_message is not None
         messages: list[dict[str, Any]] = [
-            context_message,
-            self.episode_context_message(
-                [str(row["turn_id"]) for row in conversation_rows],
-                before_timestamp=datetime.now(self.store.timezone).timestamp(),
-            ),
-            *transcript_messages,
-            *([idle_gap] if idle_gap is not None else []),
+            *shared["messages"],
             {
                 "role": "user",
                 "content": [
                     {
                         "type": "text",
-                        "text": current_input,
+                        "text": current_input + ("\n\n" + str(idle_gap["content"]) if idle_gap else ""),
                         "cache_control": {"type": "ephemeral"},
                     }
                 ],

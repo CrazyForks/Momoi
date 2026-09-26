@@ -57,28 +57,22 @@ class PlanWorkflow:
             context = plan.get("context")
             if not context or "tools" not in context:
                 raise ValueError("plan has no start context; create and start a new plan")
-            completed_turns = [
-                step["turn_id"] for step in plan["steps"][
-                    int(context.get("completed_through", 0)):plan["step_index"]
-                ]
-            ]
+            shared = self.shared_turn_context(turn_id)
             messages = frozen_plan_messages(
-                context["messages"], plan,
-                step_rows=self.store.conversation_messages_for_turns(completed_turns),
-                timezone=self.store.timezone,
-                tool_activity=self.store.turn_activity(completed_turns),
-                native_exchanges=self.store.turn_exchanges(completed_turns),
+                shared["messages"], plan, step_rows=[], timezone=self.store.timezone,
+                source_messages=context.get("messages"),
             )
-            tools = copy.deepcopy(context["tools"])
+            tools = self.tool_surface.conversation_specs()
+            self.tool_surface.append_visible(tools, copy.deepcopy(context["tools"]))
             workflow = AgentWorkflow(
-                preserve_transcript=True, stage="plan_step", tool_names=frozenset({"plan_step_finish"}), execute_tool=finish,
+                preserve_transcript=False, stage="plan_step", tool_names=frozenset({"plan_step_finish"}), execute_tool=finish,
                 is_complete=lambda: completed is not None, completion_result=lambda: completed,
                 no_tool_correction="Use tools to execute the current step, report the outcome with plan_step_finish.",
             )
             log_event(logger, logging.INFO, "plan_step_started", plan_id=plan_id, step_id=step["id"], turn_id=turn_id)
             async with asyncio.timeout(300):
                 await self._run_tool_loop(
-                    context["system"], messages, tools, [], TurnDraft(),
+                    self._system(), messages, tools, [], TurnDraft(),
                     execution=TurnExecutionSpec("plan_step", max_rounds=24),
                     source_event_id=f"plan:{plan_id}", turn_id=turn_id, delivery_channel=channel, workflow=workflow,
                 )

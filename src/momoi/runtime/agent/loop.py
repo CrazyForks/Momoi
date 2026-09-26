@@ -79,6 +79,7 @@ class AgentLoop:
         last_tool_error = ""
         history_messages = max(0, len(messages) - 1)
         batch_state = ToolBatchState()
+        last_round_directives = ""
         llm_round = 0
         remind_owner_bubbles = False
         enable_tool_groups = self.tool_surface.mcp_server_groups()
@@ -104,7 +105,6 @@ class AgentLoop:
             if stage == "owner" and (external_tool_used or self.store.turn_has_external_effect(turn_id)):
                 self.store.open_reconciliation(turn_id, "protocol_circuit_open")
             permitted_tools = frozenset({"send_bubbles", "end_turn"})
-            tools = [tool for tool in tools if tool["name"] in permitted_tools]
             # The task has stopped. Its opening and business requirements must not
             # block the final notification, nor may recovery reopen task tools.
             harness = TurnHarness(
@@ -200,19 +200,31 @@ class AgentLoop:
                 if (allowed is None or tool["name"] in allowed)
                 and tool["name"] not in harness.blocked_tool_names
             )
-            scoped_system = [*system, {"type": "text", "text": (
+            round_directives = (
                 f"当前阶段：{stage}。本轮允许调用的已加载工具："
                 + ", ".join(callable_names)
                 + "。其余可见工具仅供接口参考，本轮不可调用。开场、结束及依赖顺序仍按本轮契约和工具说明执行。"
-            )}]
-            if circuit_reason:
-                scoped_system.append({"type": "text", "text": (
-                    "本轮已熔断，停止任务执行。仅用 send_bubbles 通知用户失败，然后 end_turn。"
-                    "不再执行此前的 recall、任务或其他开场要求，不安排自动重试或等待回复。"
-                )})
+            ) if llm_round == 1 and stage in {"owner", "heartbeat", "goal", "webhook", "reply_followup", "plan_step"} else ""
+            if round_directives and round_directives != last_round_directives:
+                directive = "<runtime_directives>\n" + round_directives + "\n</runtime_directives>"
+                if not last_round_directives and messages[-1].get("role") == "user":
+                    content = messages[-1].get("content")
+                    if isinstance(content, str):
+                        messages[-1]["content"] = content + "\n\n" + directive
+                    else:
+                        messages[-1]["content"] = [*(content or []), {
+                            "type": "text", "text": directive,
+                            "cache_control": {"type": "ephemeral"},
+                        }]
+                        # Keep a single cache boundary at the end of current input.
+                        for block in messages[-1]["content"][:-1]:
+                            block.pop("cache_control", None)
+                else:
+                    messages.append({"role": "user", "content": directive})
+                last_round_directives = round_directives
             try:
                 model_round = await self.model_round.run(
-                    scoped_system,
+                    system,
                     messages,
                     request_tools,
                     complete=complete,

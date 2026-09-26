@@ -2,13 +2,46 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from momoi.models import TurnDraft
+from momoi.models import TurnDraft, IncomingMessage, AgentReply
+from momoi.config.models import AppConfig
+from momoi.integrations.models import LLMConfig
+from momoi.channel.napcat import NapCatConfig
+from momoi.runtime import MomoiDaemon
+from tests.support import provider_catalog
+import json
 from momoi.runtime.transcript.building import build_groups
 from momoi.runtime.transcript.rendering import render_messages
 from momoi.storage import Store
 
 
 class TranscriptWindowTest(unittest.TestCase):
+    def test_shared_prefix_is_identical_for_each_stage_at_same_boundary(self):
+        with tempfile.TemporaryDirectory() as directory:
+            daemon = MomoiDaemon(AppConfig(
+                providers=provider_catalog(LLMConfig("http://localhost", "test", "model", 100, 0, 1, 0)),
+                channel=NapCatConfig("ws://localhost", "123", 1, 60, 30, 30, 20),
+                system_prompt="test", transcript_turns_min=4, transcript_turns_max=4,
+                episode_unsummarized_tail_turns=2, memory_results=2,
+                database=Path(directory) / "store.sqlite3", log_level="INFO",
+            ))
+            event = IncomingMessage("past", "1", "过去的问题", 1, 1)
+            daemon.store.add_event(event)
+            daemon.store.commit_turn([event], event.text, AgentReply(["过去的回答"]), turn_id="past")
+            for stage in ("owner", "heartbeat", "goal", "webhook", "reply_followup", "plan_step"):
+                daemon.store.begin_turn(f"active-{stage}", stage, [stage])
+            with daemon.store._db:
+                daemon.store._db.execute(
+                    "UPDATE turns SET started_at=100,updated_at=100 WHERE id LIKE 'active-%'"
+                )
+                daemon.store._db.execute("UPDATE turns SET updated_at=10 WHERE id='past'")
+            contexts = [daemon.shared_turn_context(f"active-{stage}")["messages"]
+                        for stage in ("owner", "heartbeat", "goal", "webhook", "reply_followup", "plan_step")]
+            encoded = [json.dumps(messages, ensure_ascii=False, sort_keys=True) for messages in contexts]
+            self.assertEqual(len(set(encoded)), 1)
+            self.assertIn("过去的问题", encoded[0])
+            self.assertIn("过去的回答", encoded[0])
+            daemon.store.close()
+
     def test_committed_goal_bubbles_are_visible_before_delivery_and_track_outbox(self):
         with tempfile.TemporaryDirectory() as directory:
             store = Store(Path(directory) / "momoi.sqlite3")

@@ -17,11 +17,9 @@ from ..context.presentation import (
     heartbeat_self_state_lines,
     heartbeat_topic_lines,
 )
-from ..transcript.building import build_transcript
-from ..transcript.rendering import owner_idle_gap_message, render_messages
+from ..transcript.rendering import owner_idle_gap_message
 from ..turn_support import (
     ExternalToolTurnError,
-    context_data_message as _context_data_message,
     reconciliation_message as _reconciliation_message,
     turn_tool_names as _turn_tool_names,
 )
@@ -180,24 +178,10 @@ class HeartbeatWorkflow:
             recent_topics.append(topic)
             topic_tokens += size
         goals = self.store.active_goals_context()
-        conversation_rows = self._recent_conversation_rows()
-        tool_activity = self.store.turn_activity(
-            [str(row["turn_id"]) for row in conversation_rows]
-        )
-        transcript = build_transcript(
-            conversation_rows,
-            timezone=self.store.timezone,
-            tool_activity=tool_activity,
-        )
-        transcript_messages = render_messages(
-            [*transcript.orphaned, *transcript.groups],
-            timezone=self.store.timezone,
-            tool_activity=tool_activity,
-            native_exchanges=self.store.turn_exchanges([
-                turn_id for group in (*transcript.orphaned, *transcript.groups)
-                for turn_id in group.turn_ids
-            ]),
-        )
+        shared = self.shared_turn_context(turn_id)
+        conversation_rows = shared["rows"]
+        transcript = shared["transcript"]
+        transcript_messages = shared["history"]
         idle_gap = owner_idle_gap_message(
             conversation_rows,
             now=time.time(),
@@ -235,26 +219,15 @@ class HeartbeatWorkflow:
             ("recent_heartbeats", recent_heartbeats),
         )
         system = self._system()
-        injected_memories = self.store.injected_memory_snapshots()
-        context_message = _context_data_message(
-            ("long_term_memories", self.store._memory_context(list(injected_memories.values()))),
-            required=True,
-        )
-        assert context_message is not None
+        injected_memories = shared["memories"]
         messages: list[dict[str, Any]] = [
-            context_message,
-            self.episode_context_message(
-                [str(row["turn_id"]) for row in conversation_rows],
-                before_timestamp=datetime.now(self.store.timezone).timestamp(),
-            ),
-            *transcript_messages,
-            *([idle_gap] if idle_gap is not None else []),
+            *shared["messages"],
             {
                 "role": "user",
                 "content": [
                     {
                         "type": "text",
-                        "text": current_input,
+                        "text": current_input + ("\n\n" + str(idle_gap["content"]) if idle_gap else ""),
                         "cache_control": {"type": "ephemeral"},
                     }
                 ],

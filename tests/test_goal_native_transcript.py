@@ -178,7 +178,7 @@ class GoalNativeTranscriptTest(unittest.IsolatedAsyncioTestCase):
             self.assertIn("<recent_episodes>", str(provider.first_messages[1]["content"]))
             self.assertEqual(
                 [message["role"] for message in provider.first_messages],
-                ["user", "user", "user", "assistant", "user", "assistant", "user", "user"],
+                ["user", "user", "user", "assistant", "user", "assistant", "user"],
             )
             self.assertIn("继续检查", str(provider.first_messages[2]["content"]))
             self.assertIn("好", str(provider.first_messages[3]["content"]))

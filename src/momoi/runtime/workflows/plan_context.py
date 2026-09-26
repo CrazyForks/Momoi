@@ -20,12 +20,8 @@ def current_step_xml(plan):
 
 
 def frozen_plan_messages(messages, plan, *, step_rows, timezone, tool_activity=None,
-                         native_exchanges=None):
-    """X + completed steps' native speech and runtime records + current input.
-
-    Only rows from this plan's completed steps are appended. X stays unchanged;
-    the shared renderer preserves bubbles, action order and silent step records.
-    """
+                         native_exchanges=None, source_messages=None):
+    """Shared history followed by the initiating request and current step."""
     import copy
 
     result = copy.deepcopy(messages)
@@ -35,6 +31,14 @@ def frozen_plan_messages(messages, plan, *, step_rows, timezone, tool_activity=N
         tool_activity=tool_activity,
         native_exchanges=native_exchanges,
     ))
+    # The Owner Turn that started this plan may still be running and therefore
+    # absent from the completed shared transcript. Keep its original request,
+    # including attachments, in the Plan-specific tail.
+    for source in reversed(source_messages or []):
+        if source.get("role") != "user" or "<current_owner_bubbles>" not in str(source.get("content")):
+            continue
+        result.append(copy.deepcopy(source))
+        break
     result.append({"role": "user", "content": [
         {"type": "text", "text": (
             "<workflow_contract>Execute only the current Plan step toward the owner's requested outcome. "

@@ -874,10 +874,9 @@ class MessagingAsyncTest(unittest.IsolatedAsyncioTestCase):
             await daemon._complete_batch([event], turn_id)
 
             wire = json.dumps(provider.messages, ensure_ascii=False)
-            self.assertIn("<proactive_bubbles>", wire)
+            self.assertNotIn("<proactive_bubbles>", wire)
             self.assertIn("刚才提醒你窗户还开着", wire)
-            self.assertIn("[ASSISTANT]", wire)
-            self.assertFalse(
+            self.assertTrue(
                 any(
                     message.get("role") == "assistant"
                     and "刚才提醒你窗户还开着" in json.dumps(

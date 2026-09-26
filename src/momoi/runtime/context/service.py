@@ -81,6 +81,33 @@ class ContextService:
             include_images=True,
         )
 
+    def shared_turn_context(self, turn_id: str) -> dict[str, object]:
+        """One canonical prefix and transcript for every conversation executor."""
+        from ..transcript.building import build_transcript
+        from ..transcript.rendering import render_messages
+
+        cutoff = float(self.store.turn_usage(turn_id)["started_at"])
+        rows = self._recent_conversation_rows(cutoff)
+        ids = list(dict.fromkeys(str(row["turn_id"]) for row in rows))
+        activity = self.store.turn_activity(ids)
+        transcript = build_transcript(rows, timezone=self.store.timezone, tool_activity=activity)
+        history = render_messages(
+            [*transcript.orphaned, *transcript.groups],
+            timezone=self.store.timezone, tool_activity=activity,
+            native_exchanges=self.store.turn_exchanges(ids),
+        )
+        memories = self.store.injected_memory_snapshots()
+        prefix = context_data_message(
+            ("long_term_memories", self.store._memory_context(list(memories.values()))),
+            ("goal_directory", self.owner_context_baseline()["goal_directory"]),
+            required=True,
+        )
+        return {
+            "rows": rows, "transcript": transcript, "history": history,
+            "memories": memories,
+            "messages": [prefix, self.episode_context_message(ids, before_timestamp=cutoff), *history],
+        }
+
     def _plan_from_submission(
         self,
         events: list[IncomingMessage],

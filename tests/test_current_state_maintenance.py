@@ -311,7 +311,7 @@ def test_maintenance_preserves_tools_without_replaying_source_chain(daemon):
     async def complete(system, messages, tools, **kwargs):
         requests.append(copy.deepcopy(messages))
         assert system[:len(original_system)] == original_system
-        assert len(messages) == 2
+        assert len(messages) >= 2
         assert ElementTree.fromstring(messages[0]["content"]).attrib == {
             "id": "T-1", "evidence": "none",
         }

@@ -10,19 +10,12 @@ from ....observability.values import safe_preview
 from ....models import AgentReply, IncomingMessage, TurnDraft
 from ....llm.errors import ProviderError
 from ...agent import TurnExecutionSpec, WorkflowProtocolError
-from ...transcript.building import build_transcript
-from ...transcript.rendering import (
-    render_proactive_bubble_evidence,
-    render_messages,
-    turn_labels,
-)
 from ...context.current_state import pack_current_turn_context
 from ...context.presentation import heartbeat_self_state_lines
 from ...turn_support import (
     ExternalToolTurnError,
     TurnBudgetExceeded,
     owner_content_blocks as _owner_content_blocks,
-    owner_context_message as _owner_context_message,
     provider_failure_message as _provider_failure_message,
     reconciliation_message as _reconciliation_message,
     turn_tool_names as _turn_tool_names,
@@ -269,43 +262,15 @@ class OwnerWorkflow:
             )
         if reconciliation_control:
             directives.append(reconciliation_control)
-        conversation_rows = self._recent_conversation_rows(
-            min(event.received_at for event in batch)
-        )
-        tool_activity = self.store.turn_activity(
-            [str(row["turn_id"]) for row in conversation_rows]
-        )
-        transcript = build_transcript(
-            conversation_rows,
-            timezone=self.store.timezone,
-            tool_activity=tool_activity,
-        )
-        transcript_labels = turn_labels(transcript.groups)
+        shared = self.shared_turn_context(turn_id)
+        conversation_rows = shared["rows"]
+        transcript = shared["transcript"]
+        transcript_messages = shared["history"]
         candidates = self.owner_context_candidates(
-            [turn for group in transcript.groups for turn in group.turn_ids],
-            transcript_labels,
-        )
-        transcript_messages = render_messages(
-            transcript.groups,
-            timezone=self.store.timezone,
-            tool_activity=tool_activity,
-            labels=transcript_labels,
-            native_exchanges=self.store.turn_exchanges(list(transcript_labels)),
-        )
-        proactive_bubbles = render_proactive_bubble_evidence(
-            transcript.orphaned,
-            timezone=self.store.timezone,
-            tool_activity=tool_activity,
+            [str(row["turn_id"]) for row in conversation_rows],
         )
         system = self._system()
-        # Slow-changing material sits ahead of the transcript so it stays inside
-        # the cached prefix; everything that moves with the Turn stays in the
-        # tail, which is rebuilt anyway.
-        injected_memories = self.store.injected_memory_snapshots()
-        context_message = _owner_context_message(
-            ("long_term_memories", self.store._memory_context(list(injected_memories.values()))),
-            ("goal_directory", recalled["goal_directory"]),
-        )
+        injected_memories = shared["memories"]
         runtime_text = pack_current_turn_context(
             self.store, "owner",
             ("workflow_contract", self._owner_system_prompt()),
@@ -317,7 +282,6 @@ class OwnerWorkflow:
                 ),
             ),
             ("runtime_directives", "\n\n".join(directives)),
-            ("proactive_bubbles", proactive_bubbles),
             ("recent_recall_context", candidates["recent_recall_context"]),
         )
         current_content = _owner_content_blocks(
@@ -325,12 +289,7 @@ class OwnerWorkflow:
         )
         current_content[-1]["cache_control"] = {"type": "ephemeral"}
         messages: list[dict[str, Any]] = [
-            *([context_message] if context_message else []),
-            self.episode_context_message(
-                list(transcript_labels),
-                before_timestamp=min(event.received_at for event in batch),
-            ),
-            *transcript_messages,
+            *shared["messages"],
             {"role": "user", "content": current_content},
         ]
         if transcript.orphaned:

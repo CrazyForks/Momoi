@@ -1263,7 +1263,7 @@ class DaemonAsyncTest(unittest.IsolatedAsyncioTestCase):
                             )
                         )
                     else:
-                        assert {tool["name"] for tool in tools} == {"send_bubbles", "end_turn"}
+                        assert {"send_bubbles", "end_turn", "recall"} <= {tool["name"] for tool in tools}
                         calls = [ToolCall("notify", "send_bubbles", {"bubbles": ["创建任务没成功，我先停下了。"]}),
                                  ToolCall("end", "end_turn", {"mood": {"decision": "unchanged"}, "reply_wait": {"wait": False}})]
                     return ProviderResponse(
@@ -1793,7 +1793,7 @@ class DaemonAsyncTest(unittest.IsolatedAsyncioTestCase):
                                     self.calls += 1
                                     if self.calls > 3:
                                         assert self.calls == 4
-                                        assert {tool["name"] for tool in _args[2]} == {"send_bubbles", "end_turn"}
+                                        assert {"send_bubbles", "end_turn", "recall"} <= {tool["name"] for tool in _args[2]}
                                         calls = [ToolCall("notify", "send_bubbles", {"bubbles": ["这次出错了，我先停下来，结果还没确认。"]}),
                                                  ToolCall("end", "end_turn", {"mood": {"decision": "unchanged"}, "reply_wait": {"wait": False}})]
                                         return ProviderResponse([{"type": "tool_use", "id": c.id, "name": c.name, "input": c.arguments} for c in calls], calls)
@@ -2340,10 +2340,11 @@ class DaemonAsyncTest(unittest.IsolatedAsyncioTestCase):
         # closest to the conversation; capability guidance is appended last.
         self.assertNotIn("You are Momoi.", llm_requests[0]["system"][0]["text"])
         self.assertIn("You are Momoi.", llm_requests[0]["system"][1]["text"])
-        self.assertEqual(len(llm_requests[0]["system"]), 4)
-        self.assertIn("当前阶段：owner", llm_requests[0]["system"][2]["text"])
+        self.assertEqual(len(llm_requests[0]["system"]), 3)
+        self.assertNotIn("当前阶段：", str(llm_requests[0]["system"]))
+        self.assertIn("当前阶段：owner", str(llm_requests[0]["messages"][-1]))
         self.assertNotIn("heartbeat_activity", llm_requests[0]["system"][2]["text"])
-        self.assertEqual(len(llm_requests[7]["system"]), 4)
+        self.assertEqual(len(llm_requests[7]["system"]), 3)
         self.assertEqual(llm_requests[0]["system"], llm_requests[7]["system"])
         self.assertEqual(
             llm_requests[1]["messages"][-1]["content"][0]["type"], "tool_result"
@@ -2367,7 +2368,7 @@ class DaemonAsyncTest(unittest.IsolatedAsyncioTestCase):
         self.assertIn("</current_owner_bubbles>", current_text)
         self.assertIn("<workflow_contract>", current_text)
         self.assertNotIn("Owner Turn: recall first", current_text)
-        self.assertTrue(current_text.endswith("</current_owner_bubbles>"))
+        self.assertIn("当前阶段：owner", current_text)
         self.assertNotIn("Every response in this Turn", current_text)
         self.assertIn("<self_state>", current_text)
         self.assertLess(
