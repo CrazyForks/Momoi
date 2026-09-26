@@ -12,9 +12,39 @@ import json
 from momoi.runtime.transcript.building import build_groups
 from momoi.runtime.transcript.rendering import render_messages
 from momoi.storage import Store
+from momoi.storage.core.migrations import MIGRATIONS, _add_transcript_window_observed_total
 
 
 class TranscriptWindowTest(unittest.TestCase):
+    def test_native_replay_includes_followup_archived_under_owner_turn(self):
+        with tempfile.TemporaryDirectory() as directory:
+            store = Store(Path(directory) / "store.sqlite3")
+            event = IncomingMessage("request", "1", "一分钟后跟进", 1, 1)
+            store.add_event(event)
+            store.commit_turn([event], event.text, AgentReply(["计时开始"]), turn_id="owner")
+            store.begin_turn("followup", "reply_followup", ["owner"])
+            store.queue_progress("followup", "send-followup", ["一分钟到，我来了"], "napcat")
+            outbox = store._db.execute("SELECT id FROM outbox WHERE turn_id='followup'").fetchone()[0]
+            with store._db:
+                store._db.execute(
+                    "INSERT INTO messages(turn_id,role,content,created_at,source_event_ids_json,outbox_id,delivery_state) VALUES ('owner','assistant','一分钟到，我来了',2,'[]',?,'delivered')",
+                    (outbox,),
+                )
+                store._db.execute("UPDATE turns SET state='completed' WHERE id='followup'")
+            for turn, identifier, text in (("owner", "send-owner", "计时开始"), ("followup", "send-followup", "一分钟到，我来了")):
+                store.append_turn_journal(turn, "assistant_exchange", {
+                    "content": [{"type": "tool_use", "id": identifier, "name": "send_bubbles", "input": {"bubbles": [text]}}],
+                    "results": [{"type": "tool_result", "tool_use_id": identifier, "content": '{"ok":true}'}],
+                }, trust="runtime")
+            exchanges = store.turn_exchanges(["owner"])
+            self.assertEqual(len(exchanges["owner"]), 2)
+            rows = store.conversation_messages_for_turns(["owner"])
+            rendered = render_messages(build_groups(rows), timezone=store.timezone, native_exchanges=exchanges)
+            text = json.dumps(rendered, ensure_ascii=False)
+            self.assertIn("一分钟到，我来了", text)
+            self.assertLess(text.index("计时开始"), text.index("一分钟到，我来了"))
+            store.close()
+
     def test_shared_prefix_is_identical_for_each_stage_at_same_boundary(self):
         with tempfile.TemporaryDirectory() as directory:
             daemon = MomoiDaemon(AppConfig(
@@ -140,6 +170,57 @@ class TranscriptWindowTest(unittest.TestCase):
 
             reopened = Store(path)
             self.assertEqual(reopened.transcript_window_turn_limit(48, 96), 48)
+            reopened.close()
+
+    def test_updating_completed_turn_does_not_prepend_old_history(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            store = Store(Path(directory) / "momoi.sqlite3")
+            for index in range(1, 8):
+                self._add_visible_turn(store, index)
+            self.assertEqual(store.transcript_window_turn_limit(4, 8), 4)
+            initial = store.recent_conversation_messages(4, 10000)
+            with store._db:
+                store._db.execute(
+                    "UPDATE turns SET updated_at=7.5 WHERE id='turn-0007'"
+                )
+            self.assertEqual(store.transcript_window_turn_limit(4, 8), 4)
+            self.assertEqual(store.recent_conversation_messages(4, 10000), initial)
+
+            self._add_visible_turn(store, 8)
+            self.assertEqual(store.transcript_window_turn_limit(4, 8), 5)
+            extended = store.recent_conversation_messages(5, 10000)
+            self.assertEqual(extended[:len(initial)], initial)
+            store.close()
+
+    def test_existing_window_state_migrates_without_growth(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "momoi.sqlite3"
+            store = Store(path)
+            for index in range(1, 8):
+                self._add_visible_turn(store, index)
+            with store._db:
+                store._db.execute("DROP TABLE transcript_window_state")
+                store._db.execute(
+                    """CREATE TABLE transcript_window_state (
+                       id INTEGER PRIMARY KEY CHECK (id = 1),
+                       current_turns INTEGER NOT NULL,
+                       observed_turn_id TEXT NOT NULL,
+                       observed_updated_at REAL NOT NULL)"""
+                )
+                store._db.execute(
+                    "INSERT INTO transcript_window_state VALUES (1, 5, 'turn-0007', 7)"
+                )
+                store._db.execute(
+                    f"PRAGMA user_version={MIGRATIONS.index(_add_transcript_window_observed_total)}"
+                )
+            store.close()
+
+            reopened = Store(path)
+            self.assertEqual(reopened.transcript_window_turn_limit(4, 8), 5)
+            state = reopened._db.execute(
+                "SELECT observed_total_turns FROM transcript_window_state WHERE id=1"
+            ).fetchone()
+            self.assertEqual(state[0], 7)
             reopened.close()
 
     def test_manual_compaction_persists_and_resumes_growth(self) -> None:

@@ -573,6 +573,13 @@ def _add_current_state_evidence(database):
             database.execute(f"ALTER TABLE current_state_slots ADD COLUMN {name} {declaration}")
 
 
+def _add_transcript_window_observed_total(database: sqlite3.Connection) -> None:
+    if "observed_total_turns" not in _columns(database, "transcript_window_state"):
+        database.execute(
+            "ALTER TABLE transcript_window_state ADD COLUMN observed_total_turns INTEGER"
+        )
+
+
 MIGRATIONS: tuple[Migration, ...] = (
     _add_runtime_archive_metadata,
     _add_turn_workflow_kind,
@@ -597,6 +604,7 @@ MIGRATIONS: tuple[Migration, ...] = (
     _add_plan_version,
     _add_turn_parent,
     _add_current_state_evidence,
+    _add_transcript_window_observed_total,
 )
 SCHEMA_VERSION = len(MIGRATIONS)
 

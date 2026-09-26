@@ -61,11 +61,29 @@ class TranscriptStore:
         ordered_ids = [str(turn_id) for turn_id in dict.fromkeys(turn_ids) if turn_id]
         if not ordered_ids:
             return {}
+        # Reply follow-up bubbles are archived under the original Owner Turn,
+        # while their native exchanges belong to the follow-up executor Turn.
+        # Replay both sessions for that shared timeline identity.
+        parent_ids = {turn_id: turn_id for turn_id in ordered_ids}
+        placeholders = ",".join("?" for _ in ordered_ids)
+        linked = self._db.execute(
+            f"""SELECT DISTINCT m.turn_id AS parent_id, o.turn_id AS executor_id
+                FROM messages AS m JOIN outbox AS o ON o.id=m.outbox_id
+                JOIN turns AS t ON t.id=o.turn_id
+                WHERE m.turn_id IN ({placeholders})
+                  AND o.turn_id != m.turn_id AND t.workflow_kind='reply_followup'
+                  AND t.state='completed'""",
+            tuple(ordered_ids),
+        ).fetchall()
+        for row in linked:
+            parent_ids[str(row["executor_id"])] = str(row["parent_id"])
+        ordered_ids = list(parent_ids)
         placeholders = ",".join("?" for _ in ordered_ids)
         rows = self._db.execute(
-            f"""SELECT turn_id, payload_json FROM turn_journal
-                WHERE turn_id IN ({placeholders}) AND item_type='assistant_exchange'
-                ORDER BY turn_id, sequence""",
+            f"""SELECT j.turn_id, j.payload_json FROM turn_journal AS j
+                JOIN turns AS t ON t.id=j.turn_id
+                WHERE j.turn_id IN ({placeholders}) AND j.item_type='assistant_exchange'
+                ORDER BY t.started_at, j.sequence""",
             tuple(ordered_ids),
         ).fetchall()
         exchanges: dict[str, list[dict[str, object]]] = {}
@@ -75,7 +93,7 @@ class TranscriptStore:
             except ValueError:
                 continue
             if isinstance(payload, dict) and isinstance(payload.get("content"), (str, list)):
-                exchanges.setdefault(str(row["turn_id"]), []).append(payload)
+                exchanges.setdefault(parent_ids[str(row["turn_id"])], []).append(payload)
         return exchanges
 
     def transcript_window_turn_limit(
@@ -98,6 +116,21 @@ class TranscriptStore:
         ).fetchone()
         if latest is None:
             return minimum_turns
+        # An existing Turn may be updated after completion (reply follow-ups
+        # do this). Its updated_at moving forward must not grow the window.
+        visible_total = int(self._db.execute(
+            f"""SELECT COUNT(*) FROM turns AS t
+                WHERE t.state='completed' AND EXISTS (
+                    SELECT 1 FROM messages AS m
+                    WHERE m.turn_id=t.id
+                      AND (
+                          m.role IN ('user', 'event') OR {_GOAL_RECORD_SQL}
+                          OR {_HEARTBEAT_RECORD_SQL} OR {_PLAN_RECORD_SQL}
+                          OR m.role='assistant'
+                             AND m.delivery_state IN ('delivered', 'uncertain', 'queued')
+                      )
+                )"""
+        ).fetchone()[0])
         with self._db:
             state = self._db.execute(
                 "SELECT * FROM transcript_window_state WHERE id=1"
@@ -105,36 +138,16 @@ class TranscriptStore:
             if state is None:
                 self._db.execute(
                     """INSERT INTO transcript_window_state
-                       (id, current_turns, observed_turn_id, observed_updated_at)
-                       VALUES (1, ?, ?, ?)""",
-                    (minimum_turns, latest["id"], latest["updated_at"]),
+                       (id, current_turns, observed_turn_id, observed_updated_at,
+                        observed_total_turns)
+                       VALUES (1, ?, ?, ?, ?)""",
+                    (minimum_turns, latest["id"], latest["updated_at"], visible_total),
                 )
                 return minimum_turns
-            new_turns = int(
-                self._db.execute(
-                    f"""SELECT COUNT(*) FROM turns AS t
-                       WHERE t.state='completed'
-                         AND (
-                             t.updated_at>?
-                             OR t.updated_at=? AND t.id>?
-                         )
-                         AND EXISTS (
-                             SELECT 1 FROM messages AS m
-                             WHERE m.turn_id=t.id
-                               AND (
-                                   m.role IN ('user', 'event') OR {_GOAL_RECORD_SQL} OR {_HEARTBEAT_RECORD_SQL} OR {_PLAN_RECORD_SQL}
-                                   OR m.role='assistant'
-                                      AND m.delivery_state IN (
-                                          'delivered', 'uncertain', 'queued'
-                                      )
-                               )
-                         )""",
-                    (
-                        state["observed_updated_at"],
-                        state["observed_updated_at"],
-                        state["observed_turn_id"],
-                    ),
-                ).fetchone()[0]
+            observed_total = state["observed_total_turns"]
+            new_turns = (
+                max(0, visible_total - int(observed_total))
+                if observed_total is not None else 0
             )
             current = min(
                 maximum_turns,
@@ -151,9 +164,10 @@ class TranscriptStore:
             )
             self._db.execute(
                 """UPDATE transcript_window_state
-                   SET current_turns=?, observed_turn_id=?, observed_updated_at=?
+                   SET current_turns=?, observed_turn_id=?, observed_updated_at=?,
+                       observed_total_turns=?
                    WHERE id=1""",
-                (current, latest["id"], latest["updated_at"]),
+                (current, latest["id"], latest["updated_at"], visible_total),
             )
         if compacted:
             log_event(

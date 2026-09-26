@@ -30,7 +30,8 @@ CREATE TABLE IF NOT EXISTS transcript_window_state (
     id INTEGER PRIMARY KEY CHECK (id = 1),
     current_turns INTEGER NOT NULL,
     observed_turn_id TEXT NOT NULL,
-    observed_updated_at REAL NOT NULL
+    observed_updated_at REAL NOT NULL,
+    observed_total_turns INTEGER
 );
 CREATE TABLE IF NOT EXISTS outbox (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
