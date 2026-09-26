@@ -20,7 +20,7 @@
         "reconnect_max_seconds": 30,
         "send_timeout_seconds": 20,
         "media_max_bytes": 20971520,
-        "media_download_timeout_seconds": 15
+        "media_download_timeout_seconds": 60
       },
       "weixin": {
         "quiet_seconds": 6,

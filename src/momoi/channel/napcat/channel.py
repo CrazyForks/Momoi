@@ -310,6 +310,10 @@ class NapCatChannel:
         session = self._session
         if session is None:
             return None
+        started = time.monotonic()
+        declared = None
+        received = 0
+        phase = "connect_or_headers"
         try:
             timeout = aiohttp.ClientTimeout(
                 total=self.config.media_download_timeout_seconds
@@ -317,12 +321,14 @@ class NapCatChannel:
             async with session.get(source, timeout=timeout) as response:
                 if response.status >= 400:
                     raise ValueError(f"HTTP {response.status}")
+                phase = "body"
                 declared = response.content_length
                 if declared is not None and declared > self.config.media_max_bytes:
                     raise ValueError("content too large")
                 content = bytearray()
                 async for chunk in response.content.iter_chunked(64 * 1024):
                     content.extend(chunk)
+                    received = len(content)
                     if len(content) > self.config.media_max_bytes:
                         raise ValueError("content too large")
                 content_type = response.headers.get("Content-Type", "").split(";", 1)[0]
@@ -337,6 +343,13 @@ class NapCatChannel:
                 channel="napcat",
                 media_type="image",
                 error_type=type(error).__name__,
+                phase=phase,
+                duration_ms=int((time.monotonic() - started) * 1000),
+                timeout_seconds=self.config.media_download_timeout_seconds,
+                declared_bytes=declared,
+                received_bytes=received,
+                max_bytes=self.config.media_max_bytes,
+                reason="timeout" if isinstance(error, asyncio.TimeoutError) else str(error) if isinstance(error, ValueError) else type(error).__name__,
             )
             return None
 

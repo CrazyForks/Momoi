@@ -13,7 +13,7 @@ class NapCatConfig:
     reconnect_max_seconds: float
     send_timeout_seconds: float
     media_max_bytes: int = 20 * 1024 * 1024
-    media_download_timeout_seconds: float = 15
+    media_download_timeout_seconds: float = 60
 
     @classmethod
     def from_mapping(cls, value: object) -> "NapCatConfig":
@@ -46,6 +46,6 @@ class NapCatConfig:
             send_timeout_seconds=positive("send_timeout_seconds", 20),
             media_max_bytes=media_max_bytes,
             media_download_timeout_seconds=positive(
-                "media_download_timeout_seconds", 15
+                "media_download_timeout_seconds", 60
             ),
         )
