@@ -177,7 +177,6 @@ class HeartbeatWorkflow:
                 break
             recent_topics.append(topic)
             topic_tokens += size
-        goals = self.store.active_goals_context()
         shared = self.shared_turn_context(turn_id)
         conversation_rows = shared["rows"]
         transcript = shared["transcript"]
@@ -211,7 +210,6 @@ class HeartbeatWorkflow:
                     current_time=datetime.now(self.store.timezone).isoformat(timespec="seconds"),
                 ),
             ),
-            ("active_goals", goals),
             (
                 "recent_topic_reference",
                 heartbeat_topic_lines(recent_topics),
@@ -227,7 +225,7 @@ class HeartbeatWorkflow:
                 "content": [
                     {
                         "type": "text",
-                        "text": current_input + ("\n\n" + str(idle_gap["content"]) if idle_gap else ""),
+                        "text": current_input + ("\n\n" + "\n".join(block["text"] for block in idle_gap["content"] if block.get("type") == "text") if idle_gap else ""),
                         "cache_control": {"type": "ephemeral"},
                     }
                 ],

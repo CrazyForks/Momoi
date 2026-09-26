@@ -59,7 +59,7 @@ class ReplyFollowupWorkflow:
                 "content": [
                     {
                         "type": "text",
-                        "text": current_input + ("\n\n" + str(idle_gap["content"]) if idle_gap else ""),
+                        "text": current_input + ("\n\n" + "\n".join(block["text"] for block in idle_gap["content"] if block.get("type") == "text") if idle_gap else ""),
                         "cache_control": {"type": "ephemeral"},
                     }
                 ],

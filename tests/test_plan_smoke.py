@@ -22,8 +22,11 @@ class PlanSmokeTest(unittest.IsolatedAsyncioTestCase):
                 "step_index": 0, "steps": [{"id": "s", "task": "inspect",
                                               "on_failure": "stop", "status": "running"}]}
         source = {"role": "user", "content": [
-            {"type": "text", "text": "<current_owner_bubbles>look at image</current_owner_bubbles>"},
+            {"type": "text", "text": "<workflow_contract>owner only</workflow_contract><current_state>stale</current_state>"},
+            {"type": "text", "text": "<current_owner_bubbles>look at image"},
             {"type": "image", "source": {"type": "base64", "data": "AAAA"}},
+            {"type": "text", "text": "</current_owner_bubbles>"},
+            {"type": "text", "text": "<runtime_directives>owner permissions</runtime_directives>"},
         ]}
         messages = frozen_plan_messages(
             [{"role": "user", "content": "shared transcript"}], plan,
@@ -31,7 +34,10 @@ class PlanSmokeTest(unittest.IsolatedAsyncioTestCase):
             source_messages=[source],
         )
         self.assertEqual(messages[0]["content"], "shared transcript")
-        self.assertEqual(messages[1], source)
+        self.assertEqual(messages[1]["content"], source["content"][1:4])
+        self.assertNotIn("owner only", str(messages))
+        self.assertNotIn("stale", str(messages))
+        self.assertNotIn("owner permissions", str(messages))
         self.assertIn("current_plan_step", str(messages[2]["content"]))
 
     async def asyncSetUp(self):

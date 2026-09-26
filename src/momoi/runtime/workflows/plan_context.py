@@ -37,7 +37,35 @@ def frozen_plan_messages(messages, plan, *, step_rows, timezone, tool_activity=N
     for source in reversed(source_messages or []):
         if source.get("role") != "user" or "<current_owner_bubbles>" not in str(source.get("content")):
             continue
-        result.append(copy.deepcopy(source))
+        # Keep the initiating input and attachments, not the Owner workflow,
+        # stale state snapshot, recall catalog, or stage permissions.
+        content = source.get("content")
+        if isinstance(content, str):
+            start = content.find("<current_owner_bubbles>")
+            end = content.find("</current_owner_bubbles>", start)
+            if end >= 0:
+                result.append({"role": "user", "content": content[start:end + len("</current_owner_bubbles>")]})
+        elif isinstance(content, list):
+            blocks = []
+            active = False
+            for block in content:
+                item = copy.deepcopy(block)
+                if item.get("type") == "text":
+                    text = item.get("text", "")
+                    if "<current_owner_bubbles>" in text:
+                        active = True
+                        text = text[text.index("<current_owner_bubbles>"):]
+                    if not active:
+                        continue
+                    if "</current_owner_bubbles>" in text:
+                        item["text"] = text[:text.index("</current_owner_bubbles>") + len("</current_owner_bubbles>")]
+                        blocks.append(item)
+                        break
+                    item["text"] = text
+                if active:
+                    blocks.append(item)
+            if blocks:
+                result.append({"role": "user", "content": blocks})
         break
     result.append({"role": "user", "content": [
         {"type": "text", "text": (
