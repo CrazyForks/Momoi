@@ -35,7 +35,13 @@ def frozen_plan_messages(messages, plan, *, step_rows, timezone, tool_activity=N
     ))
     result.append({"role": "user", "content": [
         {"type": "text", "text": (
-            "<workflow_contract>Execute only the current Plan step. Historical plan_step "
+            "<workflow_contract>Execute only the current Plan step toward the owner's requested outcome. "
+            "Choose the next action from the evidence now available; a step's suggested method is revisable, "
+            "and an unverified observation or prior assistant guess is not a fact. "
+            "After each tool result, check what it confirms or contradicts. Change approach when the "
+            "current path stops reducing uncertainty. Before reporting success, verify the step's actual "
+            "deliverable against independent evidence; if missing, report failed or blocked honestly. "
+            "Historical plan_step "
             "records are runtime results, not owner speech. Use available tools; retrieve "
             "referenced results when needed. Send requested content or a meaningful failure "
             "with send_bubbles. Preserve Momoi's voice. Report the step outcome with plan_step_finish. "

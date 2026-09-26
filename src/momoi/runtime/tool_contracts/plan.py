@@ -2,7 +2,7 @@
 
 PLAN_CREATE = {
     "name": "plan_create",
-    "description": "Create a finite immediate plan for a multi-step owner request (reading several sources, sending results, writing chapters). Not a scheduled goal. Save the original requirements in request. Then call plan_start and end_turn to hand execution to the step driver. Do not execute its steps in this owner Turn. If only a proposal was requested, leave it as a draft.",
+    "description": "Create a finite immediate plan for a multi-step owner request. Preserve the desired outcome and verifiable completion criteria in request. Each step should name an outcome and evidence to carry forward, not assume an unverified clue or prescribe one search path. Then call plan_start and end_turn to hand execution to the step driver. Do not execute its steps in this owner Turn. If only a proposal was requested, leave it as a draft.",
     "input_schema": {"type": "object", "properties": {
         "title": {"type": "string", "minLength": 1, "maxLength": 4000},
         "request": {"type": "string", "minLength": 1, "maxLength": 4000},
@@ -29,7 +29,7 @@ PLAN_STEP_FINISH = {
 }
 
 PLAN_GET = {"name":"plan_get","description":"Get a Plan status and steps.","input_schema":{"type":"object","properties":{"plan_id":{"type":"string"}},"required":["plan_id"],"additionalProperties":False}}
-PLAN_UPDATE = {"name":"plan_update","description":"Update remaining Plan steps and, when corrected, the overall request using the current version. Completed steps are preserved.","input_schema":{"type":"object","properties":{"plan_id":{"type":"string"},"version":{"type":"integer","minimum":1},"request":{"type":"string","minLength":1,"maxLength":4000},"steps":{"type":"array","minItems":1,"maxItems":12,"items":{"type":"object"}}},"required":["plan_id","version","steps"],"additionalProperties":False}}
+PLAN_UPDATE = {"name":"plan_update","description":"Update remaining Plan steps and, when corrected, the overall request using the current version. Re-evaluate the evidence and latest owner instruction before resuming; replace any step whose premise or search strategy is no longer justified. Completed steps are preserved.","input_schema":{"type":"object","properties":{"plan_id":{"type":"string"},"version":{"type":"integer","minimum":1},"request":{"type":"string","minLength":1,"maxLength":4000},"steps":{"type":"array","minItems":1,"maxItems":12,"items":{"type":"object"}}},"required":["plan_id","version","steps"],"additionalProperties":False}}
 PLAN_CANCEL = {"name":"plan_cancel","description":"Cancel a Plan and its remaining steps.","input_schema":{"type":"object","properties":{"plan_id":{"type":"string"}},"required":["plan_id"],"additionalProperties":False}}
 PLAN_RESUME = {"name":"plan_resume","description":"Resume a paused Plan after addressing the owner's latest message. Use for an unrelated aside, or after plan_update for a correction. The runtime rejects replay if the interrupted step may have acted externally; in that case inspect the result and create a new Plan for safe remaining work. End this owner Turn after resuming.","input_schema":{"type":"object","properties":{"plan_id":{"type":"string"},"version":{"type":"integer","minimum":1}},"required":["plan_id","version"],"additionalProperties":False}}
 PLAN_TOOLS = [PLAN_CREATE, PLAN_START, PLAN_GET, PLAN_UPDATE, PLAN_CANCEL, PLAN_RESUME]
