@@ -7,8 +7,6 @@ from ..agent import TurnExecutionSpec
 from ..context.current_state import pack_current_turn_context
 from ..context.presentation import heartbeat_self_state_lines
 from ..transcript.rendering import owner_idle_gap_message
-from ..turn_support import (
-)
 
 
 class ReplyFollowupWorkflow:
