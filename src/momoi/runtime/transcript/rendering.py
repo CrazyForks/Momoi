@@ -307,6 +307,10 @@ def render_messages(
     messages: list[dict[str, object]] = []
     previous: TranscriptGroup | None = None
     replayed_turns: set[str] = set()
+    speech_turns = {
+        turn_id for group in groups if group.role == "assistant"
+        for turn_id in group.turn_ids
+    }
     for group_index, group in enumerate(groups):
         if group.role in {"event", "goal", "heartbeat", "plan_step"}:
             lines = []
@@ -323,10 +327,19 @@ def render_messages(
                     )
                 )
             messages.append(_message("user", "\n".join(lines)))
+            for turn_id in group.turn_ids:
+                if (native_exchanges and native_exchanges.get(turn_id)
+                        and turn_id not in speech_turns
+                        and turn_id not in replayed_turns):
+                    messages.extend(_native_exchange_messages(native_exchanges.get(turn_id, ())))
+                    replayed_turns.add(turn_id)
             # Runtime records are neither owner speech nor unanswered bubbles.
             previous = None
             continue
-        silence = _silence(group, previous)
+        silence = None if (
+            previous is not None and previous.role == "user"
+            and any(turn_id in replayed_turns for turn_id in previous.turn_ids)
+        ) else _silence(group, previous)
         if silence is not None:
             messages.append(silence)
         if group.role == "assistant" and native_exchanges:
@@ -396,6 +409,12 @@ def render_messages(
                 for index in range(len(group.parts))
             )
         messages.append(_message(group.role, "\n".join(lines)))
+        if group.role == "user" and native_exchanges:
+            for turn_id in group.turn_ids:
+                if (native_exchanges.get(turn_id) and turn_id not in speech_turns
+                        and turn_id not in replayed_turns):
+                    messages.extend(_native_exchange_messages(native_exchanges.get(turn_id, ())))
+                    replayed_turns.add(turn_id)
         previous = group
     return messages
 

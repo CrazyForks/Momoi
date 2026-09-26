@@ -470,6 +470,26 @@ def test_native_text_without_tool_is_private_and_followed_by_runtime_notice():
     assert "未发送的草稿" not in str(messages[4:])
 
 
+def test_native_exchange_is_replayed_after_silent_owner_turn():
+    groups = build_groups([
+        owner(1, "第一条", turn_id="t1"),
+        owner(2, "第二条", turn_id="t2"),
+    ])
+    messages = render_messages(groups, native_exchanges={"t1": [{
+        "content": [{"type": "text", "text": "先查资料"},
+                    {"type": "tool_use", "id": "r1", "name": "read_file",
+                     "input": {"path": "notes.md"}}],
+        "results": [{"type": "tool_result", "tool_use_id": "r1",
+                     "content": '{"ok":true}'}],
+    }]})
+    assert [message["role"] for message in messages] == [
+        "user", "assistant", "user", "user",
+    ]
+    assert "先查资料" in str(messages[1])
+    assert "read_file" in str(messages[1])
+    assert "ended the Turn without replying" not in str(messages)
+
+
 def test_a_long_run_of_calls_shows_its_shape_rather_than_every_call():
     messages = render_messages(
         build_groups([owner(1, "整理一下"), bubble(2, "整理完了", offset=99)]),
