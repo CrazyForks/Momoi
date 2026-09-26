@@ -451,37 +451,23 @@ class WebhooksAsyncTest(unittest.IsolatedAsyncioTestCase):
                 if block.get("type") == "text"
                 and "<current_webhook_task>" in block["text"]
             )
-            self.assertIn(
-                "<recent_events>\n" + ", ".join(event_ids) + "\n</recent_events>",
-                current_context,
-            )
+            self.assertNotIn("<recent_events>\n", current_context)
             self.assertNotIn("历史事件", current_context)
             for tag in ("episode_directory", "recall_memories", "reflection_memories"):
                 self.assertNotIn(f"<{tag}>", current_context)
             for event_id in event_ids:
                 self.assertEqual(
-                    str(provider.conversations[0]).count(f'<event id="{event_id}"'), 1,
+                    str(provider.conversations[0]).count(f'<event id="{event_id}"'), 0,
                 )
             self.assertNotIn("<conversation_state>", context_text)
             self.assertIn("<recent_episodes>", str(provider.conversations[0][1]["content"]))
-            historical = provider.conversations[0][2:4]
-            self.assertEqual(
-                [message["role"] for message in historical],
-                ["user", "assistant"],
-            )
-            self.assertIn("以后回家时帮我留意快递", str(historical[0]["content"]))
-            self.assertIn("好，回家时我会留意", str(historical[1]["content"]))
+            self.assertNotIn("以后回家时帮我留意快递", context_text)
+            self.assertNotIn("好，回家时我会留意", context_text)
             self.assertLess(
                 context_text.index("<self_state>"),
                 context_text.index("<current_webhook_task>"),
             )
             self.assertNotIn("<owner_preferences>", context_text)
-            owner_bubble = ElementTree.fromstring(
-                historical[0]["content"][0]["text"]
-            )
-            self.assertEqual(owner_bubble.attrib["time"], "1970-01-01T00:00:01+00:00")
-            self.assertIn("以后回家时帮我留意快递", context_text)
-            self.assertIn("好，回家时我会留意", context_text)
             daemon.store.close()
 
     async def test_message_webhook_is_idempotent_and_waits_for_outbox_delivery(

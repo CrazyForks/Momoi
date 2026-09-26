@@ -57,6 +57,10 @@ class TranscriptWindowTest(unittest.TestCase):
             event = IncomingMessage("past", "1", "过去的问题", 1, 1)
             daemon.store.add_event(event)
             daemon.store.commit_turn([event], event.text, AgentReply(["过去的回答"]), turn_id="past")
+            daemon.store.append_turn_journal("past", "assistant_exchange", {
+                "content": [{"type": "tool_use", "id": "send-past", "name": "send_bubbles", "input": {"bubbles": ["过去的回答"]}}],
+                "results": [{"type": "tool_result", "tool_use_id": "send-past", "content": '{"ok":true}'}],
+            }, trust="runtime")
             for stage in ("owner", "heartbeat", "goal", "webhook", "reply_followup", "plan_step"):
                 daemon.store.begin_turn(f"active-{stage}", stage, [stage])
             with daemon.store._db:
@@ -70,6 +74,49 @@ class TranscriptWindowTest(unittest.TestCase):
             self.assertEqual(len(set(encoded)), 1)
             self.assertIn("过去的问题", encoded[0])
             self.assertIn("过去的回答", encoded[0])
+            daemon.store.close()
+
+    def test_shared_history_starts_after_last_legacy_turn(self):
+        with tempfile.TemporaryDirectory() as directory:
+            daemon = MomoiDaemon(AppConfig(
+                providers=provider_catalog(LLMConfig("http://localhost", "test", "model", 100, 0, 1, 0)),
+                channel=NapCatConfig("ws://localhost", "123", 1, 60, 30, 30, 20),
+                system_prompt="test", transcript_turns_min=8, transcript_turns_max=8,
+                episode_unsummarized_tail_turns=2, memory_results=2,
+                database=Path(directory) / "store.sqlite3", log_level="INFO",
+            ))
+            for index in range(1, 5):
+                turn_id = f"turn-{index}"
+                event = IncomingMessage(turn_id, "1", f"问题{index}", index, index)
+                daemon.store.add_event(event)
+                daemon.store.commit_turn([event], event.text, AgentReply([f"回答{index}"]), turn_id=turn_id)
+                if index in (2, 4):
+                    daemon.store.append_turn_journal(turn_id, "assistant_exchange", {
+                        "content": [{"type": "tool_use", "id": f"send-{index}", "name": "send_bubbles", "input": {"bubbles": [f"回答{index}"]}}],
+                        "results": [{"type": "tool_result", "tool_use_id": f"send-{index}", "content": '{"ok":true}'}],
+                    }, trust="runtime")
+                with daemon.store._db:
+                    daemon.store._db.execute("UPDATE turns SET updated_at=? WHERE id=?", (index, turn_id))
+            daemon.store.begin_turn("active", "owner", ["active"])
+            daemon.store.create_episode("旧话题", episode_id="legacy-topic")
+            daemon.store.link_turn_to_episode("legacy-topic", "turn-1")
+            with daemon.store._db:
+                daemon.store._db.execute(
+                    "UPDATE conversation_episodes SET narrative_summary='旧话题的压缩摘要' WHERE id='legacy-topic'"
+                )
+            shared = daemon.shared_turn_context("active")
+            self.assertEqual({row["turn_id"] for row in shared["rows"]}, {"turn-4"})
+            text = json.dumps(shared["history"], ensure_ascii=False)
+            self.assertIn("问题4", text)
+            self.assertIn("回答4", text)
+            self.assertNotIn("问题3", text)
+            self.assertNotIn("回答2", text)
+            self.assertNotIn("historical_recall", text)
+            self.assertIn("旧话题的压缩摘要", json.dumps(shared["messages"][1], ensure_ascii=False))
+            # A wholly legacy window has no detailed transcript.
+            with daemon.store._db:
+                daemon.store._db.execute("DELETE FROM turn_journal WHERE item_type='assistant_exchange'")
+            self.assertEqual(daemon.shared_turn_context("active")["history"], [])
             daemon.store.close()
 
     def test_committed_goal_bubbles_are_visible_before_delivery_and_track_outbox(self):

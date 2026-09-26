@@ -89,12 +89,23 @@ class ContextService:
         cutoff = float(self.store.turn_usage(turn_id)["started_at"])
         rows = self._recent_conversation_rows(cutoff)
         ids = list(dict.fromkeys(str(row["turn_id"]) for row in rows))
+        exchanges = self.store.turn_exchanges(ids)
+        # Old Turns have no native exchange journal. Start at the contiguous
+        # native suffix rather than mixing legacy bubbles/recall text with the
+        # current protocol. Older episodes remain eligible for summary injection.
+        last_legacy = max(
+            (index for index, identifier in enumerate(ids) if not exchanges.get(identifier)),
+            default=-1,
+        )
+        ids = ids[last_legacy + 1:]
+        retained = set(ids)
+        rows = [row for row in rows if str(row["turn_id"]) in retained]
         activity = self.store.turn_activity(ids)
         transcript = build_transcript(rows, timezone=self.store.timezone, tool_activity=activity)
         history = render_messages(
             [*transcript.orphaned, *transcript.groups],
             timezone=self.store.timezone, tool_activity=activity,
-            native_exchanges=self.store.turn_exchanges(ids),
+            native_exchanges={identifier: exchanges[identifier] for identifier in ids},
         )
         memories = self.store.injected_memory_snapshots()
         prefix = context_data_message(
@@ -381,6 +392,18 @@ class ContextService:
             selected_memory_rows=[*selection.memories, *selection.reflections],
             topic_selection=topic_selection,
         )
+        # Persistence keeps inherited evidence for provenance and future reuse.
+        # The tool observation returns only this call's searched evidence;
+        # skip/reuse already have their evidence in the transcript.
+        observation = copy.deepcopy(retrieval)
+        search_units = {
+            str(unit_id) for query in selected for unit_id in query.get("unit_ids", [])
+        }
+        for field in ("recall_memories", "reflection_memories", "episodes"):
+            observation[field] = [
+                item for item in observation.get(field, [])
+                if search_units.intersection(str(value) for value in item.get("unit_ids", []))
+            ]
         source_ids = [event.event_id for event in events]
         if record is not None and record["state"] == "recalled":
             # A new query angle is not a new owner request. Only new owner input
@@ -411,7 +434,7 @@ class ContextService:
         )
         return assemble_main_context(
             self.store,
-            stored["retrieval"],
+            observation,
             self.config.summary_tokens,
         )
 

@@ -61,9 +61,7 @@ def managed_emotion_bytes(workspace: str | Path, data: bytes, filename: str) -> 
     return destination
 
 
-EMOTION_REACTION_POLICY = """Optional reactions use the catalogued `emotion://` slugs above. A reaction may
-stand alone, but it never replaces necessary information; place it where it fits
-the message sequence."""
+EMOTION_REACTION_POLICY = """可以选用上方列出的 `emotion://` 表情。表情可以单独发送，但不能代替必要的信息；放在合适的消息位置。"""
 
 
 class EmotionStore:

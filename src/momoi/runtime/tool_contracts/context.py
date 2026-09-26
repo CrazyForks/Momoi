@@ -83,6 +83,8 @@ RECALL_TOOL_SPEC: dict[str, Any] = {
         "adds evidence without replacing the original intent or Episode routing for "
         "the same owner input. Later units may describe a new search angle; skip "
         "does not clear earlier results. New owner messages may revise intent. "
+        "skip/reuse return status without repeating evidence already in the transcript; "
+        "search returns this call's evidence rather than accumulated earlier results. "
         "Every call and result is retained in the Turn transcript. "
         "Arguments must contain units, an array of intent objects; do not flatten its fields "
         "or stringify nested JSON. "

@@ -1,15 +1,11 @@
 from typing import Any
 
 
-MEMORY_TOOL_POLICY = """### Memory tools
+MEMORY_TOOL_POLICY = """### 记忆工具
 
-Use memory_operation only when authenticated owner evidence warrants adding,
-correcting, or forgetting memory. Do not record every message or fetch old
-memories merely to repeat them as arguments. Pending requests are not confirmed
-facts or completed deletions.
-Use scope=current_state only to update or delete an existing temporary state.
-New state creation belongs to background state maintenance.
-The background review handles durable memory classification, activation, and duplicates.
+只有经过确认的用户证据支持新增、修正或遗忘记忆时，才使用 memory_operation。不要逐条记录消息，也不要只为复述旧记忆而查询再写回。待处理请求不等于已确认的事实或已完成的删除。
+scope=current_state 只用于更新或删除已有的临时状态；新状态由后台状态维护创建。
+长期记忆的分类、激活条件和去重由后台审核处理。
 """
 
 

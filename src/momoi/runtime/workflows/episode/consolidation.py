@@ -55,6 +55,8 @@ class EpisodeConsolidationWorkflow:
             self.store,
             self.store.conversation_messages_for_turns(source_turn_ids),
             source_turn_ids,
+            include_activity=False,
+            replay_native=True,
         )
         source_ids = {labels[value]: value for value in source_turn_ids}
         reprocessable = {

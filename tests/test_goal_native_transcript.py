@@ -178,17 +178,13 @@ class GoalNativeTranscriptTest(unittest.IsolatedAsyncioTestCase):
             self.assertIn("<recent_episodes>", str(provider.first_messages[1]["content"]))
             self.assertEqual(
                 [message["role"] for message in provider.first_messages],
-                ["user", "user", "user", "assistant", "user", "assistant", "user"],
+                ["user", "user", "user"],
             )
-            self.assertIn("继续检查", str(provider.first_messages[2]["content"]))
-            self.assertIn("好", str(provider.first_messages[3]["content"]))
-            self.assertIn('<event id="E', str(provider.first_messages[4]["content"]))
-            self.assertIn("贴纸包到站", str(provider.first_messages[4]["content"]))
+            self.assertNotIn("继续检查", rendered)
+            self.assertNotIn("贴纸包到站", rendered)
             self.assertNotIn("<recent_external_events>", rendered)
-            previous_speech = str(provider.first_messages[5]["content"])
-            self.assertIn("两点了", previous_speech)
-            self.assertIn("记得喝水", previous_speech)
-            self.assertEqual(previous_speech.count('delivery="queued"'), 1)
+            self.assertNotIn("两点了", rendered)
+            self.assertNotIn("记得喝水", rendered)
             self.assertEqual(provider.calls, 4)
             expected_surface = [
                 str(tool["name"]) for tool in daemon.tool_surface.conversation_specs()

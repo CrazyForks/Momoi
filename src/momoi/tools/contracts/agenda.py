@@ -2,11 +2,9 @@ from typing import Any
 
 from ...contracts import OWNER_PROGRESS_BEFORE_FIRST_CALL, OWNER_PROGRESS_FIELD
 
-AGENDA_TOOL_POLICY = """### Agenda tools
+AGENDA_TOOL_POLICY = """### 日程工具
 
-Use a persistent Goal as a crontab-like scheduled task for one-time or recurring
-work. Record the intended outcome and schedule, then maintain its state as
-circumstances change. Work that can finish now needs no Goal.
+需要将来继续执行的一次性或周期性任务，使用持久化 Goal，记录预期结果和执行时间，并随情况变化更新状态。现在能完成的工作无需创建 Goal。
 """
 
 _REVIEW_TIME_SCHEMA = {

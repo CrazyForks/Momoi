@@ -839,6 +839,10 @@ class MessagingAsyncTest(unittest.IsolatedAsyncioTestCase):
                                'delivered')""",
                     ("刚才提醒你窗户还开着", now - 10),
                 )
+            daemon.store.append_turn_journal("heartbeat:proactive", "assistant_exchange", {
+                "content": [{"type": "tool_use", "id": "past-send", "name": "send_bubbles", "input": {"bubbles": ["刚才提醒你窗户还开着"]}}],
+                "results": [{"type": "tool_result", "tool_use_id": "past-send", "content": '{"ok":true}'}],
+            }, trust="runtime")
 
             class Provider:
                 messages: list[dict[str, object]] = []

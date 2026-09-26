@@ -66,6 +66,9 @@ class ContextCaptured(BaseException):
 def test_real_workflows_inject_only_current_input_and_preserve_history(daemon, stage):
     clock, slot = seed(daemon)
     daemon.store.commit_turn([], "HISTORY_ONLY", AgentReply([]), turn_id="old")
+    daemon.store.append_turn_journal("old", "assistant_exchange", {
+        "content": "历史内部记录", "results": [],
+    }, trust="runtime")
     before = [tuple(row) for row in daemon.store._db.execute("SELECT * FROM messages")]
     history = daemon.store.current_state.history()
     captured = {}

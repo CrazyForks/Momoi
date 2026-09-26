@@ -83,7 +83,7 @@ class PromptRenderer:
         return "\n\n".join(part.strip() for part in (head, tail) if part.strip())
 
     def _system(self) -> list[dict[str, Any]]:
-        soul_prompt = self._workspace_soul() or "No additional Soul is configured."
+        soul_prompt = self._workspace_soul() or "未配置额外的 SOUL。"
         blocks: list[dict[str, Any]] = []
         # Identity first, operating contract second: the rules then sit closest to
         # the conversation, where their influence on the next step is strongest.
@@ -132,7 +132,7 @@ class PromptRenderer:
             *system,
             {
                 "type": "text",
-                "text": "# Available capability guidance\n\n"
+                "text": "# 可用能力使用指引\n\n"
                 + "\n\n".join(policies),
             },
         ]

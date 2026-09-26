@@ -1,5 +1,4 @@
-MCP_TOOL_POLICY = """### External MCP tools
+MCP_TOOL_POLICY = """### 外部 MCP 工具
 
-- For non-trivial research, retry with a better query when the first result is
-  insufficient, then answer from the evidence actually returned.
+- 对需要认真调查的问题，首次检索结果不足时改进查询再试；依据工具实际返回的证据作答。
 """

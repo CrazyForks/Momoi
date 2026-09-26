@@ -267,7 +267,8 @@ def test_allowed_end_turn_captures_tool_surface_and_waits_for_commit(daemon, kin
     async def maintain(system, messages, tools, **kwargs):
         assert tools == surfaces[-1]
         assert system[:len(systems[-1])] == systems[-1]
-        assert ElementTree.fromstring(messages[0]["content"]).attrib == {
+        root = ElementTree.fromstring("<request>" + messages[-1]["content"] + "</request>")
+        assert root.find("source_evidence/turn").attrib == {
             "id": "T-1", "evidence": "none",
         }
         return finish()
@@ -312,7 +313,8 @@ def test_maintenance_preserves_tools_without_replaying_source_chain(daemon):
         requests.append(copy.deepcopy(messages))
         assert system[:len(original_system)] == original_system
         assert len(messages) >= 2
-        assert ElementTree.fromstring(messages[0]["content"]).attrib == {
+        evidence = ElementTree.fromstring("<request>" + messages[-1]["content"] + "</request>")
+        assert evidence.find("source_evidence/turn").attrib == {
             "id": "T-1", "evidence": "none",
         }
         assert messages[-1]["role"] == "user"
@@ -321,6 +323,7 @@ def test_maintenance_preserves_tools_without_replaying_source_chain(daemon):
         )
         assert [node.tag for node in root] == [
             "pending_turns",
+            "source_evidence",
             "current_state",
             "self_state",
             "state_update_contract",
@@ -636,12 +639,7 @@ def test_state_batch_uses_committed_transcript_including_turns_outside_window(da
         assert [node.attrib["id"] for node in root.findall("pending_turns/turn")] == [
             f"T-{index + 1}" for index in range(count)
         ]
-        bubbles = [
-            ElementTree.fromstring(block["text"][block["text"].index("<bubble"):])
-            for message in messages[:-1]
-            if message["role"] == "user"
-            for block in message["content"]
-        ]
+        bubbles = root.findall("source_evidence/bubble")
         assert [bubble.attrib["turn"] for bubble in bubbles] == [
             f"T-{index + 1}" for index in range(count)
         ]

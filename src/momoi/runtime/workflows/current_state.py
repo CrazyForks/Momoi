@@ -14,7 +14,7 @@ from ..context.current_state import pack_current_turn_context
 from ..tool_contracts.current_state import current_state_finish_spec
 from ..transcript.maintenance import maintenance_transcript
 from ..transcript.rendering import render_pending_turns
-from ..turn_support import PROMPT_ROOT, live_prompt, context_data_message
+from ..turn_support import PROMPT_ROOT, live_prompt
 
 logger = logging.getLogger(__name__)
 PROMPT_PATH = PROMPT_ROOT.joinpath("current_state.md")
@@ -110,39 +110,37 @@ class CurrentStateWorkflow:
             include_empty=True,
             maintenance=True,
         )
-        recent = self._recent_conversation_rows()
+        shared = self.shared_turn_context(turn_id)
         # Resolve provenance against original records, never request-only annotations
         # such as generated image summaries.
         rows = {
             row["id"]: row
-            for row in self.store.conversation_messages_for_turns(
-                list(dict.fromkeys(str(row["turn_id"]) for row in recent))
-            )
+            for row in self.store.conversation_messages_for_turns(source_turn_ids)
         }
-        rows.update(
-            {
-                row["id"]: row
-                for row in self.store.conversation_messages_for_turns(source_turn_ids)
-            }
-        )
-        messages, turn_labels = maintenance_transcript(
+        evidence_messages, turn_labels = maintenance_transcript(
             self.store,
             list(rows.values()),
             source_turn_ids,
+            include_activity=False,
         )
+        messages = copy.deepcopy(shared["messages"])
         evidence_rows = state_evidence_rows(self.store, rows.values())
-        injected = self.store.injected_memory_snapshots()
+        injected = shared["memories"]
         events = self._source_turn_owner_events(source_turn_ids)
         # Snapshot the transcript before the tool loop mutates the live list;
         # a queued memory review must never capture this Turn's own tool rounds.
         draft = TurnDraft(memory_context=injected, memory_conversation=[*messages])
-        context = context_data_message(
-            ("long_term_memories", self.store._memory_context(list(injected.values()))),
-        )
-        if context:
-            messages.insert(0, context)
         labels = [turn_labels[value] for value in source_turn_ids]
-        request = render_pending_turns(labels) + "\n\n" + latest
+        evidence = "\n\n".join(
+            message["content"] if isinstance(message["content"], str)
+            else "\n".join(block.get("text", "") for block in message["content"])
+            for message in evidence_messages
+        )
+        request = (
+            render_pending_turns(labels)
+            + "\n\n<source_evidence>\n" + evidence + "\n</source_evidence>\n\n"
+            + latest
+        )
         messages.append({"role": "user", "content": request})
         # Retain exact schemas and order, including enabled MCP tools. Tasks staged
         # before tool snapshots were introduced cannot recover their original surface.

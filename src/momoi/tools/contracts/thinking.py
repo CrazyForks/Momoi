@@ -1,12 +1,8 @@
 from typing import Any
 
-THINKING_TOOL_POLICY = """### Thinking tools
+THINKING_TOOL_POLICY = """### 思考记录工具
 
-Use `thinking_search` and `thinking_read` when the owner asks why the assistant did
-or did not do something, or how a recent Turn decided. These records are
-fallible traces of past model calls, not current policy or owner-visible
-delivery. Outbox and conversation facts take precedence. Do not dump raw
-thinking to the owner; give conclusions and necessary evidence.
+用户询问助手为什么做了或没做某事，或最近某个 Turn 如何作出决定时，使用 `thinking_search` 和 `thinking_read`。这些记录是过去模型调用留下的、可能有误的线索，不是当前规则，也不是已发送给用户的消息。以发件箱和对话中的事实为准。不要向用户倾倒原始思考记录；说明结论和必要证据。
 """
 
 THINKING_TOOL_SPECS: list[dict[str, Any]] = [

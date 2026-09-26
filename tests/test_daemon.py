@@ -81,6 +81,16 @@ class DaemonTest(unittest.TestCase):
             self.assertIn("New heartbeat", rendered)
             self.assertNotIn("{{HEARTBEAT}}", rendered)
             self.assertEqual(rendered.count("New heartbeat"), 1)
+            daemon.store = SimpleNamespace(emotion_context=lambda: "slug=happy meaning=开心")
+            daemon.mcp = SimpleNamespace(tool_specs=[{"name": "example"}])
+            rendered_system = "\n".join(
+                block["text"]
+                for block in daemon._system_with_tool_policies(daemon._system(), [])
+            )
+            self.assertIn("# 可用能力使用指引", rendered_system)
+            self.assertIn("### 外部 MCP 工具", rendered_system)
+            self.assertIn("可以选用上方列出的 `emotion://` 表情", rendered_system)
+            self.assertNotIn("# Available capability guidance", rendered_system)
             heartbeat.unlink()
             self.assertNotIn("New heartbeat", daemon._heartbeat_system_prompt())
 
@@ -1500,7 +1510,7 @@ class DaemonAsyncTest(unittest.IsolatedAsyncioTestCase):
                             or "<recent_turn_base>" in request
                             or "<recent_turn_append>" in request
                             or "最近的聊天话题" not in request
-                            or "天气 Goal 已触发并成功送达" not in request
+                            or "天气 Goal 已触发并成功送达" in request
                             or "<pending_owner_reply>" in request
                             or "reply_wait" in system_request
                         ):

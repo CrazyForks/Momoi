@@ -95,12 +95,27 @@ class RecallEpisodeBindingTest(unittest.IsolatedAsyncioTestCase):
             await daemon.submit_owner_context([event], turn_id, {"units": [unit]})
             unit.update(recall_mode="skip", recall_queries=[])
             result = await daemon.submit_owner_context([event], turn_id, {"units": [unit]})
-            self.assertIn("主人偏好绿茶", result["recall_memories"])
-            self.assertIn("泡茶用八十度水", result["recall_memories"])
+            self.assertEqual(result["recall_memories"], "")
+            self.assertEqual(result["reflection_memories"], "")
+            self.assertEqual(result["episodes"], "")
             record = daemon.store.context_plan(turn_id)
+            stored = str(record["retrieval"])
+            self.assertIn("主人偏好绿茶", stored)
+            self.assertIn("泡茶用八十度水", stored)
             self.assertEqual(record["plan"]["intent_units"][0]["intent"], "茶的信息")
             self.assertEqual(record["retrieval"]["effective_recall_queries"], ["茶"])
             self.assertEqual(len(record["plan"]["supplemental_queries"]), 2)
+            reuse_event = IncomingMessage("reuse:tea", "1", "继续说茶", 2, 2)
+            daemon.store.add_event(reuse_event)
+            daemon.store.begin_turn("reuse-tea", "owner", [reuse_event.event_id])
+            reuse_unit = {**unit, "recall_mode": "reuse", "recall_from_turn_id": turn_id}
+            reused = await daemon.submit_owner_context(
+                [reuse_event], "reuse-tea", {"units": [reuse_unit]}
+            )
+            self.assertEqual(reused["recall_memories"], "")
+            self.assertEqual(reused["reflection_memories"], "")
+            self.assertEqual(reused["episodes"], "")
+            self.assertIn("泡茶用八十度水", str(daemon.store.context_plan("reuse-tea")["retrieval"]))
             with patch.object(daemon, "_select_recall_topics", side_effect=RuntimeError("lookup failed")):
                 with self.assertRaises(RuntimeError):
                     await daemon.submit_owner_context([event], turn_id, {"units": [unit]})

@@ -6,10 +6,11 @@ from .building import build_transcript
 from .rendering import render_messages, turn_labels
 
 
-def maintenance_transcript(store, rows, required_turn_ids, *, window=None):
+def maintenance_transcript(store, rows, required_turn_ids, *, window=None, include_activity=True,
+                           replay_native=False):
     activity = store.turn_activity(list(dict.fromkeys(
         [str(row["turn_id"]) for row in rows] + list(required_turn_ids)
-    )))
+    ))) if include_activity else {}
     if window is not None:
         activity = {
             turn_id: [record for record in records if window[0] <= record["at"] < window[1]]
@@ -20,6 +21,12 @@ def maintenance_transcript(store, rows, required_turn_ids, *, window=None):
     labels = turn_labels(groups)
     messages = render_messages(
         groups, timezone=store.timezone, tool_activity=activity, labels=labels,
+        # Time-bounded evidence must not import tools from outside its window.
+        native_exchanges=(
+            store.turn_exchanges(list(labels))
+            if replay_native and window is None
+            else None
+        ),
     )
     if messages and messages[0]["role"] == "assistant":
         messages.insert(0, {"role": "user", "content": "<conversation_history />"})
