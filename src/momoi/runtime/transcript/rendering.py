@@ -1,4 +1,5 @@
 import json
+from copy import deepcopy
 from xml.etree.ElementTree import Element, SubElement, tostring
 
 from collections.abc import Mapping, Sequence
@@ -8,6 +9,7 @@ from zoneinfo import ZoneInfo
 
 from ...models import speaker_label
 from ...storage.core.timestamps import context_timestamp
+from .results import historical_results
 
 from .models import (
     DEFAULT_ACTION_LIMIT,
@@ -262,6 +264,8 @@ def _native_exchange_messages(
     exchanges: Sequence[Mapping[str, object]],
 ) -> list[dict[str, object]]:
     """Replay model text, tool calls, then the observations the model received."""
+    exchanges = deepcopy(list(exchanges))
+    historical_results(exchanges)
     messages: list[dict[str, object]] = []
     for exchange in exchanges:
         content = exchange.get("content")
