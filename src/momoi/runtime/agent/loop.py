@@ -311,6 +311,19 @@ class AgentLoop:
                     tool_call_id=call.id, bubbles=len(bubbles),
                 )
             if not response.tool_calls:
+                if stage in {"owner", "heartbeat", "reply_followup", "webhook", "goal", "plan_step"}:
+                    self.store.append_turn_journal(
+                        turn_id,
+                        "assistant_exchange",
+                        {
+                            "content": assistant_history_message(response.content)["content"],
+                            "results": [{
+                                "type": "text",
+                                "text": "[No action executed; no message sent. Use a native tool call to continue.]",
+                            }],
+                        },
+                        trust="runtime",
+                    )
                 try:
                     resolution = handle_no_tool_response(
                         messages,

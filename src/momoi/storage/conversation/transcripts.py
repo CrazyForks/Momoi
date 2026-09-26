@@ -56,6 +56,28 @@ _MESSAGE_TIME_SQL = """CASE WHEN m.role='event' THEN COALESCE(wr.created_at, m.c
 
 
 class TranscriptStore:
+    def turn_exchanges(self, turn_ids: list[str]) -> dict[str, list[dict[str, object]]]:
+        """Return completed native assistant/tool exchanges for transcript replay."""
+        ordered_ids = [str(turn_id) for turn_id in dict.fromkeys(turn_ids) if turn_id]
+        if not ordered_ids:
+            return {}
+        placeholders = ",".join("?" for _ in ordered_ids)
+        rows = self._db.execute(
+            f"""SELECT turn_id, payload_json FROM turn_journal
+                WHERE turn_id IN ({placeholders}) AND item_type='assistant_exchange'
+                ORDER BY turn_id, sequence""",
+            tuple(ordered_ids),
+        ).fetchall()
+        exchanges: dict[str, list[dict[str, object]]] = {}
+        for row in rows:
+            try:
+                payload = json.loads(str(row["payload_json"]))
+            except ValueError:
+                continue
+            if isinstance(payload, dict) and isinstance(payload.get("content"), (str, list)):
+                exchanges.setdefault(str(row["turn_id"]), []).append(payload)
+        return exchanges
+
     def transcript_window_turn_limit(
         self, minimum_turns: int, maximum_turns: int, *, force_compact: bool = False
     ) -> int:

@@ -43,6 +43,10 @@ class ReplyFollowupWorkflow:
             [*transcript.orphaned, *transcript.groups],
             timezone=self.store.timezone,
             tool_activity=tool_activity,
+            native_exchanges=self.store.turn_exchanges([
+                turn_id for group in (*transcript.orphaned, *transcript.groups)
+                for turn_id in group.turn_ids
+            ]),
         )
         idle_gap = owner_idle_gap_message(
             conversation_rows,

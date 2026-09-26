@@ -433,6 +433,43 @@ def test_a_failed_call_cannot_hide_behind_a_confident_reply():
     )
 
 
+def test_native_exchange_replays_assistant_text_and_send_tool_once():
+    sent = "我有话说"
+    groups = build_groups([owner(1, "讲吧"), bubble(2, sent)])
+    messages = render_messages(groups, native_exchanges={"t1": [{
+        "content": [
+            {"type": "text", "text": "先回应他。"},
+            {"type": "tool_use", "id": "send-1", "name": "send_bubbles",
+             "input": {"bubbles": [sent]}},
+        ],
+        "results": [{"type": "tool_result", "tool_use_id": "send-1",
+                     "content": '{"ok":true,"state":"committed"}'}],
+    }]})
+    assert [item["role"] for item in messages] == ["user", "assistant", "user", "user"]
+    assert messages[1]["content"][0]["text"] == "先回应他。"
+    assert messages[1]["content"][1]["name"] == "send_bubbles"
+    assert "committed" in str(messages[2])
+    assert "delivered" in str(messages[3])
+    assert sum(sent in str(item) for item in messages) == 1
+
+
+def test_native_text_without_tool_is_private_and_followed_by_runtime_notice():
+    groups = build_groups([owner(1, "讲吧"), bubble(2, "真正送出的内容")])
+    messages = render_messages(groups, native_exchanges={"t1": [
+        {"content": [{"type": "text", "text": "未发送的草稿"}],
+         "results": [{"type": "text", "text": "[No action executed; no message sent.]"}]},
+        {"content": [{"type": "tool_use", "id": "s1", "name": "send_bubbles",
+                      "input": {"bubbles": ["真正送出的内容"]}}],
+         "results": [{"type": "tool_result", "tool_use_id": "s1",
+                      "content": '{"ok":true}'}]},
+    ]})
+    assert messages[1]["role"] == "assistant"
+    assert "未发送的草稿" in str(messages[1])
+    assert "no message sent" in str(messages[2])
+    assert "真正送出的内容" in str(messages[3])
+    assert "未发送的草稿" not in str(messages[4:])
+
+
 def test_a_long_run_of_calls_shows_its_shape_rather_than_every_call():
     messages = render_messages(
         build_groups([owner(1, "整理一下"), bubble(2, "整理完了", offset=99)]),

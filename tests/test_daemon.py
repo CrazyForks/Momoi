@@ -184,6 +184,25 @@ class DaemonTest(unittest.TestCase):
             "A" * 1_000_000,
         )
 
+    def test_context_fit_drops_native_tool_exchange_as_one_history_unit(self) -> None:
+        daemon = object.__new__(MomoiDaemon)
+        daemon.config = SimpleNamespace(max_input_tokens=300)
+        messages = [
+            {"role": "user", "content": "旧问题" * 500},
+            {"role": "assistant", "content": [{"type": "tool_use", "id": "s1",
+                "name": "send_bubbles", "input": {"bubbles": ["旧回复"]}}]},
+            {"role": "user", "content": [{"type": "tool_result", "tool_use_id": "s1",
+                "content": '{"ok":true}'}]},
+            {"role": "user", "content": [{"type": "text",
+                "text": "[message delivery confirmation] delivered"}]},
+            {"role": "user", "content": "当前问题"},
+        ]
+        remaining = context_window(daemon.config).fit(
+            [{"type": "text", "text": "system"}], messages, [], 4
+        )
+        self.assertEqual(remaining, 0)
+        self.assertEqual(messages, [{"role": "user", "content": "当前问题"}])
+
 
 class DaemonAsyncTest(unittest.IsolatedAsyncioTestCase):
     async def test_input_status_extends_open_owner_batch(self) -> None:

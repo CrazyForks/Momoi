@@ -19,7 +19,8 @@ def current_step_xml(plan):
     return tostring(root, encoding="unicode")
 
 
-def frozen_plan_messages(messages, plan, *, step_rows, timezone, tool_activity=None):
+def frozen_plan_messages(messages, plan, *, step_rows, timezone, tool_activity=None,
+                         native_exchanges=None):
     """X + completed steps' native speech and runtime records + current input.
 
     Only rows from this plan's completed steps are appended. X stays unchanged;
@@ -32,6 +33,7 @@ def frozen_plan_messages(messages, plan, *, step_rows, timezone, tool_activity=N
     result.extend(render_messages(
         [*transcript.orphaned, *transcript.groups], timezone=timezone,
         tool_activity=tool_activity,
+        native_exchanges=native_exchanges,
     ))
     result.append({"role": "user", "content": [
         {"type": "text", "text": (

@@ -74,7 +74,7 @@ class PlanSmokeTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(pending[-3:], [f"{user} latest post" for user in "ABC"])
         last = str(requests[-1])
         self.assertEqual(last.count("A latest post"), 1)
-        self.assertIn('delivery="queued"', last)
+        self.assertIn("[message delivery confirmation] queued", last)
         self.assertIn("A queued", last)
         self.assertIn("B queued", last)
         self.assertIn("<current_plan_step", str(requests[-1][-1]))

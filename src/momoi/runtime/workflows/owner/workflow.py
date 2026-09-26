@@ -290,6 +290,7 @@ class OwnerWorkflow:
             timezone=self.store.timezone,
             tool_activity=tool_activity,
             labels=transcript_labels,
+            native_exchanges=self.store.turn_exchanges(list(transcript_labels)),
         )
         proactive_bubbles = render_proactive_bubble_evidence(
             transcript.orphaned,

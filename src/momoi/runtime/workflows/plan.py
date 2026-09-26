@@ -67,6 +67,7 @@ class PlanWorkflow:
                 step_rows=self.store.conversation_messages_for_turns(completed_turns),
                 timezone=self.store.timezone,
                 tool_activity=self.store.turn_activity(completed_turns),
+                native_exchanges=self.store.turn_exchanges(completed_turns),
             )
             tools = copy.deepcopy(context["tools"])
             workflow = AgentWorkflow(

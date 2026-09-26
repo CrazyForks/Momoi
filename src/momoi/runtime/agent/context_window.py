@@ -97,7 +97,17 @@ class ContextWindow:
             messages.pop(0)
             history_messages -= 1
             dropped += 1
-            while history_messages and str(messages[0].get("role")) == "assistant":
+            while history_messages and (
+                str(messages[0].get("role")) == "assistant"
+                or (
+                    isinstance(messages[0].get("content"), list)
+                    and any(
+                        isinstance(block, dict) and block.get("type") == "tool_result"
+                        for block in messages[0]["content"]
+                    )
+                )
+                or str(messages[0].get("content") or "").find("message delivery confirmation") >= 0
+            ):
                 messages.pop(0)
                 history_messages -= 1
                 dropped += 1

@@ -257,6 +257,42 @@ def _assistant_body(
         lines.append(f"[tool_call] … {dropped} further calls]")
     return lines
 
+
+def _native_exchange_messages(
+    exchanges: Sequence[Mapping[str, object]],
+) -> list[dict[str, object]]:
+    """Replay model text, tool calls, then the observations the model received."""
+    messages: list[dict[str, object]] = []
+    for exchange in exchanges:
+        content = exchange.get("content")
+        if not isinstance(content, (str, list)):
+            continue
+        calls = [
+            block for block in content
+            if isinstance(block, dict) and block.get("type") == "tool_use"
+        ] if isinstance(content, list) else []
+        results = exchange.get("results")
+        if not isinstance(results, list):
+            continue
+        result_ids = {
+            str(block.get("tool_use_id") or "") for block in results
+            if isinstance(block, dict) and block.get("type") == "tool_result"
+        }
+        # A Turn can end before every tool in a batch runs. Keep the historical
+        # API exchange valid and mark those calls as interrupted.
+        complete_results = list(results)
+        for call in calls:
+            identifier = str(call.get("id") or "")
+            if identifier and identifier not in result_ids:
+                complete_results.append({
+                    "type": "tool_result", "tool_use_id": identifier,
+                    "content": '{"ok":false,"error":"not_executed"}',
+                })
+        messages.append({"role": "assistant", "content": content})
+        if complete_results:
+            messages.append({"role": "user", "content": complete_results})
+    return messages
+
 def render_messages(
     groups: Sequence[TranscriptGroup],
     *,
@@ -264,11 +300,13 @@ def render_messages(
     tool_activity: Mapping[str, Sequence[Mapping[str, object]]] | None = None,
     action_limit: int = DEFAULT_ACTION_LIMIT,
     labels: Mapping[str, str] | None = None,
+    native_exchanges: Mapping[str, Sequence[Mapping[str, object]]] | None = None,
 ) -> list[dict[str, object]]:
     """Render groups as provider-neutral ``role`` / ``content`` messages."""
 
     messages: list[dict[str, object]] = []
     previous: TranscriptGroup | None = None
+    replayed_turns: set[str] = set()
     for group_index, group in enumerate(groups):
         if group.role in {"event", "goal", "heartbeat", "plan_step"}:
             lines = []
@@ -291,6 +329,28 @@ def render_messages(
         silence = _silence(group, previous)
         if silence is not None:
             messages.append(silence)
+        if group.role == "assistant" and native_exchanges:
+            pending = [
+                turn_id for turn_id in group.turn_ids
+                if turn_id not in replayed_turns and native_exchanges.get(turn_id)
+            ]
+            if pending or any(turn_id in replayed_turns for turn_id in group.turn_ids):
+                for turn_id in pending:
+                    messages.extend(_native_exchange_messages(native_exchanges[turn_id]))
+                    replayed_turns.add(turn_id)
+                # The tool arguments already carry the sent text. Only replay
+                # the delivery state here, avoiding a second copy of each bubble.
+                states = [
+                    group.part_states[index] if index < len(group.part_states) else "delivered"
+                    for index in range(len(group.parts))
+                ]
+                if states:
+                    messages.append(_message(
+                        "user", "[message delivery confirmation] "
+                        + ", ".join(states),
+                    ))
+                previous = group
+                continue
         group_labels = [
             str((labels or {}).get(turn_id) or "")
             for turn_id in group.turn_ids

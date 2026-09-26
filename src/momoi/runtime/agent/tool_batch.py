@@ -508,6 +508,19 @@ class ToolBatchExecutor:
                     break
 
         request.messages.append({"role": "user", "content": [*results, *image_blocks]})
+        # Keep the model's actual assistant text and native tool exchange for
+        # later Turns. Delivered speech is confirmed separately by the stored
+        # conversation rows; a plain assistant text response never implies send.
+        if execution.stage in {"owner", "heartbeat", "reply_followup", "webhook", "goal", "plan_step"}:
+            self.store.append_turn_journal(
+                request.turn_id,
+                "assistant_exchange",
+                {
+                    "content": assistant_history_message(request.response.content)["content"],
+                    "results": results,
+                },
+                trust="runtime",
+            )
         return ToolBatchResult(
             results=results,
             owner_updates=owner_updates,
