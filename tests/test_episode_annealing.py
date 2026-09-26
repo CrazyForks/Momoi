@@ -147,6 +147,79 @@ def add_turn(daemon: MomoiDaemon, ordinal: int) -> None:
 
 
 class EpisodeAnnealingTest(unittest.IsolatedAsyncioTestCase):
+    async def test_scheduler_closes_idle_topics_without_new_owner_turns(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            daemon = MomoiDaemon(config(directory))
+            daemon.store.create_episode("旧话题", episode_id="idle-topic")
+            with daemon.store._db:
+                daemon.store._db.execute(
+                    "UPDATE conversation_episodes SET created_at=? WHERE id='idle-topic'",
+                    (time.time() - 4 * 60 * 60 - 1,),
+                )
+            daemon._episode_annealing_dirty = False
+            daemon._last_owner_activity_at = asyncio.get_running_loop().time()
+            stop = asyncio.Event()
+            worker = asyncio.create_task(daemon._scheduler_worker(stop))
+            try:
+                for _ in range(100):
+                    if daemon.store.episode("idle-topic")["status"] == "closed":
+                        break
+                    await asyncio.sleep(0.01)
+                self.assertEqual(daemon.store.episode("idle-topic")["status"], "closed")
+                self.assertTrue(daemon._episode_annealing_dirty)
+            finally:
+                stop.set()
+                daemon.agenda_changed.set()
+                await worker
+
+    async def test_idle_topics_close_after_four_hours_and_become_summarizable(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            daemon = MomoiDaemon(config(directory))
+            daemon.store.create_episode(
+                "等待后续", episode_id="episode-main", open_loops=["仍待确认"]
+            )
+            add_turn(daemon, 1)
+            now = time.time()
+            with daemon.store._db:
+                daemon.store._db.execute(
+                    "UPDATE messages SET created_at=? WHERE turn_id='turn-1'",
+                    (now - 4 * 60 * 60,),
+                )
+            self.assertIsNone(daemon.store.claim_episode_annealing_candidate(6, 1000))
+            self.assertEqual(daemon.store.close_idle_episodes(now=now - 1), 0)
+            self.assertEqual(daemon.store.close_idle_episodes(now=now), 1)
+            episode = daemon.store.episode("episode-main")
+            self.assertEqual(episode["status"], "closed")
+            self.assertEqual(episode["open_loops"], ["仍待确认"])
+            self.assertIsNotNone(daemon.store.claim_episode_annealing_candidate(6, 1000))
+            self.assertEqual(daemon.store.close_idle_episodes(now=now + 1), 0)
+            daemon.store.release_episode_annealing("episode-main", failed=False)
+            add_turn(daemon, 2)
+            self.assertEqual(daemon.store.episode("episode-main")["status"], "open")
+            self.assertEqual(daemon.store.close_idle_episodes(), 0)
+
+    async def test_idle_closure_handles_closing_topics_and_skips_runtime_archives(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            daemon = MomoiDaemon(config(directory))
+            now = time.time()
+            for episode_id in ("closing-topic", "fresh-topic", "runtime-archive"):
+                daemon.store.create_episode("测试", episode_id=episode_id)
+            with daemon.store._db:
+                daemon.store._db.execute(
+                    """UPDATE conversation_episodes SET created_at=?, status='closing'
+                       WHERE id='closing-topic'""",
+                    (now - 4 * 60 * 60,),
+                )
+                daemon.store._db.execute(
+                    """UPDATE conversation_episodes SET created_at=?, archive_kind='heartbeat'
+                       WHERE id='runtime-archive'""",
+                    (now - 5 * 60 * 60,),
+                )
+            self.assertEqual(daemon.store.close_idle_episodes(now=now), 1)
+            self.assertEqual(daemon.store.episode("closing-topic")["status"], "closed")
+            self.assertEqual(daemon.store.episode("fresh-topic")["status"], "open")
+            self.assertEqual(daemon.store.episode("runtime-archive")["status"], "open")
+
     async def test_scheduler_ignores_deferrals_after_eight_hours_without_llm(
         self,
     ) -> None:

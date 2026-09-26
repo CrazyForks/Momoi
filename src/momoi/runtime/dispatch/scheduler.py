@@ -133,6 +133,16 @@ class Scheduler:
     async def _scheduler_worker(self, stop: asyncio.Event) -> None:
         while not stop.is_set():
             self.agenda_changed.clear()
+            closed_episodes = self.store.close_idle_episodes()
+            if closed_episodes:
+                log_event(
+                    logger,
+                    logging.INFO,
+                    "episode_idle_closed",
+                    stage="scheduler",
+                    count=closed_episodes,
+                )
+                self._episode_annealing_dirty = True
             expired_deferrals = (
                 self.store.cleanup_expired_episode_consolidation_deferrals()
             )

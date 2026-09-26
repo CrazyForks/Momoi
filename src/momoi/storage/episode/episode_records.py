@@ -9,8 +9,27 @@ from .episode_cues import cue_texts
 from ..core.integrity import decode_stored_json
 from ..core.timestamps import add_context_timestamps
 
+EPISODE_IDLE_CLOSE_SECONDS = 4 * 60 * 60
+
 
 class EpisodeRecordStore:
+    def close_idle_episodes(self, *, now: float | None = None) -> int:
+        """Close topics after four hours without a linked conversation message."""
+        now = time.time() if now is None else now
+        with self._db:
+            cursor = self._db.execute(
+                """UPDATE conversation_episodes
+                   SET status='closed', closed_at=?
+                   WHERE status IN ('open', 'closing') AND archive_kind IS NULL
+                     AND COALESCE((
+                         SELECT MAX(m.created_at) FROM episode_turns et
+                         JOIN messages m ON m.turn_id=et.turn_id
+                         WHERE et.episode_id=conversation_episodes.id
+                     ), created_at)<=?""",
+                (now, now - EPISODE_IDLE_CLOSE_SECONDS),
+            )
+        return cursor.rowcount
+
     def episodes_for_turns(
         self, turn_ids: list[str]
     ) -> dict[str, dict[str, str]]:
