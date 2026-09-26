@@ -159,8 +159,14 @@ EPISODE_SUMMARY_FINISH_SPEC: dict[str, Any] = {
                 "items": _SUMMARY_CLAIM_SCHEMA,
             },
             "narrative_summary": {
-                "type": "string", "maxLength": 800,
-                "description": "What happened and why this Episode matters as a shared experience.",
+                "type": "string", "maxLength": 1200,
+                "description": (
+                    "Evidence-backed 5W1H summary: what, who, when, where, why, how. "
+                    "Use the labels 发生了什么、参与者、时间、地点、原因、经过. "
+                    "Explicitly mark unstated or inapplicable elements; do not infer missing facts. "
+                    "Preserve useful names, numbers, chronology, corrections and outcomes. "
+                    "Keep the summary within 1000 characters."
+                ),
             },
             "emotional_context": {
                 "type": "object",

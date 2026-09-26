@@ -243,7 +243,7 @@ class EpisodeAnnealingStore:
         if len(working_summary) > 12000:
             raise ValueError("episode summary exceeds storage budget")
         narrative_summary = narrative_summary.strip()
-        if len(narrative_summary) > 800:
+        if len(narrative_summary) > 1200:
             raise ValueError("episode narrative exceeds storage budget")
         emotional_context = emotional_context or {}
         if (

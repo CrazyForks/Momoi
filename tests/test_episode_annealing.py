@@ -883,6 +883,9 @@ class EpisodeAnnealingTest(unittest.IsolatedAsyncioTestCase):
     async def test_summary_tool_stores_narrative_emotion_and_outcomes(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             daemon = MomoiDaemon(config(directory))
+            narrative = "主人和桃衣持续讨论长期项目。" * 75
+            self.assertGreater(len(narrative), 1000)
+            self.assertLessEqual(len(narrative), 1200)
             daemon.store.create_episode("长期项目", episode_id="episode-main")
             for ordinal in range(1, 6):
                 add_turn(daemon, ordinal)
@@ -918,7 +921,7 @@ class EpisodeAnnealingTest(unittest.IsolatedAsyncioTestCase):
                                     "quote": f"第{message['ordinal']}轮",
                                 }
                             ],
-                            "narrative_summary": "主人和桃衣持续讨论长期项目。",
+                            "narrative_summary": narrative,
                             "emotional_context": {
                                 "owner": "投入",
                                 "assistant": "配合",
@@ -939,7 +942,7 @@ class EpisodeAnnealingTest(unittest.IsolatedAsyncioTestCase):
             episode = daemon.store.episode("episode-main")
             self.assertEqual(
                 episode["narrative_summary"],
-                "主人和桃衣持续讨论长期项目。",
+                narrative,
             )
             self.assertEqual(episode["emotional_context"]["tone"], "合作")
             self.assertEqual(episode["outcomes"], ["完成一次阶段讨论"])
