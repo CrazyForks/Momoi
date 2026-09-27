@@ -251,7 +251,7 @@ class WebhooksAsyncTest(unittest.IsolatedAsyncioTestCase):
                     await worker
                 store.close()
 
-    async def test_webhook_turn_uses_normal_curl_and_end_turn_loop(self) -> None:
+    async def test_webhook_turn_uses_normal_web_fetch_and_end_turn_loop(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             config = AppConfig(
                 providers=provider_catalog(LLMConfig("http://127.0.0.1", "test", "test", 100, 0, 1, 0)),
@@ -339,7 +339,7 @@ class WebhooksAsyncTest(unittest.IsolatedAsyncioTestCase):
                     if self.calls == 1:
                         call = ToolCall(
                             "fetch-packages",
-                            "curl",
+                            "web_fetch",
                             {
                                 "url": "http://static.test/package_state.json",
                             },
@@ -382,7 +382,7 @@ class WebhooksAsyncTest(unittest.IsolatedAsyncioTestCase):
             class Tools:
                 @staticmethod
                 def has_tool(name: str) -> bool:
-                    return name == "curl"
+                    return name == "web_fetch"
 
                 @staticmethod
                 def capability(_: ToolCall) -> str:
@@ -422,7 +422,7 @@ class WebhooksAsyncTest(unittest.IsolatedAsyncioTestCase):
             self.assertTrue(
                 all(names == expected_surface for names in provider.tool_names)
             )
-            self.assertEqual(tools.last_call.name, "curl")
+            self.assertEqual(tools.last_call.name, "web_fetch")
             self.assertEqual(
                 tools.last_call.arguments,
                 {"url": "http://static.test/package_state.json"},

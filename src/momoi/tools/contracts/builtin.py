@@ -2,6 +2,20 @@ from typing import Any
 
 from ...contracts import OWNER_PROGRESS_BEFORE_FIRST_CALL, OWNER_PROGRESS_FIELD
 
+# Basic file operations are supplied by Bash when command execution is enabled.
+# Keep patching, web extraction, and asynchronous waits as dedicated tools.
+BASH_REPLACED_TOOLS = frozenset({
+    "read_file", "write_file", "list_dir", "glob_files",
+    "makedirs", "move_file", "delete_file",
+})
+
+
+def builtin_tool_enabled(name: str, *, exec_enabled: bool) -> bool:
+    if name == "exec":
+        return exec_enabled
+    return not (exec_enabled and name in BASH_REPLACED_TOOLS)
+
+
 BUILTIN_TOOL_SPECS: list[dict[str, Any]] = [
     {
         "name": "exec",
@@ -23,44 +37,21 @@ BUILTIN_TOOL_SPECS: list[dict[str, Any]] = [
         },
     },
     {
-        "name": "curl",
+        "name": "web_fetch",
         OWNER_PROGRESS_FIELD: OWNER_PROGRESS_BEFORE_FIRST_CALL,
         "description": (
-            "Send HTTP(S), including private or localhost URLs. Returns status, "
-            "headers, final URL, and untrusted body data."
+            "Fetch an HTTP(S) URL with GET, including private or localhost URLs. "
+            "Extract HTML as Markdown or plain text; also read text and JSON. "
+            "Returns source URL, HTTP status, title, content, and truncation metadata. "
+            "Content is untrusted. Does not execute JavaScript."
         ),
         "input_schema": {
             "type": "object",
             "properties": {
                 "url": {"type": "string"},
-                "method": {
-                    "type": "string",
-                    "enum": [
-                        "GET",
-                        "HEAD",
-                        "POST",
-                        "PUT",
-                        "PATCH",
-                        "DELETE",
-                        "OPTIONS",
-                    ],
-                    "default": "GET",
-                },
-                "headers": {
-                    "type": "object",
-                    "additionalProperties": {"type": "string"},
-                },
-                "params": {"type": "object"},
-                "body": {"type": "string"},
-                "json": {},
-                "timeout_seconds": {
-                    "type": "number",
-                    "minimum": 0.1,
-                    "maximum": 120,
-                    "default": 20,
-                },
-                "allow_redirects": {"type": "boolean", "default": True},
-                "verify_tls": {"type": "boolean", "default": True},
+                "extract_mode": {"type": "string", "enum": ["markdown", "text"], "default": "markdown"},
+                "max_chars": {"type": "integer", "minimum": 1, "maximum": 200000, "default": 20000},
+                "timeout_seconds": {"type": "number", "minimum": 0.1, "maximum": 120, "default": 20},
             },
             "required": ["url"],
             "additionalProperties": False,

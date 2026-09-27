@@ -327,6 +327,38 @@ Goal 和 Webhook Turn 不运行自动预检索。
 通过 `PATCH /api/settings/configuration/app` 提交 `tools.exec_enabled` 和当前 revision，保存后应用新运行实例。
 Webhook 的预配置 `uses: exec` 仍以 argv 执行，不受此模型工具开关影响，也不会引入 Bash 字符串解释。
 
+开启 Bash 时，模型工具集合隐藏以下 7 个工具，并拒绝直接调用；关闭时恢复它们：
+
+| 隐藏工具 | Bash 替代方式及理由 |
+| --- | --- |
+| `list_dir` | `ls` / `find` 完成目录枚举 |
+| `glob_files` | `find` / shell glob 完成文件查找 |
+| `read_file` | `cat` / `sed` 完成文本和分段读取 |
+| `write_file` | 重定向或脚本完成文件写入 |
+| `makedirs` | `mkdir -p` 完成目录创建 |
+| `move_file` | `mv` 完成移动和重命名 |
+| `delete_file` | `rm` 完成文件删除 |
+
+`apply_patch` 保留结构化补丁编辑，减少 shell 转义；`sleep` 保留异步等待（最长一小时，
+超过 `exec` 的 120 秒上限）；`web_fetch` 保留统一网页提取。记忆、计划、消息和 MCP 工具不受此开关影响。
+Bash 命令遵循系统命令本身的语义，不自动继承文件工具的哈希校验、原子写入或禁止覆盖限制。
+
+`web_fetch` 替代旧 `curl` 模型工具，只使用 GET，不再接受 `method`、请求体、自定义请求头或 TLS 跳过验证参数。
+需要 HTTP 写请求时使用已开启的 `exec` 或相应 MCP 工具。Webhook 模型回合同样使用 `web_fetch`。
+调用参数示例：`{"url":"https://example.com","extract_mode":"markdown","max_chars":20000}`。
+
+| 参数 | 默认值 | 说明 |
+| --- | --- | --- |
+| `url` | 必填 | HTTP(S) 地址，支持 localhost 和内网，自动跟随重定向并验证 TLS |
+| `extract_mode` | `markdown` | HTML 转 `markdown` 或 `text`；移除脚本、样式等非正文节点，不执行 JavaScript |
+| `max_chars` | `20000` | 提取内容的字符上限，范围 1–200000 |
+| `timeout_seconds` | `20` | HTTP 超时，范围 0.1–120 秒 |
+
+结果包含 `requested_url`、最终 `url`、`status`、`content_type`、`title`、`content` 和 `truncated`。
+解压后的响应最多读取 2 MB；`source_truncated` 表示源响应超过上限，`content_length` 是已读取部分的提取字符数。
+文本和 JSON 内容直接返回；不支持的二进制类型返回 `unsupported_content_type`，HTTP 4xx/5xx 返回
+`ok: false` 和 `http_error`，并保留可读响应内容。网页内容始终作为不可信外部数据处理。
+
 | MCP 字段 | 默认值 | 说明 |
 | --- | --- | --- |
 | `command` | — | stdio 服务器的可执行文件；未设置 `url` 时必填 |

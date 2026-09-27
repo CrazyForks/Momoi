@@ -1554,7 +1554,7 @@ class ProvidersToolsAsyncTest(unittest.IsolatedAsyncioTestCase):
             return web.Response(text="inner-network-ok")
 
         async def large_endpoint(_: web.Request) -> web.Response:
-            return web.Response(body=b"x" * 200_001)
+            return web.Response(body=b"x" * 200_001, content_type="text/plain")
 
         server = TestServer(web.Application())
         server.app.router.add_get("/status", endpoint)
@@ -1563,15 +1563,15 @@ class ProvidersToolsAsyncTest(unittest.IsolatedAsyncioTestCase):
         try:
             tools = BuiltinTools()
             response = await tools.execute(
-                ToolCall("curl-1", "curl", {"url": str(server.make_url("/status"))})
+                ToolCall("web_fetch-1", "web_fetch", {"url": str(server.make_url("/status"))})
             )
             self.assertTrue(response["ok"])
-            self.assertEqual(response["body"], "inner-network-ok")
+            self.assertEqual(response["content"], "inner-network-ok")
             large = await tools.execute(
-                ToolCall("curl-large", "curl", {"url": str(server.make_url("/large"))})
+                ToolCall("web_fetch-large", "web_fetch", {"url": str(server.make_url("/large")), "max_chars": 200000})
             )
             self.assertTrue(large["truncated"])
-            self.assertEqual(len(large["body"]), 200_000)
+            self.assertEqual(len(large["content"]), 200_000)
 
             with tempfile.TemporaryDirectory() as directory:
                 workspace_tools = BuiltinTools(Path(directory))

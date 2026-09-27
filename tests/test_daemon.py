@@ -1517,7 +1517,7 @@ class DaemonAsyncTest(unittest.IsolatedAsyncioTestCase):
                             raise AssertionError(__)
                         expected = {
                             "heartbeat_begin",
-                            "curl",
+                            "web_fetch",
                             "send_bubbles",
                             "end_turn",
                         }
@@ -1539,7 +1539,7 @@ class DaemonAsyncTest(unittest.IsolatedAsyncioTestCase):
                     elif self.calls == 2:
                         call = ToolCall(
                             "heartbeat-news",
-                            "curl",
+                            "web_fetch",
                             {"url": "https://news.example/today"},
                         )
                     elif self.calls == 3:

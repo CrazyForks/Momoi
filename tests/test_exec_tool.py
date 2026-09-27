@@ -13,6 +13,7 @@ from momoi.config.workspace import bootstrap
 from momoi.models import ToolCall
 from momoi.runtime.agent.tool_surface import ToolSurface
 from momoi.tools.builtin import BuiltinTools
+from momoi.tools.contracts.builtin import BUILTIN_TOOL_SPECS
 from momoi.webhooks.service import WebhookService
 
 
@@ -39,6 +40,38 @@ class ExecToolTest(unittest.IsolatedAsyncioTestCase):
                 self.assertEqual("exec" in surface.permitted_names(stage), enabled)
             self.assertNotIn("exec", surface.permitted_names("webhook"))
         self.assertEqual(self.tools.capability(call), "external_effect")
+
+    async def test_bash_toggle_replaces_file_tools_in_catalog_permissions_and_dispatch(self):
+        replaced = {
+            "read_file", "write_file", "list_dir", "glob_files",
+            "makedirs", "move_file", "delete_file",
+        }
+        catalog = {spec["name"] for spec in BUILTIN_TOOL_SPECS}
+        mcp = SimpleNamespace(tool_specs=[], configs={})
+        for enabled in (False, True, False):
+            surface = ToolSurface(mcp, {}, exec_enabled=enabled)
+            expected = catalog - (replaced if enabled else {"exec"})
+            visible = {spec["name"] for spec in surface.conversation_specs()}
+            self.assertEqual(visible & catalog, expected)
+            for stage in ("owner", "heartbeat", "goal", "reply_followup"):
+                self.assertEqual(surface.permitted_names(stage) & catalog, expected)
+            self.assertEqual(surface.permitted_names("webhook") & catalog, {"web_fetch"})
+        for name in replaced:
+            result = await self.tools.execute(ToolCall("hidden", name, {}))
+            self.assertEqual(result, {"ok": False, "error": "tool_not_allowed"})
+        # Turning Bash off restores actual file operations as well as their schemas.
+        tools = BuiltinTools(self.root)
+        for name, arguments in (
+            ("makedirs", {"path": "files"}),
+            ("write_file", {"path": "files/a", "content": "hello"}),
+            ("read_file", {"path": "files/a"}),
+            ("list_dir", {"path": "files"}),
+            ("glob_files", {"pattern": "files/*"}),
+            ("move_file", {"source": "files/a", "destination": "files/b"}),
+            ("delete_file", {"path": "files/b"}),
+        ):
+            self.assertTrue((await tools.execute(ToolCall(name, name, arguments)))["ok"])
+        self.assertFalse((self.root / "files/b").exists())
 
     async def test_bash_working_directory_exit_status_and_bounded_output(self):
         result = await self.tools.execute(self.call("printf '%s' \"${BASH_VERSION:+bash}\"; pwd; printf error >&2; exit 7"))

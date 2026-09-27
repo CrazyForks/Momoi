@@ -2139,7 +2139,7 @@ class StorageMemoryTest(unittest.TestCase):
             recovered.close()
 
         self.assertEqual(
-            BuiltinTools.capability(ToolCall("get", "curl", {"method": "GET"})),
+            BuiltinTools.capability(ToolCall("get", "web_fetch", {"url": "http://x"})),
             "read",
         )
         self.assertEqual(

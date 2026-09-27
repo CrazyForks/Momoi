@@ -4,7 +4,7 @@ import logging
 from typing import Any, Callable
 
 from ...tools.contracts.agenda import AGENDA_TOOL_SPECS
-from ...tools.contracts.builtin import BUILTIN_TOOL_SPECS
+from ...tools.contracts.builtin import BUILTIN_TOOL_SPECS, builtin_tool_enabled
 from ...observability.events import TRACE, log_event
 from ...tools.contracts.memory import MEMORY_TOOL_SPECS
 from ...tools.contracts.thinking import THINKING_TOOL_SPECS
@@ -34,7 +34,10 @@ class ToolSurface:
         self.channel_names = list(channels)
         self.voice_enabled = voice_enabled
         self.emotion_catalog = emotion_catalog or (lambda: True)
-        self.builtin_specs = [spec for spec in BUILTIN_TOOL_SPECS if exec_enabled or spec["name"] != "exec"]
+        self.builtin_specs = [
+            spec for spec in BUILTIN_TOOL_SPECS
+            if builtin_tool_enabled(spec["name"], exec_enabled=exec_enabled)
+        ]
 
     @staticmethod
     def public_specs(specs: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -156,7 +159,7 @@ class ToolSurface:
                 }
             )
         if stage == "webhook":
-            return frozenset({"send_bubbles", "curl", "read_tool_result", "end_turn", *voice})
+            return frozenset({"send_bubbles", "web_fetch", "read_tool_result", "end_turn", *voice})
         if stage == "reply_followup":
             return frozenset(general_chat)
         if stage == "goal":

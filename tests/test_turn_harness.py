@@ -71,12 +71,12 @@ class TurnHarnessTest(unittest.TestCase):
             {"type": "reasoning", "text": "openai private thought"},
             {"type": "thinking", "thinking": "anthropic private thought"},
             {"type": "redacted_thinking", "data": "opaque"},
-            {"type": "tool_use", "id": "1", "name": "curl", "input": {}},
+            {"type": "tool_use", "id": "1", "name": "web_fetch", "input": {}},
         ]
 
         self.assertEqual(
             assistant_history_content(content),
-            [{"type": "tool_use", "id": "1", "name": "curl", "input": {}}],
+            [{"type": "tool_use", "id": "1", "name": "web_fetch", "input": {}}],
         )
 
     def test_every_model_turn_stage_has_an_explicit_harness(self) -> None:
@@ -133,7 +133,7 @@ class TurnHarnessTest(unittest.TestCase):
             "tool_not_allowed",
         )
         self.assertIsNone(
-            harness.validate([ToolCall("curl", "curl", {"url": "https://x"})])
+            harness.validate([ToolCall("web_fetch", "web_fetch", {"url": "https://x"})])
         )
 
     def test_current_state_harness_allows_optional_recall(self) -> None:

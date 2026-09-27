@@ -351,6 +351,41 @@ Save `tools.exec_enabled` through `PATCH /api/settings/configuration/app` with t
 the supervisor applies the new runtime. Preconfigured Webhook `uses: exec` steps remain argv-based,
 independent of this model-tool switch, with no additional Bash interpretation.
 
+Enabling Bash hides and rejects direct calls to seven file tools; disabling it restores them:
+
+| Hidden tool | Bash replacement and reason |
+| --- | --- |
+| `list_dir` | `ls` / `find` enumerate directories |
+| `glob_files` | `find` / shell glob locate files |
+| `read_file` | `cat` / `sed` read text or line ranges |
+| `write_file` | Redirection or scripts write files |
+| `makedirs` | `mkdir -p` creates directories |
+| `move_file` | `mv` moves and renames files |
+| `delete_file` | `rm` deletes files |
+
+`apply_patch` retains structured edits without shell escaping; `sleep` retains asynchronous waits
+up to one hour, beyond the 120-second `exec` limit; `web_fetch` retains consistent web extraction.
+Memory, plan, messaging, and MCP tools are unaffected. Bash commands follow their own semantics;
+they do not inherit the file tools' hash checks, atomic writes, or overwrite protection.
+
+`web_fetch` replaces the old `curl` model tool with GET-only fetching. It no longer accepts HTTP
+methods, request bodies, custom headers, or TLS verification overrides. Use enabled `exec` or an
+appropriate MCP tool for HTTP writes. Webhook model turns also use `web_fetch`.
+Example arguments: `{"url":"https://example.com","extract_mode":"markdown","max_chars":20000}`.
+
+| Argument | Default | Description |
+| --- | --- | --- |
+| `url` | Required | HTTP(S), including localhost and private networks; follows redirects and verifies TLS |
+| `extract_mode` | `markdown` | Convert HTML to `markdown` or `text`, removing scripts and styles; does not execute JavaScript |
+| `max_chars` | `20000` | Extracted content limit, from 1 to 200000 characters |
+| `timeout_seconds` | `20` | HTTP timeout, from 0.1 to 120 seconds |
+
+Results include `requested_url`, final `url`, `status`, `content_type`, `title`, `content`, and
+`truncated`. Decompressed responses are capped at 2 MB; `source_truncated` indicates that cap,
+and `content_length` counts extracted characters from the portion read. Text and JSON pass through.
+Unsupported binary types return `unsupported_content_type`. HTTP 4xx/5xx return `ok: false` with
+`http_error` and retain readable response content. Fetched content remains untrusted external data.
+
 | MCP field | Default | Description |
 | --- | --- | --- |
 | `command` | — | Executable for a stdio server; required when `url` is omitted |

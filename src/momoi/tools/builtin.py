@@ -9,10 +9,10 @@ import tempfile
 from pathlib import Path
 from typing import Any
 
-import aiohttp
+from .web_fetch import web_fetch
 
 from ..models import ToolCall
-from .contracts.builtin import BUILTIN_TOOL_SPECS
+from .contracts.builtin import BUILTIN_TOOL_SPECS, builtin_tool_enabled
 from .process import run_process
 
 
@@ -71,19 +71,18 @@ class BuiltinTools:
             "delete_file",
         }:
             return "write"
-        if call.name == "curl":
-            method = str(call.arguments.get("method", "GET")).upper()
-            return "read" if method in {"GET", "HEAD", "OPTIONS"} else "external_effect"
+        if call.name == "web_fetch":
+            return "read"
         return "external_effect"
 
     async def execute(self, call: ToolCall) -> dict[str, Any]:
         try:
+            if not builtin_tool_enabled(call.name, exec_enabled=self.exec_enabled):
+                return {"ok": False, "error": "tool_not_allowed"}
             if call.name == "exec":
-                if not self.exec_enabled:
-                    return {"ok": False, "error": "tool_not_allowed"}
                 return await self._exec(call.arguments)
-            if call.name == "curl":
-                return await self._curl(call.arguments)
+            if call.name == "web_fetch":
+                return await web_fetch(call.arguments)
             if call.name == "read_file":
                 return await asyncio.to_thread(self._read_file, call.arguments)
             if call.name == "list_dir":
@@ -125,49 +124,6 @@ class BuiltinTools:
         except TimeoutError:
             return {"ok": False, "error": "exec_timeout"}
         return {"ok": result["exit_code"] == 0, **result}
-
-    @staticmethod
-    async def _curl(arguments: dict[str, Any]) -> dict[str, Any]:
-        url = str(arguments.get("url") or "").strip()
-        if not url.startswith(("http://", "https://")):
-            raise ValueError("url must use http or https")
-        method = str(arguments.get("method", "GET")).upper()
-        headers = {
-            str(key): str(value)
-            for key, value in (arguments.get("headers") or {}).items()
-        }
-        body = arguments.get("body")
-        json_body = arguments.get("json")
-        if body is not None and json_body is not None:
-            raise ValueError("body and json are mutually exclusive")
-        timeout = aiohttp.ClientTimeout(
-            total=min(120.0, max(0.1, float(arguments.get("timeout_seconds", 20))))
-        )
-        async with aiohttp.ClientSession(timeout=timeout) as session:
-            async with session.request(
-                method,
-                url,
-                headers=headers,
-                params=arguments.get("params"),
-                data=body,
-                json=json_body,
-                allow_redirects=bool(arguments.get("allow_redirects", True)),
-                ssl=bool(arguments.get("verify_tls", True)),
-            ) as response:
-                try:
-                    raw = await response.content.readexactly(200_001)
-                except asyncio.IncompleteReadError as error:
-                    raw = error.partial
-                return {
-                    "ok": True,
-                    "status": response.status,
-                    "url": str(response.url),
-                    "headers": dict(response.headers),
-                    "body": raw[:200_000].decode(
-                        response.charset or "utf-8", errors="replace"
-                    ),
-                    "truncated": len(raw) > 200_000,
-                }
 
     def _read_file(self, arguments: dict[str, Any]) -> dict[str, Any]:
         path = self.resolve_path(arguments.get("path"))

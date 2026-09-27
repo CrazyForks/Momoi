@@ -27,7 +27,7 @@ TURN_HARNESS_SPECS = {
             None,
             "end_turn",
             permitted_tools=frozenset(
-                {"send_bubbles", "send_voice", "curl", "read_tool_result", "end_turn"}
+                {"send_bubbles", "send_voice", "web_fetch", "read_tool_result", "end_turn"}
             ),
         ),
         TurnHarnessSpec("goal", None, "end_turn", required_before_end=frozenset({"goal_review"})),
