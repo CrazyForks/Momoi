@@ -89,6 +89,7 @@ def sections(*items: tuple[str, str]) -> str:
 # semantic prefix.
 USER_CONTEXT_SECTION_ORDER = (
     "long_term_memories",
+    "memory_overrides",
     "goal_directory",
     "current_state",
     "active_goals",

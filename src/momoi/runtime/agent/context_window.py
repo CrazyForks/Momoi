@@ -119,6 +119,41 @@ class ContextWindow:
         def size() -> int:
             return _estimate_context_tokens(system, messages, tools)
 
+        # A dashboard/background change during a running Turn must be visible
+        # before its next request, without rewriting the cached prefix.
+        prefix = next((m for m in messages if "_memory_snapshot" in m), None)
+        if prefix is not None:
+            snapshot = prefix["_memory_snapshot"]
+            state = self.store.transcript_memory_context(snapshot["turn_ids"], track_boundary=False)
+            # Another executor may have compacted while this request was alive.
+            # Replay the effective overrides rather than silently skipping a revision.
+            if state["snapshot_revision"] > snapshot["revision"]:
+                from ...storage.memory.memory_values import format_memory
+                effective = "\n".join(
+                    f'<replace id="{row["id"]}" revision="{state["revision"]}">'
+                    + format_memory(row) + "</replace>"
+                    for row in state["observed"].values()
+                )
+                messages.append({
+                    "role": "user",
+                    "content": "<memory_changes>\n"
+                    + "\n".join(state["overrides"].values()) + "\n"
+                    + effective + "\n</memory_changes>",
+                    "_memory_change": state["revision"], "_context_prefix": True,
+                })
+                snapshot["revision"] = state["revision"]
+            for event in state["events"]:
+                if event["revision"] > snapshot["revision"]:
+                    messages.append({
+                        "role": "user", "content": event["content"],
+                        "_memory_change": event["revision"], "_context_prefix": True,
+                    })
+            snapshot["revision"] = state["revision"]
+            snapshot["current"] = self.store._memory_context([
+                row for row in state["observed"].values() if row["activation"] == "always"
+            ])
+            snapshot["overrides"] = "\n".join(state["overrides"].values())
+
         hard_limit = self.config.max_input_tokens
         compaction_limit = min(hard_limit, context_compaction_tokens(self.config))
         refresh_episode_summary()
@@ -165,6 +200,21 @@ class ContextWindow:
                     dropped += 1
             refresh_episode_summary()
             estimated = size()
+        if dropped:
+            prefix = next((m for m in messages if "_memory_snapshot" in m), None)
+            if prefix is not None:
+                snapshot = prefix["_memory_snapshot"]
+                replacement = context_data_message(
+                    ("long_term_memories", snapshot["current"]),
+                    ("memory_overrides", snapshot["overrides"]),
+                    ("goal_directory", snapshot["goals"]), required=True,
+                )
+                prefix["content"] = replacement["content"]
+                self.store.fold_transcript_memory(snapshot["revision"])
+                removed = sum(bool(m.get("_memory_change")) for m in messages[:history_messages])
+                messages[:] = [m for m in messages if not m.get("_memory_change")]
+                history_messages -= removed
+                estimated = size()
         if estimated > compaction_limit:
             for message in messages:
                 content = message.get("content")

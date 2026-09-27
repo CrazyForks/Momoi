@@ -66,7 +66,10 @@ from .agenda.plans import PlanRepository
 from .repositories import RepositoryFacade
 from .core.transactions import transaction
 
+from .memory.transcript_memory import TranscriptMemoryStore
+
 class Store(
+    TranscriptMemoryStore,
     RepositoryFacade,
     ImageStore,
     CurrentStateTaskStore,

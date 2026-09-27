@@ -765,3 +765,8 @@ CREATE TABLE IF NOT EXISTS llm_request_metrics (
 );
 CREATE INDEX IF NOT EXISTS llm_request_metrics_time ON llm_request_metrics(created_at);
 CREATE INDEX IF NOT EXISTS llm_request_metrics_route ON llm_request_metrics(route, id);
+
+CREATE TABLE IF NOT EXISTS transcript_memory_state (
+    id INTEGER PRIMARY KEY CHECK (id=1),
+    data_json TEXT NOT NULL
+);

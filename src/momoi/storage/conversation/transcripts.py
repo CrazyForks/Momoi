@@ -189,6 +189,17 @@ class TranscriptStore:
                 (current, latest["id"], latest["updated_at"], visible_total),
             )
         if compacted:
+            memory_state = self._db.execute(
+                "SELECT data_json FROM transcript_memory_state WHERE id=1"
+            ).fetchone()
+            if memory_state:
+                with self._db:
+                    data = json.loads(memory_state[0])
+                    data["pending_compact"] = True
+                    self._db.execute(
+                        "UPDATE transcript_memory_state SET data_json=? WHERE id=1",
+                        (json.dumps(data, ensure_ascii=False),),
+                    )
             log_event(
                 logger,
                 logging.INFO,

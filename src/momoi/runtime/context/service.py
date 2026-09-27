@@ -107,12 +107,35 @@ class ContextService:
             timezone=self.store.timezone, tool_activity=activity,
             native_exchanges={identifier: exchanges[identifier] for identifier in ids},
         )
-        memories = self.store.injected_memory_snapshots()
+        memory_state = self.store.transcript_memory_context(ids)
+        memories = {int(key): value for key, value in memory_state["observed"].items()
+                    if value["activation"] == "always"}
+        snapshot = [value for value in memory_state["snapshot"].values()
+                    if value["activation"] == "always"]
+        # Insert immutable events after their observed historical turn, never
+        # inside a native assistant/tool exchange.
+        for event in reversed(memory_state["events"]):
+            indexes = [i for i, message in enumerate(history)
+                       if event["anchor"] in message.get("_history_turn_ids", ())]
+            index = max(indexes) + 1 if indexes else 0
+            history.insert(index, {
+                "role": "user", "content": event["content"],
+                "_memory_change": event["revision"], "_context_prefix": True,
+            })
+        goals = self.owner_context_baseline()["goal_directory"]
         prefix = context_data_message(
-            ("long_term_memories", self.store._memory_context(list(memories.values()))),
-            ("goal_directory", self.owner_context_baseline()["goal_directory"]),
+            ("long_term_memories", self.store._memory_context(snapshot)),
+            ("memory_overrides", "\n".join(memory_state["snapshot_overrides"].values())),
+            ("goal_directory", goals),
             required=True,
         )
+        prefix["_memory_snapshot"] = {
+            "revision": memory_state["revision"],
+            "turn_ids": ids,
+            "overrides": "\n".join(memory_state["overrides"].values()),
+            "current": self.store._memory_context(list(memories.values())),
+            "goals": goals,
+        }
         return {
             "rows": rows, "transcript": transcript, "history": history,
             "memories": memories,
