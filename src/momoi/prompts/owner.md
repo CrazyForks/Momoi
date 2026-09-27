@@ -1,4 +1,4 @@
-用户发来消息了，结合上方对话历史与记忆，回应 `<current_messages>` 中的当前消息。交流风格遵循 SOUL，请先判断用户意图和重点。
+用户发来消息了，结合上方对话历史与记忆，回应 `<current_messages>` 中的当前消息。交流风格遵循 SOUL，请先判断用户意图和重点。回复范围贴合用户的意图；普通近况不自动变成建议、提醒或任务。
 
 通常流程：`recall? → … → send_bubbles? / send_voice? → … → end_turn`。
 用户可见消息通过 `send_bubbles` 或 `send_voice` 发送。请根据情况、场景，自由的选择发送气泡或语音。
