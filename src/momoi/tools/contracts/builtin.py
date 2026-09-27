@@ -3,7 +3,7 @@ from typing import Any
 from ...contracts import OWNER_PROGRESS_BEFORE_FIRST_CALL, OWNER_PROGRESS_FIELD
 
 # Basic file operations are supplied by Bash when command execution is enabled.
-# Keep patching, web extraction, and asynchronous waits as dedicated tools.
+# Keep patching and web extraction as dedicated tools.
 BASH_REPLACED_TOOLS = frozenset({
     "read_file", "write_file", "list_dir", "glob_files",
     "makedirs", "move_file", "delete_file",
@@ -222,25 +222,6 @@ BUILTIN_TOOL_SPECS: list[dict[str, Any]] = [
                 },
             },
             "required": ["path"],
-            "additionalProperties": False,
-        },
-    },
-    {
-        "name": "sleep",
-        "description": (
-            "Wait briefly inside this Turn, then continue. Never use it across Turns "
-            "or instead of a Goal."
-        ),
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "seconds": {
-                    "type": "number",
-                    "minimum": 0,
-                    "maximum": 3600,
-                }
-            },
-            "required": ["seconds"],
             "additionalProperties": False,
         },
     },

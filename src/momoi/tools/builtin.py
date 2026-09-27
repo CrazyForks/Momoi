@@ -61,7 +61,7 @@ class BuiltinTools:
 
     @staticmethod
     def capability(call: ToolCall) -> str:
-        if call.name in {"read_file", "list_dir", "glob_files", "sleep"}:
+        if call.name in {"read_file", "list_dir", "glob_files"}:
             return "read"
         if call.name in {
             "write_file",
@@ -99,10 +99,6 @@ class BuiltinTools:
                 return await asyncio.to_thread(self._move_file, call.arguments)
             if call.name == "delete_file":
                 return await asyncio.to_thread(self._delete_file, call.arguments)
-            if call.name == "sleep":
-                seconds = min(3600.0, max(0.0, float(call.arguments.get("seconds", 0))))
-                await asyncio.sleep(seconds)
-                return {"ok": True, "slept_seconds": seconds}
             return {"ok": False, "error": "tool_not_allowed"}
         except Exception as error:
             return {

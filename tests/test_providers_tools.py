@@ -1549,7 +1549,7 @@ class ProvidersToolsAsyncTest(unittest.IsolatedAsyncioTestCase):
             "invalid_tool_arguments_json",
         )
 
-    async def test_builtin_http_file_patch_and_sleep_tools(self) -> None:
+    async def test_builtin_http_file_patch_tools(self) -> None:
         async def endpoint(_: web.Request) -> web.Response:
             return web.Response(text="inner-network-ok")
 
@@ -1705,10 +1705,5 @@ class ProvidersToolsAsyncTest(unittest.IsolatedAsyncioTestCase):
                 )
                 self.assertTrue(deleted["ok"], deleted)
                 self.assertFalse(moved_path.exists())
-            self.assertTrue(
-                (await tools.execute(ToolCall("sleep-1", "sleep", {"seconds": 0})))[
-                    "ok"
-                ]
-            )
         finally:
             await server.close()

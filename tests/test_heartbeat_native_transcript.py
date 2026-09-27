@@ -277,7 +277,7 @@ class HeartbeatNativeTranscriptTest(unittest.IsolatedAsyncioTestCase):
             self.assertIn("heartbeat_begin", provider.first_tools)
             self.assertIn("apply_patch", provider.first_tools)
             self.assertIn("delete_file", provider.first_tools)
-            self.assertIn("sleep", provider.first_tools)
+            self.assertNotIn("sleep", provider.first_tools)
             self.assertEqual(
                 provider.first_tools,
                 [
