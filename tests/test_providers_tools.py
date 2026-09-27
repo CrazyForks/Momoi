@@ -7,7 +7,7 @@ import unittest
 from contextlib import contextmanager
 from pathlib import Path
 from types import SimpleNamespace
-from unittest.mock import patch
+from unittest.mock import AsyncMock, call, patch
 
 from aiohttp import web
 from aiohttp.test_utils import TestServer
@@ -474,6 +474,18 @@ class ProvidersToolsTest(unittest.TestCase):
 
 class ProvidersToolsAsyncTest(unittest.IsolatedAsyncioTestCase):
 
+    def mock_retry_sleep(self) -> AsyncMock:
+        async def yield_without_delay(_delay: float) -> None:
+            await asyncio.sleep(0)
+
+        # Replace only transport's asyncio reference; HTTP and test clocks stay real.
+        retry_sleep = AsyncMock(side_effect=yield_without_delay)
+        self.enterContext(patch(
+            "momoi.llm.transport.asyncio",
+            SimpleNamespace(sleep=retry_sleep, TimeoutError=asyncio.TimeoutError),
+        ))
+        return retry_sleep
+
     async def test_mcp_connection_failure_allows_startup_without_optional_flag(self) -> None:
         for optional in (None, False, True):
             manager = MCPManager(None)
@@ -683,6 +695,7 @@ class ProvidersToolsAsyncTest(unittest.IsolatedAsyncioTestCase):
     async def test_anthropic_provider_retries_server_error_and_reports_client_error(
         self,
     ) -> None:
+        retry_sleep = self.mock_retry_sleep()
         attempts = 0
         requests: list[dict[str, object]] = []
 
@@ -754,6 +767,7 @@ class ProvidersToolsAsyncTest(unittest.IsolatedAsyncioTestCase):
                     )
         finally:
             await server.close()
+        self.assertEqual(retry_sleep.await_args_list, [call(1)])
         self.assertEqual(attempts, 3)
         self.assertEqual(
             requests[0]["output_config"],
@@ -1002,6 +1016,7 @@ class ProvidersToolsAsyncTest(unittest.IsolatedAsyncioTestCase):
     async def test_openai_provider_retries_server_error_and_reports_client_error(
         self,
     ) -> None:
+        retry_sleep = self.mock_retry_sleep()
         attempts = 0
         requests: list[dict[str, object]] = []
 
@@ -1069,9 +1084,11 @@ class ProvidersToolsAsyncTest(unittest.IsolatedAsyncioTestCase):
                     )
         finally:
             await server.close()
+        self.assertEqual(retry_sleep.await_args_list, [call(1)])
         self.assertEqual(attempts, 4)
 
     async def test_openai_provider_retries_unusable_success_response(self) -> None:
+        retry_sleep = self.mock_retry_sleep()
         attempts = 0
 
         async def completion(_request: web.Request) -> web.Response:
@@ -1117,6 +1134,7 @@ class ProvidersToolsAsyncTest(unittest.IsolatedAsyncioTestCase):
                 self.assertIn("body", unusable[0].momoi_fields)
         finally:
             await server.close()
+        self.assertEqual(retry_sleep.await_args_list, [call(1), call(2), call(4)])
         self.assertEqual(attempts, 4)
 
     async def test_owner_turn_corrects_openai_gateway_that_ignores_tool_choice(

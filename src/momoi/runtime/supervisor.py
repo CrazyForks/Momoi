@@ -9,11 +9,12 @@ logger = logging.getLogger(__name__)
 
 
 class RuntimeSupervisor:
-    def __init__(self, configuration, *, factory=None):
+    def __init__(self, configuration, *, factory=None, poll_interval_seconds=1):
         if factory is None:
             from .daemon import MomoiDaemon
 
             factory = MomoiDaemon
+        self.poll_interval_seconds = poll_interval_seconds
         self.configuration = configuration
         self.factory = factory
         self.changed = asyncio.Event()
@@ -196,7 +197,7 @@ class RuntimeSupervisor:
                     else:
                         self.error = "runtime stopped unexpectedly"
                 try:
-                    await asyncio.wait_for(stop.wait(), 1)
+                    await asyncio.wait_for(stop.wait(), self.poll_interval_seconds)
                 except TimeoutError:
                     pass
         finally:

@@ -309,7 +309,7 @@ class DashboardConfigurationTest(unittest.IsolatedAsyncioTestCase):
         self.store = Store(config.database, config.workspace)
         self.addCleanup(self.store.close)
         FakeDaemon.instances = []
-        self.runtime = RuntimeSupervisor(self.manager, factory=FakeDaemon)
+        self.runtime = RuntimeSupervisor(self.manager, factory=FakeDaemon, poll_interval_seconds=0.01)
         self.runtime.active_config = config
         self.addAsyncCleanup(self.runtime._retire)
         self.client = TestClient(
