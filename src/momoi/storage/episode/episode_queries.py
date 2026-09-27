@@ -298,6 +298,42 @@ class EpisodeQueryStore:
         return {"start": self.context_timestamp(row[0]),
                 "end": self.context_timestamp(row[1])}
 
+    def episode_keyword_evidence(self, episode_id, keywords, *, limit=3, max_chars=600):
+        """Hydrate selected topics only; never search model paraphrases as evidence."""
+        terms = list(dict.fromkeys(str(term).strip() for term in keywords if str(term).strip()))
+        rows = self._db.execute(
+            """SELECT DISTINCT m.id, m.turn_id, m.role, m.content, m.created_at,
+                       m.delivery_state
+               FROM episode_turns et JOIN messages m ON m.turn_id=et.turn_id
+               WHERE et.episode_id=? AND (m.role IN ('user','event')
+                   OR (m.role='assistant' AND m.delivery_state IN ('delivered','uncertain')))
+               ORDER BY m.id""", (episode_id,),
+        ).fetchall() if terms else []
+        hits = []
+        for row in rows:
+            content = str(row["content"] or "")
+            matched = [term for term in terms if term.casefold() in content.casefold()]
+            if matched:
+                hits.append((dict(row), matched))
+        # Query keywords are ordered: preserve the main lookup term before
+        # broad location/entity terms; prefer original Owner evidence.
+        hits.sort(key=lambda pair: (
+            pair[0]["role"] != "user", min(terms.index(term) for term in pair[1]),
+            -len(pair[1]), -pair[0]["id"],
+        ))
+        matches = []
+        for row, matched in hits[:limit]:
+            content = row["content"]
+            anchor = min(content.casefold().find(term.casefold()) for term in matched)
+            start = max(0, anchor - 100) if len(content) > max_chars else 0
+            end = min(len(content), start + max_chars)
+            row.update(content=content[start:end], original_chars=len(content),
+                       excerpt_start=start, excerpt_end=end,
+                       timestamp=self.context_timestamp(row["created_at"]))
+            matches.append(row)
+        return {"matches": matches, "matched_message_count": len(hits),
+                "matched_message_chars": sum(len(row["content"]) for row, _ in hits)}
+
     def search_topic_queries(self, queries, max_results, *, dense_evidence=None, minimum_confidence=None):
         return self._ranked_episode_results(queries, max_results,
             topics_only=True, dense_evidence=dense_evidence, minimum_confidence=minimum_confidence)

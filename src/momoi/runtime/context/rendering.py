@@ -114,20 +114,36 @@ def _episode_match_lines(
         if isinstance(match, dict)
         and match.get("id") not in exclude_message_ids
         and str(match.get("content") or "").strip()
-    ][:3]
-    if not matches or token_budget <= 0:
+    ]
+    eligible_count = len(matches)
+    matches = matches[:3]
+    if token_budget <= 0:
         return []
-    per_match = max(1, token_budget // len(matches))
-    lines = ["<matched_evidence>"]
+    per_match = max(1, token_budget // max(1, len(matches)))
+    total = int(selected.get("matched_message_count", eligible_count))
+    total_chars = int(selected.get("matched_message_chars", sum(len(str(m.get("content") or "")) for m in selected.get("matches", []))))
+    lines = [f'<matched_evidence total_matches="{total}" shown="{len(matches)}" total_chars="{total_chars}" omitted="{max(0, total - len(matches))}">']
     for match in matches:
         role = str(match.get("role") or "")
         delivery = str(match.get("delivery_state") or "")
         source = speaker_label(role)
         attributes = {
             "source": source,
+            "id": match.get("id"),
+            "timestamp": match.get("timestamp"),
             "turn_id": match.get("turn_id"),
         }
         content = str(match["content"])
+        original_chars = int(match.get("original_chars", len(content)))
+        start = int(match.get("excerpt_start", 0))
+        content = truncate_tokens(content[:600], per_match)
+        clipped = start > 0 or start + len(content) < original_chars
+        attributes.update(original_chars=original_chars, truncated=str(clipped).lower())
+        end_clipped = start + len(content) < original_chars
+        if start:
+            content = "[...truncated...]\n" + content
+        if end_clipped:
+            content += "\n[...truncated...]"
         if role == "assistant":
             attributes["delivery"] = delivery or "unknown"
         header = " ".join(
@@ -137,7 +153,7 @@ def _episode_match_lines(
         )
         lines.append(
             f"<message {header}>"
-            f"{escape(truncate_tokens(content, per_match))}</message>"
+            f"{escape(content)}</message>"
         )
     lines.append("</matched_evidence>")
     return lines
@@ -159,7 +175,11 @@ def _fit_episode_xml(text: str, token_budget: int) -> str:
 
     def fit(available: int) -> str:
         for (node, value), size in zip(leaves, sizes, strict=True):
-            node.text = truncate_tokens(value, available * size // max(1, total))
+            fitted = truncate_tokens(value, available * size // max(1, total))
+            if node.tag == "message" and fitted != value:
+                node.set("truncated", "true")
+                fitted += " [...truncated...]"
+            node.text = fitted
         return serialize()
 
     rendered = fit(0)

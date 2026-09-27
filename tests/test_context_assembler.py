@@ -192,14 +192,49 @@ class ContextAssemblerTest(unittest.TestCase):
         ]
         rendered = "\n".join(_episode_match_lines({"matches": matches}, 2000, set()))
         root = ElementTree.fromstring(rendered)
-        self.assertTrue(all("id" not in node.attrib for node in root))
-        self.assertTrue(all("timestamp" not in node.attrib for node in root))
+        self.assertTrue(all("id" in node.attrib for node in root))
+        self.assertTrue(all("timestamp" in node.attrib for node in root))
         self.assertEqual(root[0].attrib["source"], "ASSISTANT")
         self.assertEqual(root[0].attrib["delivery"], "uncertain")
         self.assertEqual(root[1].attrib["source"], "OWNER")
         self.assertEqual(root[0].attrib["turn_id"], 'turn"<&')
         self.assertEqual([node.text for node in root], [item["content"] for item in matches[:3]])
         self.assertEqual(root.findall(".//bubble"), [])
+
+    def test_selected_topic_hydrates_bounded_original_keyword_messages(self):
+        with tempfile.TemporaryDirectory() as directory:
+            store = Store(Path(directory) / "momoi.sqlite3")
+            store.create_episode("酒店住宿", episode_id="hotel")
+            for index in range(5):
+                text = "前文" * 500 + "早餐在9楼，7点到10点" + "后文" * 500
+                event = IncomingMessage(f"e{index}", f"e{index}", text, index + 1, index + 1)
+                store.add_event(event)
+                turn = f"t{index}"
+                store.begin_turn(turn, "owner", [event.event_id])
+                intent = plan("早餐", "hotel")
+                intent["intent_units"][0]["event_ids"] = [event.event_id]
+                store.save_context_plan(turn, 1, [event.event_id], intent)
+                store.commit_turn([event], text, AgentReply([]), turn_id=turn)
+            retrieval = build_plan_retrieval(
+                store, plan("早餐", "hotel"), config(directory),
+                selected_episode_rows=[{"id": "hotel", "matched_queries": [
+                    {"expression": "早餐", "unit_ids": ["u1"]}
+                ]}],
+            )
+            selected = next(row for row in retrieval["episodes"] if row["episode_id"] == "hotel")
+            self.assertEqual(selected["matched_message_count"], 5)
+            self.assertIn("早餐在9楼", selected["matches"][0]["content"])
+            evidence = store.episode_keyword_evidence("hotel", ["早餐"])
+            self.assertEqual(evidence["matched_message_count"], 5)
+            self.assertEqual(len(evidence["matches"]), 3)
+            self.assertTrue(all(len(row["content"]) <= 600 for row in evidence["matches"]))
+            root = ElementTree.fromstring("\n".join(_episode_match_lines(evidence, 2000, set())))
+            self.assertEqual(root.get("total_matches"), "5")
+            self.assertEqual(root.get("omitted"), "2")
+            self.assertTrue(all(node.get("truncated") == "true" for node in root))
+            self.assertTrue(all("早餐在9楼" in node.text for node in root))
+            self.assertTrue(all(node.text.startswith("[...truncated...]") and node.text.endswith("[...truncated...]") for node in root))
+            store.close()
 
     def test_xml_budget_preserves_structure_and_reflection_provenance(self) -> None:
         reflection = format_reflection_memory({
@@ -1278,7 +1313,7 @@ class ContextAssemblerTest(unittest.TestCase):
             )
             self.assertIn('<summary></summary>', recalled)
             self.assertNotIn("聊过家中物品的位置", recalled)
-            self.assertIn("<matched_evidence>", recalled)
+            self.assertIn("<matched_evidence ", recalled)
             self.assertIn("蓝色保温杯藏在阁楼第三个纸箱里", recalled)
             retrieval = build_plan_retrieval(
                 store,

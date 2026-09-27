@@ -414,12 +414,15 @@ def build_plan_retrieval(
                 for unit_id in item.get("unit_ids") or []
             }
         )
+        evidence = store.episode_keyword_evidence(
+            episode_id, [keyword for query in recall_queries for keyword in query.get("keywords", [])]
+        )
         recalled_episode_rows[episode_id] = {
             "episode_id": episode_id,
             "relation": "recalled",
             "recall_cues": list(row.get("recall_cues") or []),
             "is_new": False,
-            "matches": list(row.get("matches") or []),
+            **evidence,
             "unit_ids": unit_ids,
             "last_activity_at": float(row.get("last_activity_at") or 0),
             "salience": float(row.get("salience") or 0),
