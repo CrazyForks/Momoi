@@ -28,3 +28,9 @@ artifacts = ["src/momoi/dashboard/static/**"]
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/momoi"]
+
+[dependency-groups]
+test = [
+    "pytest>=9,<10",
+    "pytest-xdist>=3.8,<4",
+]
