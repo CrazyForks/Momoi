@@ -73,7 +73,7 @@ CURRENT_STATE_CHANGE_SCHEMA = {
                         "minLength": 1,
                         "maxLength": VALUE_MAX_LENGTH,
                         "pattern": r"\S",
-                        "description": "A concise current fact supported by the supplied evidence, preserving attribution and uncertainty.",
+                        "description": "A concise current fact or already-decided arrangement affecting near-term responses, supported by the supplied evidence. A future action may have an already-effective decision; preserve attribution and uncertainty.",
                     },
                     "status": {
                         "type": "string", "enum": ["observed", "inferred"],
@@ -101,8 +101,8 @@ CURRENT_STATE_CHANGE_SCHEMA = {
                         "maximum": MAX_TTL_SECONDS,
                         "description": (
                             "How long new evidence justifies retaining this fact, starting at commit time. "
-                            "If it needs to remain available longer than 24 hours, it is durable — "
-                            "file it through memory_operation instead of a current-state slot. "
+                            "Retain only an evidence-supported window up to 24 hours; a future action does not exclude its currently effective constraints. Longer duration alone does not make a fact durable. For genuinely durable facts, "
+                            "use memory_operation instead of a current-state slot. "
                             "Seeing or reusing a slot is not evidence for renewal. Expiry means unknown, "
                             "not that the opposite state holds. Renewal requires fresh evidence and delete + add."
                         ),
