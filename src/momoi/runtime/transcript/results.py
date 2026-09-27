@@ -14,7 +14,42 @@ def preview(text: str) -> str:
     return text[:EDGE_CHARS] + "\n[...truncated...]\n" + text[-EDGE_CHARS:]
 
 
-def historical_results(exchanges: list[dict]) -> None:
+def list_excerpt(payload: Mapping) -> dict | None:
+    """Recognize structured lists, including MCP structuredContent wrappers."""
+    value = payload
+    for _ in range(6):
+        if isinstance(value, list):
+            if not all(isinstance(item, dict) for item in value):
+                return None
+            items = []
+            for item in value[:3]:
+                entry = {k: preview(str(item[k])) for k in
+                         ("id", "url", "title", "name", "created_at", "published_at") if k in item}
+                user = item.get("user")
+                if isinstance(user, dict) and user.get("screen_name"):
+                    entry["author"] = preview(str(user["screen_name"]))
+                elif item.get("author"):
+                    entry["author"] = preview(str(item["author"]))
+                body = item.get("text", item.get("content"))
+                if isinstance(body, str):
+                    entry["excerpt"] = preview(body)
+                if not entry:
+                    return None
+                items.append(entry)
+            return {"items": items, "shown": len(items), "returned_count": len(value),
+                    "omitted": len(value) - len(items)}
+        if not isinstance(value, dict):
+            return None
+        for key in ("structuredContent", "result", "items", "statuses", "data"):
+            if isinstance(value.get(key), (dict, list)):
+                value = value[key]
+                break
+        else:
+            return None
+    return None
+
+
+def historical_results(exchanges: list[dict], *, history_format: int = 3) -> None:
     """Edit a private replay copy; never alter the journal or live observations.
 
     Error runs are summarized in the first result, with paired references in
@@ -79,6 +114,20 @@ def historical_results(exchanges: list[dict]) -> None:
             else:
                 flush()
                 run_name = ""
+            if history_format >= 3 and payload.get("ok") is True:
+                if name in {"send_bubbles", "end_turn"} and not payload.get("error") and not payload.get("truncated"):
+                    allowed = {"ok", "error", "truncated", "provenance", "result_ref", "state", "channel", "bubbles"}
+                    if set(payload) <= allowed:
+                        block["content"] = json.dumps({k: payload[k] for k in ("ok", "state", "bubbles") if k in payload}, ensure_ascii=False)
+                        continue
+                if len(raw) <= SMALL_RESULT_CHARS:
+                    compact = dict(payload)
+                    for key, empty in (("error", None), ("truncated", False)):
+                        if compact.get(key) == empty:
+                            compact.pop(key, None)
+                    compact.pop("provenance", None)
+                    block["content"] = json.dumps(compact, ensure_ascii=False)
+                    continue
             if len(raw) <= SMALL_RESULT_CHARS:
                 continue
             compact = {key: payload[key] for key in (
@@ -89,5 +138,22 @@ def historical_results(exchanges: list[dict]) -> None:
             if not isinstance(body, str):
                 body = json.dumps(body, ensure_ascii=False)
             compact.update(history_truncated=True, preview=preview(body))
+            if history_format >= 3:
+                if payload.get("ok") is True:
+                    compact.pop("provenance", None)
+                    if compact.get("error") is None:
+                        compact.pop("error", None)
+                    listing = list_excerpt(payload)
+                    if listing is not None:
+                        compact.pop("preview", None)
+                        compact.update(listing)
+                for key in ("path", "start_line", "end_line", "total_lines", "url", "message"):
+                    if key in payload:
+                        compact[key] = preview(str(payload[key])) if isinstance(payload[key], str) else payload[key]
+                if name in {"read_file", "read"} and "path" not in compact:
+                    call = next((b for b in content if isinstance(b, dict) and b.get("id") == block.get("tool_use_id")), {})
+                    path = (call.get("input") or {}).get("path")
+                    if isinstance(path, str):
+                        compact["path"] = preview(path)
             block["content"] = json.dumps(compact, ensure_ascii=False)
     flush()

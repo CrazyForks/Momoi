@@ -6,10 +6,11 @@ from .results import historical_results
 
 def render_exchanges(
     exchanges: Sequence[Mapping[str, object]],
+    *, history_format: int = 3,
 ) -> list[dict[str, object]]:
     """Replay model text, tool calls, then the observations the model received."""
     exchanges = deepcopy(list(exchanges))
-    historical_results(exchanges)
+    historical_results(exchanges, history_format=history_format)
     messages: list[dict[str, object]] = []
     for exchange in exchanges:
         content = exchange.get("content")

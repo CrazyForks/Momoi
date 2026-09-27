@@ -692,7 +692,8 @@ def test_autonomous_completion_follows_native_actions(kind, speaks):
     }]}
     messages = render_messages(build_groups(rows), native_exchanges=exchanges)
     assert '开始检查' in str(messages[0])
-    assert messages[1]['content'][0]['content'] == raw
+    assert 'completed' in messages[1]['content'][0]['content']
+    assert messages[1]['content'][0]['tool_use_id'] == 'check'
     assert '检查完成' in str(messages[2])
     assert len(messages) == 3
     assert 'message delivery confirmation' not in str(messages)

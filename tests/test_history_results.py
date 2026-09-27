@@ -76,3 +76,44 @@ def test_recall_search_reuse_and_errors_are_never_compacted():
     replay = render_exchanges(source)
     for i, item in enumerate(source):
         assert replay[i * 2 + 1]['content'] == item['results']
+
+
+def test_simple_receipts_keep_pairs_and_old_format_unchanged():
+    source = [exchange('s', 'send_bubbles', {
+        'ok': True, 'error': None, 'truncated': False, 'state': 'committed',
+        'channel': 'napcat', 'bubbles': 3, 'result_ref': 'tr_send',
+        'provenance': {'source': 'runtime'},
+    }), exchange('e', 'end_turn', {'ok': True, 'state': 'completed', 'result_ref': 'tr_end'})]
+    original = deepcopy(source)
+    assert results(render_exchanges(source)) == [
+        {'ok': True, 'state': 'committed', 'bubbles': 3}, {'ok': True, 'state': 'completed'}]
+    assert results(render_exchanges(source, history_format=2))[0]['result_ref'] == 'tr_send'
+    assert source == original
+
+
+def test_weibo_structured_list_preserves_identity_and_omission_count():
+    entries = [{'id': i, 'text': '前' * 80 + '正文' * 400 + '后' * 80,
+                'created_at': '2026-09-27', 'user': {'screen_name': '作者'}} for i in range(20)]
+    source = [exchange('w', 'mcp__weibo__get_home_timeline', {
+        'ok': True, 'result_ref': 'tr_weibo',
+        'result': {'content': [], 'structuredContent': {'result': entries}},
+    })]
+    original = deepcopy(source)
+    result = results(render_exchanges(source))[0]
+    assert (result['shown'], result['returned_count'], result['omitted']) == (3, 20, 17)
+    assert result['items'][0]['id'] == '0'
+    assert result['items'][0]['author'] == '作者'
+    assert '[...truncated...]' in result['items'][0]['excerpt']
+    assert result['result_ref'] == 'tr_weibo'
+    assert source == original
+    assert 'items' not in results(render_exchanges(source, history_format=2))[0]
+
+
+def test_file_history_preserves_path_range_and_ref():
+    source = [exchange('f', 'read_file', {'ok': True, 'content': 'a' * 2000,
+        'start_line': 20, 'end_line': 90, 'result_ref': 'tr_file'})]
+    result = results(render_exchanges(source))[0]
+    assert result['path'] == 'test.txt'
+    assert result['start_line'] == 20 and result['end_line'] == 90
+    assert result['result_ref'] == 'tr_file'
+    assert result['history_truncated']
