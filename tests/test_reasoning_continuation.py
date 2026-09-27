@@ -30,7 +30,7 @@ class ReasoningContinuationTest(unittest.IsolatedAsyncioTestCase):
         recall = recall_response().tool_calls[0]
         finish = {"reply_wait": {"wait": False}, "mood": {"decision": "unchanged"}}
         actions = [
-            ("end_turn", json.dumps(finish)),  # Rejected: recall must be first.
+            ("heartbeat_activity", "{}"),  # Rejected: unavailable in Owner stage.
             (recall.name, json.dumps(recall.arguments)),
             None,  # Text-only reply must also retain its reasoning during correction.
             ("send_bubbles", "{"),  # Invalid tool arguments return an error to the model.

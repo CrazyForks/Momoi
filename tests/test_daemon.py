@@ -1816,10 +1816,10 @@ class DaemonAsyncTest(unittest.IsolatedAsyncioTestCase):
                                     if response_kind == "text_with_tool" or (
                                         response_kind == "mixed" and self.calls % 2 == 0
                                     ):
-                                        calls = [ToolCall("wrong-first", "send_bubbles", {"bubbles": ["hello"]})]
+                                        calls = [ToolCall("wrong-stage", "heartbeat_activity", {})]
                                         content.append({
-                                            "type": "tool_use", "id": "wrong-first",
-                                            "name": "send_bubbles", "input": {"bubbles": ["hello"]},
+                                            "type": "tool_use", "id": "wrong-stage",
+                                            "name": "heartbeat_activity", "input": {},
                                         })
                                     return ProviderResponse(content, calls)
 

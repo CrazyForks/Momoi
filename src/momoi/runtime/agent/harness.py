@@ -18,7 +18,7 @@ class TurnHarnessSpec:
 TURN_HARNESS_SPECS = {
     spec.stage: spec
     for spec in (
-        TurnHarnessSpec("owner", "recall", "end_turn"),
+        TurnHarnessSpec("owner", None, "end_turn"),
         TurnHarnessSpec("heartbeat", "heartbeat_begin", "end_turn",
                         required_before_end=frozenset({"heartbeat_activity"})),
         TurnHarnessSpec("reply_followup", None, "end_turn"),

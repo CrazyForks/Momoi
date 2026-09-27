@@ -110,24 +110,19 @@ class TurnHarnessTest(unittest.TestCase):
                 self.assertIsNone(harness.spec.first_tool)
                 self.assertTrue(harness.started)
 
-    def test_owner_opening_batch_requires_exactly_one_recall_in_any_position(self) -> None:
+    def test_owner_can_open_and_finish_without_recall(self) -> None:
         harness = TurnHarness.for_stage("owner")
+        self.assertIsNone(harness.spec.first_tool)
+        self.assertTrue(harness.started)
         recall = ToolCall("recall", "recall", {})
         send = ToolCall("send", "send_bubbles", {"bubbles": ["ok"]})
-
-        for calls in ([recall], [recall, send], [send, recall]):
-            self.assertIsNone(harness.validate(calls, required_tool="recall"))
-        for calls in ([], [send], [recall, recall], [send, recall, recall]):
-            self.assertEqual(
-                harness.validate(calls), "recall_required_once_in_opening_batch",
-            )
         end = ToolCall("end", "end_turn", {})
-        self.assertEqual(harness.validate([recall, end]), "end_turn_must_be_alone")
-        harness.accept("recall")
-        self.assertIsNone(harness.validate([recall]))
-        self.assertIsNone(harness.validate([send]))
+        search = ToolCall("search", "memory_search", {"query": "x"})
+        for calls in ([send], [search], [end], [send, end], [recall], [recall, send]):
+            self.assertIsNone(harness.validate(calls))
         harness.accept_owner_update()
-        self.assertIsNone(harness.validate([send, recall]))
+        self.assertIsNone(harness.validate([send, end]))
+        self.assertEqual(harness.validate([recall, end]), "end_turn_must_be_alone")
 
     def test_webhook_harness_rejects_tools_outside_its_contract(self) -> None:
         harness = TurnHarness.for_stage("webhook")
@@ -170,7 +165,7 @@ class TurnHarnessTest(unittest.TestCase):
     def test_harness_requires_its_boundary_tools_on_the_surface(self) -> None:
         harness = TurnHarness.for_stage("owner")
 
-        with self.assertRaisesRegex(ValueError, "end_turn, recall"):
+        with self.assertRaisesRegex(ValueError, "end_turn"):
             harness.validate_surface(set())
         harness.validate_surface({"recall", "send_bubbles", "end_turn"})
 
