@@ -72,6 +72,7 @@ class PromptFingerprint(TypedDict):
 
 class RequestShape(TypedDict):
     settings_hash: str
+    settings_fields: NotRequired[dict[str, str]]
     parts: list[PromptFingerprint]
     message_count: int
     input_tokens_est: int

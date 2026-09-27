@@ -10,8 +10,6 @@ def compare_shapes(current: RequestShape, previous: RequestShape) -> tuple[int, 
     labels = ["tools", "system", "user[0]", "user[1]"]
     prefix = 0
     boundary = "new_tail"
-    if current["settings_hash"] != previous["settings_hash"]:
-        return 0, "request_settings"
     for index, (a, b) in enumerate(zip(current["parts"], previous["parts"])):
         if a["hash"] != b["hash"]:
             boundary = labels[index] if index < len(labels) else f"transcript[{index - 4}]"
@@ -37,11 +35,18 @@ class RequestMetricsRepository:
             previous = json.loads(row["data_json"])
             prefix, boundary = compare_shapes(shape, previous["shape"])
             if best is None or prefix > best[0]:
-                best = prefix, boundary, row["id"], previous.get("stage", "")
+                best = prefix, boundary, row["id"], previous.get("stage", ""), previous["shape"]
         data.update(prefix_tokens_est=best[0] if best else None,
                     changed_at=best[1] if best else "no_baseline",
                     compared_request_id=best[2] if best else None,
                     compared_stage=best[3] if best else None)
+        data["settings_changed"] = shape["settings_hash"] != best[4]["settings_hash"] if best else None
+        fields = shape.get("settings_fields")
+        previous_fields = best[4].get("settings_fields") if best else None
+        data["changed_settings"] = (
+            sorted(k for k in fields.keys() | previous_fields.keys() if fields.get(k) != previous_fields.get(k))
+            if fields is not None and previous_fields is not None else None
+        )
         usage = data.get("usage") or {}
         input_tokens = usage.get("input")
         hit = usage.get("cache_read") if usage.get("cache_reported") else None

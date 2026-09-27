@@ -51,7 +51,8 @@ def test_request_shape_detects_settings_and_prefix_changes(tmp_path):
     b = request_shape({"model": "x", "messages": [{"role": "user", "content": "bye"}]})
     assert compare_shapes(a, b)[1] == "user[0]"
     b = request_shape({"model": "x", "tool_choice": "required", "messages": []})
-    assert compare_shapes(a, b) == (0, "request_settings")
+    assert compare_shapes(a, b)[0] > 0
+    assert a["settings_hash"] != b["settings_hash"]
 
 
 @pytest.mark.parametrize("protocol", ["openai", "anthropic"])
@@ -126,3 +127,16 @@ def test_retries_share_request_id_but_record_each_attempt(monkeypatch):
         assert [r["status"] for r in records] == ["error", "success"]
         assert records[0]["request_id"] == records[1]["request_id"]
     asyncio.run(run())
+
+
+def test_effort_change_preserves_prefix_reuse_and_flags_parameter(tmp_path):
+    store = Store(tmp_path / "db")
+    payload = {"model": "model", "messages": [{"role": "user", "content": "stable " * 5000}], "reasoning_effort": "low"}
+    store.record_request_metric(metric(payload=payload))
+    store.record_request_metric(metric(payload={**payload, "reasoning_effort": "high"}, hit=100))
+    row = store.dashboard_request_metrics()["items"][0]
+    assert row["reuse_ratio_est"] == 1
+    assert row["settings_changed"] is True
+    assert row["changed_settings"] == ["reasoning_effort"]
+    assert row["cache_alert"] is True
+    store.close()

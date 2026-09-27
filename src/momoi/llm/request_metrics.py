@@ -28,7 +28,8 @@ def request_shape(payload) -> RequestShape:
     settings = {k: v for k, v in payload.items() if k not in {"messages", "system", "tools"}}
     parts = [fingerprint(payload.get("tools", [])), fingerprint(system)]
     parts.extend(fingerprint(message) for message in messages)
-    return {"settings_hash": fingerprint(settings)["hash"], "parts": parts,
+    return {"settings_hash": fingerprint(settings)["hash"],
+            "settings_fields": {key: fingerprint(value)["hash"] for key, value in settings.items()}, "parts": parts,
             "message_count": len(messages), "input_tokens_est": sum(p["tokens_est"] for p in parts)}
 
 
