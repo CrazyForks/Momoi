@@ -80,7 +80,8 @@ class TurnHarness:
         self.heartbeat_recall_ready = False
 
     def accept_owner_update(self) -> None:
-        """Keep the Turn's completed opening after a new owner message."""
+        """Keep opening, but invalidate recall when the owner context changes."""
+        self.heartbeat_recall_ready = False
 
     def validate_surface(self, tool_names: set[str]) -> None:
         required = {self.spec.terminal_tool, *self.spec.required_before_end}
@@ -120,8 +121,6 @@ class TurnHarness:
         ):
             if not self.heartbeat_recall_ready or "recall" in names:
                 return "heartbeat_recall_required_before_send"
-            if sum(name in {"send_bubbles", "send_voice"} for name in names) != 1:
-                return "heartbeat_one_send_per_recall"
         first = self.spec.first_tool
         first_names = {first}
         if (
@@ -152,20 +151,18 @@ class TurnHarness:
         ):
             return f"{required_tool}_required"
         terminal = self.spec.terminal_tool
-        send_and_end = (
+        declarations_and_end = (
             terminal == "end_turn" and names[-1:] == [terminal]
-            and all(name in {"send_bubbles", "send_voice"} for name in names[:-1])
+            and all(name in {"send_bubbles", "send_voice", "heartbeat_activity", "goal_review", "save_image_summary"} for name in names[:-1])
         )
         review_and_end = self.spec.stage == "goal" and names == ["goal_review", "end_turn"]
-        if self.spec.terminal_alone and terminal in names and not review_and_end and not send_and_end and (len(names) != 1 or names[0] != terminal):
+        if self.spec.terminal_alone and terminal in names and not review_and_end and not declarations_and_end and (len(names) != 1 or names[0] != terminal):
             return f"{terminal}_must_be_alone"
-        if "end_turn" in names and has_assistant_text and "send_bubbles" not in names:
-            return "send_bubbles_required_before_end_turn"
         if terminal in names:
             missing = self.spec.required_before_end - self.completed_tools
             if review_and_end:
                 missing = missing - {"goal_review"}
-            if send_and_end:
+            if declarations_and_end:
                 missing = missing - set(names[:-1])
             if missing:
                 return f"{sorted(missing)[0]}_required_before_end_turn"

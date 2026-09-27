@@ -871,7 +871,7 @@ class EpisodeAnnealingTest(unittest.IsolatedAsyncioTestCase):
                     return ProviderResponse([], [])
 
             daemon.provider = Provider()  # type: ignore[assignment]
-            with self.assertRaisesRegex(RuntimeError, "workflow protocol"):
+            with self.assertRaisesRegex(RuntimeError, "consecutive_thought_round_limit"):
                 await daemon._anneal_episode_history("turn-5")
             episode = daemon.store.episode("episode-main")
             self.assertIsNone(episode["summary_claimed_at"])
@@ -1053,7 +1053,7 @@ class EpisodeAnnealingTest(unittest.IsolatedAsyncioTestCase):
                 claimed = daemon.store.claim_episode_annealing_candidate(2, 10000)
                 self.assertIsNotNone(claimed)
                 self.assertEqual(claimed["episode"]["id"], "episode-stuck")
-                with self.assertRaisesRegex(RuntimeError, "workflow protocol"):
+                with self.assertRaisesRegex(RuntimeError, "consecutive_thought_round_limit"):
                     await daemon._anneal_episode_history(
                         f"turn-stuck-{attempt}",
                         candidate=claimed,
@@ -1256,7 +1256,7 @@ class EpisodeAnnealingTest(unittest.IsolatedAsyncioTestCase):
                         EPISODE_CLASSIFY_TURNS_SPEC,
                         EPISODE_CONSOLIDATION_FINISH_SPEC,
                     ]
-                    assert kwargs["require_tool"] is True
+                    assert kwargs["require_tool"] is False
                     if calls == 7:
                         return workflow_response(
                             "episode_consolidation_finish", {}

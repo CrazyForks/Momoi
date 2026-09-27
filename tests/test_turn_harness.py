@@ -3,15 +3,16 @@ import unittest
 from momoi.models import ToolCall
 from momoi.runtime.agent import TURN_HARNESS_SPECS, TurnHarness
 from momoi.runtime.agent.protocol import (
+    MAX_CONSECUTIVE_THOUGHT_ROUNDS,
     assistant_history_content,
     handle_no_tool_response,
 )
-from momoi.runtime.turn_support import ExternalToolTurnError, MAX_CONSECUTIVE_TOOL_FAILURES
+from momoi.runtime.turn_support import ExternalToolTurnError
 from momoi.runtime.agent.workflow import WorkflowProtocolError
 
 
 class TurnHarnessTest(unittest.TestCase):
-    def test_no_tool_failures_stop_at_the_shared_limit(self) -> None:
+    def test_thought_rounds_have_their_own_limit(self) -> None:
         for stage in TURN_HARNESS_SPECS:
             for started in (False, True):
                 for external_effect in (False, True):
@@ -28,7 +29,7 @@ class TurnHarnessTest(unittest.TestCase):
                             if external_effect and not workflow
                             else WorkflowProtocolError
                         )
-                        for attempt in range(1, MAX_CONSECUTIVE_TOOL_FAILURES + 1):
+                        for attempt in range(1, MAX_CONSECUTIVE_THOUGHT_ROUNDS + 1):
                             arguments = dict(
                                 workflow_correction="Use native tools" if workflow else None,
                                 heartbeat_turn=stage == "heartbeat",
@@ -42,7 +43,7 @@ class TurnHarnessTest(unittest.TestCase):
                                 last_tool_error="",
                                 external_effect=external_effect,
                             )
-                            if attempt == MAX_CONSECUTIVE_TOOL_FAILURES:
+                            if attempt == MAX_CONSECUTIVE_THOUGHT_ROUNDS:
                                 with self.assertRaises(error_type):
                                     handle_no_tool_response(messages, "hello", **arguments)
                             else:
@@ -179,7 +180,7 @@ class TurnHarnessTest(unittest.TestCase):
             None,
         )
 
-    def test_heartbeat_requires_separate_successful_recall_for_each_send(self) -> None:
+    def test_heartbeat_requires_separate_successful_recall_for_each_batch(self) -> None:
         harness = TurnHarness.for_stage("heartbeat")
         begin = ToolCall("begin", "heartbeat_begin", {})
         recall = ToolCall("recall", "recall", {})
@@ -192,7 +193,7 @@ class TurnHarnessTest(unittest.TestCase):
         self.assertEqual(harness.validate([recall, send]), "heartbeat_recall_required_before_send")
         harness.accept("recall")
         self.assertEqual(harness.validate([recall, send]), "heartbeat_recall_required_before_send")
-        self.assertEqual(harness.validate([send, voice]), "heartbeat_one_send_per_recall")
+        self.assertIsNone(harness.validate([send, voice]))
         self.assertIsNone(harness.validate([send]))
         harness.accept("send_bubbles")
         self.assertEqual(harness.validate([voice]), "heartbeat_recall_required_before_send")

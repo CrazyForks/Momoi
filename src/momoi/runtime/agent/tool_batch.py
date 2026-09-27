@@ -81,6 +81,7 @@ class ToolBatchResult:
     last_tool_error: str
     ended: bool
     reply: AgentReply | None
+    protocol_error: bool = False
 
 
 class ToolBatchExecutor:
@@ -121,6 +122,7 @@ class ToolBatchExecutor:
         external_effect = False
         ended = False
         reply = None
+        protocol_error = False
 
         request.messages.append(
             assistant_history_message(request.response.content, request.response.continuation)
@@ -514,6 +516,12 @@ class ToolBatchExecutor:
             else:
                 result = {"ok": False, "error": "tool_not_allowed"}
 
+            # Schema/dispatch failures are protocol errors; external failures and
+            # unsuccessful searches remain execution feedback.
+            if (call.argument_error or validation_error
+                    or result.get("error") == "tool_not_allowed"
+                    or (source not in {"mcp", "builtin"} and str(result.get("error", "")).startswith("invalid_"))):
+                protocol_error = True
             recall_result = copy.deepcopy(result) if call.name == "recall" else None
             if "provenance" not in result:
                 result = self.tool_executor.normalize(call, result, source)
@@ -576,4 +584,5 @@ class ToolBatchExecutor:
             last_tool_error=last_tool_error,
             ended=ended,
             reply=reply,
+            protocol_error=protocol_error,
         )

@@ -4,6 +4,7 @@ from types import SimpleNamespace
 
 import pytest
 
+from momoi.runtime.agent.protocol import MAX_CONSECUTIVE_THOUGHT_ROUNDS
 from momoi.models import ProviderResponse, ToolCall
 from tests.test_memory_operations import daemon, event, response
 
@@ -12,7 +13,7 @@ from tests.test_memory_operations import daemon, event, response
 def test_circuit_recovery_is_bounded_and_cannot_restart_task(daemon, recovery):
     source = event(daemon.store, text="帮我处理一下")
     turn_id = daemon._turn_id(source.event_id)
-    limit = daemon.config.turn_max_protocol_retries
+    limit = MAX_CONSECUTIVE_THOUGHT_ROUNDS
     rounds = 0
     notices = []
 

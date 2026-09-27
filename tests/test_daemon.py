@@ -1795,14 +1795,16 @@ class DaemonAsyncTest(unittest.IsolatedAsyncioTestCase):
                             daemon.store.add_event(event)
                             turn_id = daemon._turn_id(event.event_id)
 
+                            limit = 6 if response_kind in {"text", "mixed"} else 3
+
                             class Provider:
                                 calls = 0
                                 config = SimpleNamespace(api_format="anthropic")
 
                                 async def complete(self, *_args, **_kwargs):
                                     self.calls += 1
-                                    if self.calls > 3:
-                                        assert self.calls == 4
+                                    if self.calls > limit:
+                                        assert self.calls == limit + 1
                                         assert {"send_bubbles", "end_turn", "recall"} <= {tool["name"] for tool in _args[2]}
                                         calls = [ToolCall("notify", "send_bubbles", {"bubbles": ["这次出错了，我先停下来，结果还没确认。"]}),
                                                  ToolCall("end", "end_turn", {"mood": {"decision": "unchanged"}, "reply_wait": {"wait": False}})]
@@ -1829,7 +1831,7 @@ class DaemonAsyncTest(unittest.IsolatedAsyncioTestCase):
                                 daemon._complete_batch_turn([event], asyncio.Event(), turn_id),
                                 timeout=2,
                             )
-                            self.assertEqual(provider.calls, 4)
+                            self.assertEqual(provider.calls, limit + 1)
                             reconciliations = daemon.store._db.execute(
                                 "SELECT status FROM reconciliations WHERE turn_id=?", (turn_id,),
                             ).fetchall()
@@ -2331,10 +2333,7 @@ class DaemonAsyncTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(initial_tools, second_tools)
         self.assertIn("send_bubbles", second_tools)
         self.assertIn("end_turn", second_tools)
-        self.assertEqual(
-            llm_requests[0]["tool_choice"],
-            {"type": "any"},
-        )
+        self.assertNotIn("tool_choice", llm_requests[0])
         self.assertIn("send_bubbles", second_tools)
         final_tools = [tool["name"] for tool in llm_requests[7]["tools"]]
         self.assertIn("send_bubbles", final_tools)
@@ -2342,7 +2341,7 @@ class DaemonAsyncTest(unittest.IsolatedAsyncioTestCase):
         self.assertIn("memory_search", final_tools)
         self.assertEqual(final_tools, initial_tools)
         # The application requires a tool response independently of wire protocol.
-        self.assertEqual(llm_requests[7]["tool_choice"], {"type": "any"})
+        self.assertNotIn("tool_choice", llm_requests[7])
         self.assertEqual(
             llm_requests[0]["system"][0]["cache_control"], {"type": "ephemeral"}
         )

@@ -58,7 +58,7 @@ def test_heartbeat_requires_successful_activity_and_reset_clears_gate():
     end = ToolCall("end", "end_turn", {})
     harness.observe_calls([activity()])
     assert harness.validate([end]) == "heartbeat_activity_required_before_end_turn"
-    assert harness.validate([activity(), end]) == "end_turn_must_be_alone"
+    assert harness.validate([activity(), end]) is None
     harness.accept("heartbeat_activity")
     assert harness.validate([end]) is None
     harness.reset()

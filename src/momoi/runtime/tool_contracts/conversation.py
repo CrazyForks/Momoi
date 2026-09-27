@@ -218,7 +218,7 @@ HEARTBEAT_ACTIVITY_TOOL_SPEC: dict[str, Any] = {
     "description": (
         "Record this Heartbeat's actual activity or rest, its result and next check schedule. "
         "Visible in every conversation workflow, callable only during Heartbeat. "
-        "Must succeed before end_turn, in an earlier round. "
+        "Must succeed before end_turn; both may share a batch, in that order. "
         "Stages the latest report for atomic commit when the Heartbeat completes."
     ),
     "input_schema": {
@@ -271,9 +271,9 @@ END_TURN_TOOL_SPEC: dict[str, Any] = {
     "name": "end_turn",
     "description": (
         "Finish this Turn and commit its staged state. Does not send a message. "
-        "Call alone or last after successful send_bubbles/send_voice; other work tools must finish in earlier rounds, except goal_review may immediately precede end_turn in the same batch. For owner, webhook, heartbeat and reply_followup, "
+        "Call alone or last after send_bubbles, send_voice, heartbeat_activity, goal_review or save_image_summary; these preceding calls must succeed. Other work tools must finish in earlier rounds. For owner, webhook, heartbeat and reply_followup, "
         "supply mood and reply_wait objects; reply_followup requires wait=false. "
-        "Heartbeat requires an earlier successful heartbeat_activity. For Goal, call "
+        "Heartbeat requires a successful heartbeat_activity before ending. For Goal, call "
         "goal_review successfully first, then end_turn with empty arguments {}."
     ),
     "input_schema": {
@@ -332,12 +332,12 @@ def end_turn_tool_spec(stage: str) -> dict[str, Any]:
 
 def end_turn_correction(error: str, schema: dict[str, Any], arguments: dict[str, Any]) -> dict[str, Any]:
     hints = {
-        "end_turn_must_be_alone": "Call end_turn alone, or last after send_bubbles/send_voice. Finish all other tools in earlier rounds.",
-        "send_bubbles_required_before_end_turn": "Plain assistant text is not delivery. Send it with send_bubbles/send_voice before end_turn.",
+        "end_turn_must_be_alone": "Call end_turn alone or last after send_bubbles, send_voice, heartbeat_activity, goal_review or save_image_summary. Finish other work tools in earlier rounds.",
+        "send_bubbles_required_before_end_turn": "This recovery phase requires a user-visible notification before ending. Internal assistant text is not delivery.",
         "goal_review_required_before_end_turn": "Call goal_review successfully before end_turn({}); they may share a batch in that order.",
         "goal_end_turn_requires_empty_arguments": "Submit the Goal outcome through goal_review; end_turn accepts only {} in this stage.",
         "unexpected_end_turn_fields": "end_turn accepts only mood and reply_wait. Submit Goal outcomes through goal_review and Heartbeat activity and schedule through heartbeat_activity.",
-        "heartbeat_activity_required_before_end_turn": "Call heartbeat_activity successfully in an earlier round, then retry end_turn.",
+        "heartbeat_activity_required_before_end_turn": "Call heartbeat_activity successfully before end_turn; they may share a batch.",
         "invalid_mood_decision": 'mood must be {"decision":"unchanged"} or {"decision":"updated","state":"calm","intensity":0.3,"cause":"具体原因"}. A string is invalid.',
         "invalid_reply_wait_decision": f'reply_wait must be {{"wait":false}} or an object with wait=true, delay_minutes (integer {REPLY_WAIT_MIN_MINUTES}-{REPLY_WAIT_MAX_MINUTES}), expected_information and reason. A boolean is invalid; wait=false accepts no other fields.',
         "reply_expectation_without_visible_bubble": "Send the actual question/continuation with send_bubbles or send_voice before waiting. Use wait=false if the conversation is complete.",

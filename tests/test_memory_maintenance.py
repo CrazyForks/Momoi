@@ -652,7 +652,7 @@ class MemoryMaintenanceExecutionTest(unittest.IsolatedAsyncioTestCase):
                     **_kwargs: object,
                 ) -> ProviderResponse:
                     assert _tools == [MEMORY_MAINTENANCE_FINISH_SPEC]
-                    assert _kwargs["require_tool"] is True
+                    assert _kwargs["require_tool"] is False
                     call_contexts.append(current_log_context())
                     payload = {
                         "reviewed_ids": (
@@ -805,7 +805,7 @@ class MemoryMaintenanceExecutionTest(unittest.IsolatedAsyncioTestCase):
                     **_kwargs: object,
                 ) -> ProviderResponse:
                     assert _tools == [MEMORY_MAINTENANCE_FINISH_SPEC]
-                    assert _kwargs["require_tool"] is True
+                    assert _kwargs["require_tool"] is False
                     payload = {
                         "reviewed_ids": [],
                         "changes": [

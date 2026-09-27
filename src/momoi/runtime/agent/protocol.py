@@ -5,8 +5,11 @@ from typing import Any
 
 from ...models import AgentReply
 from ..parsing import parse_response
-from ..turn_support import ExternalToolTurnError, MAX_CONSECUTIVE_TOOL_FAILURES
+from ..turn_support import ExternalToolTurnError
 from .workflow import TurnExecutionSpec, WorkflowProtocolError
+
+MAX_CONSECUTIVE_THOUGHT_ROUNDS = 6
+MAX_CONSECUTIVE_EXECUTION_FAILURES = 8
 
 _PRIVATE_REASONING_BLOCK_TYPES = frozenset(
     {"reasoning", "thinking", "redacted_thinking"}
@@ -57,87 +60,23 @@ def handle_no_tool_response(
     last_tool_error: str,
     external_effect: bool = False,
     continuation: dict | None = None,
-    max_failures: int = MAX_CONSECUTIVE_TOOL_FAILURES,
+    max_failures: int = MAX_CONSECUTIVE_THOUGHT_ROUNDS,
 ) -> NoToolResolution:
-    if workflow_correction is not None or heartbeat_turn or goal_turn or require_response:
-        failed_rounds += 1
-        if failed_rounds >= max_failures:
-            error_type = (
-                ExternalToolTurnError
-                if external_effect and workflow_correction is None
-                else WorkflowProtocolError
-            )
-            raise error_type(
-                last_tool_error or (
-                    "repeated workflow protocol failures"
-                    if workflow_correction is not None
-                    else "native_tool_call_required"
-                )
-            )
-    if workflow_correction is not None:
-        messages.extend(
-            [
-                assistant_history_message(content, continuation),
-                {"role": "user", "content": workflow_correction},
-            ]
-        )
-        return NoToolResolution("retry", failed_rounds)
-    if heartbeat_turn and not harness_started:
-        messages.extend(
-            [
-                assistant_history_message(content, continuation),
-                {
-                    "role": "user",
-                    "content": (
-                        "[Trusted runtime protocol error: no native tool call was "
-                        "returned. Call heartbeat_begin alone before any other "
-                        "Heartbeat action.]"
-                    ),
-                },
-            ]
-        )
-        return NoToolResolution("retry", failed_rounds)
-    if goal_turn:
-        messages.extend(
-            [
-                assistant_history_message(content, continuation),
-                {
-                    "role": "user",
-                    "content": (
-                        "[Trusted runtime protocol error. Plain text was not stored. "
-                        "Use send_bubbles or send_voice to message the owner, continue with native tools, or call end_turn with the "
-                        "empty arguments after goal_review succeeds.]"
-                    ),
-                },
-            ]
-        )
-        return NoToolResolution("retry", failed_rounds)
-    if not require_response:
+    if not (workflow_correction is not None or heartbeat_turn or goal_turn or require_response):
         return NoToolResolution("return", failed_rounds)
-    if owner_turn and not harness_started:
-        correction = (
-            "[Trusted runtime protocol error: no native tool call was returned. Call "
-            "recall as a native tool in the opening batch; independent tools may "
-            "accompany it. Never write or imitate tool syntax in text.]"
-        )
-    elif owner_turn:
-        correction = (
-            "[Trusted runtime protocol error: no native tool call was returned. "
-            "Call send_bubbles or send_voice for owner-visible messages, "
-            "then end_turn when ready; both may occur in the same response.]"
-        )
-    else:
-        correction = (
-            "[Trusted runtime protocol error: no native tool call was returned. "
-            "Continue with native tool calls following the current workflow.]"
-        )
-    messages.extend(
-        [
-            assistant_history_message(content, continuation),
-            {"role": "user", "content": correction},
-        ]
+    failed_rounds += 1
+    messages.append(assistant_history_message(content, continuation))
+    if failed_rounds >= max_failures:
+        error_type = ExternalToolTurnError if external_effect and workflow_correction is None else WorkflowProtocolError
+        raise error_type("consecutive_thought_round_limit")
+    guidance = (
+        "[运行时提示] 以上内容作为内部思考保留，没有执行操作或发送消息。"
+        "可以继续思考；准备好后调用工具行动，或调用当前阶段的结束工具。"
     )
-    return NoToolResolution("retry", failed_rounds, log_rejection=True)
+    if failed_rounds >= max_failures - 1:
+        guidance += " 已接近连续无行动轮次上限，请在下一轮行动或结束。"
+    messages.append({"role": "user", "content": guidance})
+    return NoToolResolution("retry", failed_rounds)
 
 
 def owner_request_messages(

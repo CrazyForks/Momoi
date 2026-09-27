@@ -16,6 +16,7 @@ from . import (
 )
 from ..parsing import parse_tagged_bubbles, response_text
 from .protocol import (
+    MAX_CONSECUTIVE_THOUGHT_ROUNDS, MAX_CONSECUTIVE_EXECUTION_FAILURES,
     assistant_history_message,
     handle_no_tool_response,
 )
@@ -74,6 +75,8 @@ class AgentLoop:
         dynamic_tool_policies = execution.dynamic_tool_policies
         external_tool_used = False
         protocol_failures = 0
+        thought_rounds = 0
+        execution_failures = 0
         circuit_reason = ""
         circuit_rounds = 0
         last_tool_error = ""
@@ -149,6 +152,7 @@ class AgentLoop:
                     updates, messages, delivery_channel, harness
                 )
                 protocol_failures = 0
+                thought_rounds = execution_failures = 0
                 remind_owner_bubbles = False
             required_tool = harness.spec.first_tool if not harness.started else None
             if required_tool == "recall":
@@ -162,13 +166,7 @@ class AgentLoop:
             # Stage-specific rules are enforced by the harness after the response.
             request_tools = tools
             llm_round += 1
-            require_tool = bool(
-                autonomous_goal_id
-                or heartbeat_turn
-                or reply_wait_turn
-                or workflow
-                or require_response
-            )
+            require_tool = bool(required_tool)
 
             async def complete(
                 request_system: list[dict[str, Any]],
@@ -261,6 +259,7 @@ class AgentLoop:
                     updates, messages, delivery_channel, harness
                 )
                 protocol_failures = 0
+                thought_rounds = execution_failures = 0
                 remind_owner_bubbles = False
                 continue
             except Exception as error:
@@ -302,6 +301,7 @@ class AgentLoop:
                     updates, messages, delivery_channel, harness
                 )
                 protocol_failures = 0
+                thought_rounds = execution_failures = 0
                 remind_owner_bubbles = False
                 continue
             bubbles = parse_tagged_bubbles(response_text(response.content))
@@ -351,17 +351,17 @@ class AgentLoop:
                         goal_turn=autonomous_goal_id is not None,
                         require_response=require_response,
                         owner_turn=authority == "owner",
-                        failed_rounds=protocol_failures,
+                        failed_rounds=thought_rounds,
                         last_tool_error=last_tool_error,
                         external_effect=external_tool_used,
                         continuation=response.continuation,
-                        max_failures=self.config.turn_max_protocol_retries,
+                        max_failures=MAX_CONSECUTIVE_THOUGHT_ROUNDS,
                     )
                 except (WorkflowProtocolError, ExternalToolTurnError) as error:
                     log_event(logger, logging.WARNING, "protocol_circuit_open",
                               stage=stage, turn_id=turn_id, round=llm_round,
-                              failures=protocol_failures + 1,
-                              failure_limit=self.config.turn_max_protocol_retries,
+                              failures=thought_rounds + 1,
+                              failure_limit=MAX_CONSECUTIVE_THOUGHT_ROUNDS,
                               reason=str(error))
                     if open_circuit(str(error)):
                         protocol_failures = 0
@@ -369,7 +369,7 @@ class AgentLoop:
                     if circuit_reason and "send_bubbles" in harness.completed_tools:
                         return AgentReply([])
                     raise
-                protocol_failures = resolution.failed_rounds
+                thought_rounds = resolution.failed_rounds
                 if resolution.log_rejection:
                     log_event(
                         logger,
@@ -384,6 +384,7 @@ class AgentLoop:
                 if resolution.action == "return":
                     return None
                 continue
+            thought_rounds = 0
             harness_error = harness.validate(
                 response.tool_calls,
                 required_tool=required_tool,
@@ -507,6 +508,7 @@ class AgentLoop:
                     updates, messages, delivery_channel, harness
                 )
                 protocol_failures = 0
+                thought_rounds = execution_failures = 0
                 continue
             if batch.ended:
                 if stage in CURRENT_STATE_TRIGGER_STAGES and not circuit_reason:
@@ -519,15 +521,25 @@ class AgentLoop:
                 return workflow.completion_result() or {"ok": True}
             if any(not block["is_error"] for block in results):
                 protocol_failures = 0
+                execution_failures = 0
                 continue
-            protocol_failures += 1
-            if protocol_failures < self.config.turn_max_protocol_retries:
+            if batch.protocol_error:
+                protocol_failures += 1
+                execution_failures = 0
+                failures = protocol_failures
+                failure_limit = self.config.turn_max_protocol_retries
+            else:
+                protocol_failures = 0
+                execution_failures += 1
+                failures = execution_failures
+                failure_limit = MAX_CONSECUTIVE_EXECUTION_FAILURES
+            if failures < failure_limit:
                 continue
             log_event(logger, logging.WARNING, "protocol_circuit_open",
                       stage=stage, turn_id=turn_id, round=llm_round,
-                      failures=protocol_failures,
-                      failure_limit=self.config.turn_max_protocol_retries,
-                      reason=last_tool_error or "repeated tool validation failures")
+                      failures=failures, failure_limit=failure_limit,
+                      failure_kind="protocol" if batch.protocol_error else "execution",
+                      reason=last_tool_error or "repeated tool failures")
             error_type = (
                 ExternalToolTurnError
                 if external_tool_used and workflow is None

@@ -138,7 +138,7 @@ class HeartbeatNativeTranscriptTest(unittest.IsolatedAsyncioTestCase):
                         if self.calls == 3:
                             correction = str(messages[-1]["content"])
                             if with_terminal:
-                                case.assertIn("send_bubbles_required_before_end_turn", correction)
+                                case.assertIn("heartbeat_activity_required_before_end_turn", correction)
                             else:
                                 case.assertNotIn("send_bubbles", correction)
                         case.assertLessEqual(self.calls, 4)
