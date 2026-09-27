@@ -1,0 +1,100 @@
+"""Request monitoring independent of billable usage and prompt dumps."""
+import json
+import time
+
+
+def compare_shapes(current, previous):
+    labels = ["tools", "system", "user[0]", "user[1]"]
+    prefix = 0
+    boundary = "new_tail"
+    if current["settings_hash"] != previous["settings_hash"]:
+        return 0, "request_settings"
+    for index, (a, b) in enumerate(zip(current["parts"], previous["parts"])):
+        if a["hash"] != b["hash"]:
+            boundary = labels[index] if index < len(labels) else f"transcript[{index - 4}]"
+            break
+        prefix += a["tokens_est"]
+    return prefix, boundary
+
+
+class RequestMetricsStore:
+    def record_request_metric(self, record):
+        data = dict(record)
+        shape = data["shape"]
+        # Compare recent compatible requests across stages, not just the previous turn.
+        candidates = self._db.execute(
+            "SELECT id, data_json FROM llm_request_metrics WHERE route=? ORDER BY id DESC LIMIT 64",
+            (data["route"],),
+        ).fetchall()
+        best = None
+        for row in candidates:
+            previous = json.loads(row["data_json"])
+            prefix, boundary = compare_shapes(shape, previous["shape"])
+            if best is None or prefix > best[0]:
+                best = prefix, boundary, row["id"], previous.get("stage", "")
+        data.update(prefix_tokens_est=best[0] if best else None,
+                    changed_at=best[1] if best else "no_baseline",
+                    compared_request_id=best[2] if best else None,
+                    compared_stage=best[3] if best else None)
+        usage = data.get("usage") or {}
+        input_tokens = usage.get("input")
+        hit = usage.get("cache_read") if usage.get("cache_reported") else None
+        ratio = hit / input_tokens if hit is not None and input_tokens else None
+        reuse = best[0] / shape["input_tokens_est"] if best and shape["input_tokens_est"] else None
+        # A diagnostic signal, not a claim about the provider's cache internals.
+        data["reuse_ratio_est"] = reuse
+        data["cache_alert"] = bool(reuse is not None and reuse >= .8 and ratio is not None
+                                   and ratio < .5 and input_tokens >= 4096)
+        with self._db:
+            self._db.execute(
+                """INSERT INTO llm_request_metrics
+                   (created_at, route, stage, model, status, input_tokens, output_tokens,
+                    cache_read_tokens, uncached_tokens, duration_ms, first_response_ms,
+                    cache_alert, data_json) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                (data["created_at"], data["route"], data.get("stage", ""), data["model"],
+                 data["status"], input_tokens, usage.get("output"), hit,
+                 usage.get("uncached") if hit is not None else None, data["duration_ms"],
+                 data["first_response_ms"], int(data["cache_alert"]), json.dumps(data)),
+            )
+            self._db.execute("DELETE FROM llm_request_metrics WHERE created_at < ?", (time.time() - 30 * 86400,))
+
+    def dashboard_request_metrics(self, *, hours=24, stage="", model="", before=None, limit=50):
+        where = "created_at >= ?"
+        params = [time.time() - hours * 3600]
+        for key, value in (("stage", stage), ("model", model)):
+            if value:
+                where += f" AND {key}=?"
+                params.append(value)
+        totals_sql = """COUNT(*) requests, SUM(status='error') errors,
+            SUM(status='cancelled') cancelled, SUM(cache_alert) alerts,
+            SUM(input_tokens) input_tokens, SUM(output_tokens) output_tokens,
+            SUM(cache_read_tokens) cache_read_tokens, SUM(uncached_tokens) uncached_tokens,
+            SUM(CASE WHEN cache_read_tokens IS NOT NULL THEN input_tokens END) cache_input_tokens,
+            COUNT(cache_read_tokens) cache_reported_requests,
+            AVG(duration_ms) duration_ms, AVG(first_response_ms) first_response_ms"""
+        def enrich(row):
+            value = dict(row)
+            denominator = value.get("cache_input_tokens")
+            value["cache_hit_rate"] = value["cache_read_tokens"] / denominator if denominator else None
+            return value
+        totals = enrich(self._db.execute(f"SELECT {totals_sql} FROM llm_request_metrics WHERE {where}", params).fetchone())
+        stages = [enrich(r) for r in self._db.execute(
+            f"SELECT stage, {totals_sql} FROM llm_request_metrics WHERE {where} GROUP BY stage ORDER BY requests DESC", params)]
+        trend = [enrich(r) for r in self._db.execute(
+            f"SELECT CAST(created_at / 3600 AS INTEGER)*3600 bucket, {totals_sql} FROM llm_request_metrics WHERE {where} GROUP BY bucket ORDER BY bucket", params)]
+        choices = self._db.execute("SELECT DISTINCT stage, model FROM llm_request_metrics WHERE created_at>=?", (params[0],)).fetchall()
+        if before is not None:
+            where += " AND id < ?"
+            params.append(before)
+        rows = self._db.execute(f"SELECT * FROM llm_request_metrics WHERE {where} ORDER BY id DESC LIMIT ?", [*params, limit + 1]).fetchall()
+        items = []
+        for row in rows[:limit]:
+            item = dict(row)
+            detail = json.loads(item.pop("data_json"))
+            detail.pop("shape", None)
+            item.update(detail)
+            items.append(item)
+        return dict(totals=totals, stages=stages, trend=trend, items=items,
+                    next_cursor=items[-1]["id"] if len(rows) > limit else None,
+                    filters={"stages": sorted({r["stage"] for r in choices}), "models": sorted({r["model"] for r in choices})},
+                    retention_days=30, timing="non_streaming_response_headers")

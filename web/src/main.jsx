@@ -1,6 +1,7 @@
 import { Fragment, StrictMode, createContext, useContext, useEffect, useId, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import "./styles.css";
+import RequestMetrics from "./RequestMetrics.jsx";
 import Loading from "./Loading.jsx";
 import ConfigurationSettings, { ApplyDialog, SaveBar } from "./ConfigurationSettings.jsx";
 
@@ -16,6 +17,7 @@ const pages = {
   emotions: ["表情包", "MOMOI // STICKERS"],
   goals: ["任务列表", "MOMOI // QUESTS"],
   thinking: ["思考记录", "MOMOI // THINKING"],
+  metrics: ["请求监控", "MOMOI // METRICS"],
   settings: ["设置", "MOMOI // SETTINGS"],
 };
 
@@ -27,7 +29,8 @@ const navItems = [
   ["emotions", "05", "表情包"],
   ["goals", "06", "任务列表"],
   ["thinking", "07", "思考"],
-  ["settings", "08", "设置"],
+  ["metrics", "08", "监控"],
+  ["settings", "09", "设置"],
 ];
 
 const thinkingStageLabels = {
@@ -2686,6 +2689,7 @@ const viewComponents = {
   emotions: Emotions,
   goals: Goals,
   thinking: Thinking,
+  metrics: (props) => <RequestMetrics {...props} api={api} />,
   settings: Settings,
 };
 

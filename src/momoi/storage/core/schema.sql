@@ -745,3 +745,23 @@ CREATE TABLE IF NOT EXISTS visual_image_summaries (
     image_id TEXT PRIMARY KEY REFERENCES visual_images(id),
     summary TEXT NOT NULL
 );
+
+-- Per HTTP attempt, including errors/cancellation and responses without usage.
+CREATE TABLE IF NOT EXISTS llm_request_metrics (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    created_at REAL NOT NULL,
+    route TEXT NOT NULL,
+    stage TEXT NOT NULL,
+    model TEXT NOT NULL,
+    status TEXT NOT NULL,
+    input_tokens INTEGER,
+    output_tokens INTEGER,
+    cache_read_tokens INTEGER,
+    uncached_tokens INTEGER,
+    duration_ms REAL NOT NULL,
+    first_response_ms REAL,
+    cache_alert INTEGER NOT NULL DEFAULT 0,
+    data_json TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS llm_request_metrics_time ON llm_request_metrics(created_at);
+CREATE INDEX IF NOT EXISTS llm_request_metrics_route ON llm_request_metrics(route, id);

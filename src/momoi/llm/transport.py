@@ -1,4 +1,5 @@
 import asyncio
+from asyncio import CancelledError
 import json
 import logging
 from time import monotonic
@@ -41,6 +42,7 @@ async def retry_request(
     request_fields: dict[str, Any],
     operation: Callable[[float], Awaitable[ProviderResponse]],
     retryable: Callable[[Exception], bool] = should_retry,
+    monitor=None,
 ) -> ProviderResponse:
     last_error: Exception | None = None
     for attempt in range(max_retries + 1):
@@ -55,7 +57,17 @@ async def retry_request(
             attempt_max=max_retries + 1,
         )
         try:
-            return await operation(attempt_started)
+            if monitor is None:
+                return await operation(attempt_started)
+            record, token = monitor.begin(attempt + 1)
+            try:
+                return await operation(attempt_started)
+            except BaseException as error:
+                record["status"] = "cancelled" if isinstance(error, CancelledError) else "error"
+                record["error_type"] = type(error).__name__
+                raise
+            finally:
+                monitor.finish(record, token)
         except (
             ProviderError,
             aiohttp.ClientError,

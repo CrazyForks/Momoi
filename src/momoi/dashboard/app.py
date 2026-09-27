@@ -339,6 +339,14 @@ def create_dashboard_app(
         days = _bounded_int(request, "days", 30, 1, 366)
         return web.json_response(store.dashboard_usage(days=days))
 
+    async def request_metrics(request: web.Request) -> web.Response:
+        return web.json_response(store.dashboard_request_metrics(
+            hours=_bounded_int(request, "hours", 24, 1, 168),
+            limit=_bounded_int(request, "limit", 50, 1, 100),
+            before=_bounded_int(request, "before", 0, 0, 2**63-1) or None,
+            stage=request.query.get("stage", ""), model=request.query.get("model", ""),
+        ))
+
     async def thinking(request: web.Request) -> web.Response:
         try:
             return web.json_response(
@@ -685,6 +693,7 @@ def create_dashboard_app(
     app.router.add_get("/api/overview", overview)
     app.router.add_get("/api/current-state", current_state)
     app.router.add_get("/api/usage", usage)
+    app.router.add_get("/api/metrics/requests", request_metrics)
     app.router.add_get("/api/thinking", thinking)
     app.router.add_get("/api/thinking/calls/{call_id}", thinking_call)
     app.router.add_get("/api/thinking/{turn_id}", thinking_turn)

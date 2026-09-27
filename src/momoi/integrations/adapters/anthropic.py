@@ -1,3 +1,4 @@
+from ...llm.request_metrics import RequestMetric, response_headers
 import logging
 from pathlib import Path
 from time import time
@@ -56,6 +57,7 @@ class AnthropicProvider:
     def __init__(self, config: LLMConfig, dump_dir: Path | None = None) -> None:
         self.config = config
         self.dump_dir = dump_dir
+        self.request_metrics_sink = None
         self.usage_sink: Callable[..., None] | None = None
         self.usage_parser: (
             Callable[[dict[str, Any]], dict[str, float | int | bool] | None] | None
@@ -127,6 +129,7 @@ class AnthropicProvider:
                 json=payload,
                 headers=headers,
             ) as response:
+                response_headers(response.status)
                 if response.status != 200:
                     raise await http_error(response, "Anthropic-compatible")
                 try:
@@ -225,4 +228,6 @@ class AnthropicProvider:
                 "thinking_effort": effort or None,
             },
             operation=request,
+            monitor=RequestMetric(self.request_metrics_sink, payload=payload,
+                                  protocol="anthropic", endpoint=config.base_url),
         )

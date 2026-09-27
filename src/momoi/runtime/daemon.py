@@ -133,6 +133,8 @@ class MomoiDaemon(
             self.channel = self.channels[primary_name]
         self.provider = self.services.llm
         self.provider.usage_sink = self.store.record_llm_call
+        if hasattr(self.provider, "request_metrics_sink"):
+            self.provider.request_metrics_sink = self.store.record_request_metric
         self.provider.thinking_sink = self.store.record_thinking_call
         if accounting is not None:
             self.provider.usage_parser = accounting.parse_usage

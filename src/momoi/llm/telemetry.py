@@ -179,6 +179,9 @@ def record_response(
     metrics = log_usage(
         data, protocol=protocol, duration_ms=duration_ms, parse_usage=parse_usage
     )
+    from .request_metrics import response_usage
+
+    response_usage(metrics)
     persist_usage(usage_sink, metrics, model=model, created_at=created_at)
     return duration_ms, metrics
 

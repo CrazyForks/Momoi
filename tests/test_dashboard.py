@@ -690,6 +690,16 @@ class DashboardTest(unittest.IsolatedAsyncioTestCase):
             ["newer-closed", "older-open", "episode-one"],
         )
 
+    async def test_request_metrics_requires_auth_and_validates_range(self):
+        response = await self.client.get("/api/metrics/requests")
+        self.assertEqual(response.status, 401)
+        headers = {"Authorization": f"Bearer {self.access_token}"}
+        response = await self.client.get("/api/metrics/requests", headers=headers)
+        self.assertEqual(response.status, 200)
+        self.assertEqual((await response.json())["totals"]["requests"], 0)
+        response = await self.client.get("/api/metrics/requests?hours=invalid", headers=headers)
+        self.assertEqual(response.status, 400)
+
     async def test_api_requires_bearer_token_except_emotion_asset(self) -> None:
         memories = await (
             await self.client.get("/api/memories", headers=self._auth())

@@ -40,6 +40,7 @@ from .semantic.semantic_spaces import SemanticSpaceStore
 from .semantic.semantic_sources import SemanticSourceStore
 from .ops.thinking import ThinkingStore
 from .ops.observability import ObservabilityStore
+from .ops.request_metrics import RequestMetricsStore
 from .reflection.reflection_records import ReflectionRecordStore
 from .reflection.reflection_schedule import ReflectionScheduleStore
 from .reflection.reflection_source import ReflectionSourceStore
@@ -72,6 +73,7 @@ class Store(
     EmotionStore,
     TurnStore,
     ObservabilityStore,
+    RequestMetricsStore,
     ContextPlanStore,
     InboxStore,
     ReflectionScheduleStore,

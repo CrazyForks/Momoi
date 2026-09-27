@@ -1,0 +1,28 @@
+.request-metrics { display:grid; gap:20px; min-width:0; }
+.metrics-toolbar { display:flex; flex-wrap:wrap; align-items:end; gap:16px; }
+.metrics-toolbar label { display:grid; gap:6px; font-size:12px; }
+.metrics-toolbar select { padding:10px 14px; border:1px solid #ddd7de; border-radius:8px; background:white; max-width:240px; }
+.metrics-toolbar .metrics-auto { display:flex; align-items:center; padding-bottom:10px; }
+.metrics-stats { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:12px; }
+.metrics-stats article { padding:20px; border:1px solid #eadfe7; border-radius:14px; background:#fff; display:grid; gap:10px; }
+.metrics-stats span,.metrics-note { color:#746774; font-size:12px; line-height:1.8; }
+.metrics-stats strong { font-size:23px; font-variant-numeric:tabular-nums; overflow-wrap:anywhere; }
+.metrics-panel { background:#fff; border:1px solid #eadfe7; border-radius:14px; padding:20px; min-width:0; }
+.metrics-panel h2 { font-size:16px; margin:0 0 16px; }
+.metrics-panel h2 small { font-size:11px; font-weight:normal; color:#746774; }
+.metrics-scroll { overflow-x:auto; }
+.metrics-scroll table { border-collapse:collapse; width:100%; font-size:12px; white-space:nowrap; }
+.metrics-scroll th { text-align:left; color:#746774; font-weight:500; padding:12px 14px; border-bottom:1px solid #eadfe7; }
+.metrics-scroll td { padding:14px; border-bottom:1px solid #f0eaf0; line-height:1.7; vertical-align:top; font-variant-numeric:tabular-nums; }
+.metrics-scroll small { color:#807680; }
+.metrics-warning { background:#fff5ed; }
+.metrics-alert { display:block; color:#a75e25; font-size:11px; }
+.metrics-detail { max-width:320px; white-space:normal; overflow-wrap:anywhere; margin-top:10px; color:#807680; }
+.metrics-scroll summary { cursor:pointer; }
+.metrics-pagination { display:flex; justify-content:space-between; margin-top:16px; }
+.metrics-trend { display:flex; gap:8px; height:130px; overflow-x:auto; align-items:end; }
+.metrics-hour { flex:1; min-width:28px; text-align:center; }
+.metrics-bar-track { height:100px; background:#f8f1f5; display:flex; align-items:end; border-radius:4px; overflow:hidden; }
+.metrics-bar-track > div { background:#da8daf; width:100%; min-height:1px; }
+.metrics-hour small { font-size:10px; color:#807680; }
+@media(max-width:700px) { .metrics-stats{grid-template-columns:repeat(2,minmax(0,1fr));} .metrics-stats article{padding:14px;} .metrics-stats strong{font-size:18px;} .metrics-panel{padding:12px;} }

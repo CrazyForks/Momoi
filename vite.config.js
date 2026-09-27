@@ -1,4 +1,5 @@
 import { defineConfig } from "vite";
+import { previewRequestMetrics } from "./web/preview/metrics.js";
 import react from "@vitejs/plugin-react";
 import { createSettingsPreview } from "./web/preview/settings.js";
 
@@ -796,6 +797,10 @@ function previewUsageApi() {
         }
         const path = (req.url || "").split("?")[0];
         if (settingsPreview(req, res, path)) return;
+        if (req.method === "GET" && path === "/api/metrics/requests") {
+          json(res, previewRequestMetrics());
+          return;
+        }
         if (req.method === "POST" && path === "/api/auth/token") {
           json(res, {
             token: "preview-token",
