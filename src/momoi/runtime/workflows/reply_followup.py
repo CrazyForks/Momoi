@@ -65,7 +65,10 @@ class ReplyFollowupWorkflow:
                 ],
             },
         ]
-        draft = TurnDraft()
+        draft = TurnDraft(
+            memory_context=shared["memories"],
+            memory_conversation=transcript_messages,
+        )
         reply = await self._run_tool_loop(
             system,
             messages,

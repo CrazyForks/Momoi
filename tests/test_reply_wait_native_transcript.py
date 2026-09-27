@@ -54,6 +54,11 @@ class ReplyWaitNativeTranscriptTest(unittest.IsolatedAsyncioTestCase):
             )
             daemon.store._db.commit()
 
+            # Freeze the shared prefix before a dashboard edit during reply wait.
+            from tests.test_transcript_memory import add
+            memory_id = add(daemon.store, "等待期间的旧偏好")
+            baseline = daemon.shared_turn_context("reply-followup")["messages"][0]["content"]
+            daemon.store.update_memory_content(memory_id, "等待期间的新偏好")
             terminal = AgentReply([], reply_wait={"wait": False})
             with (
                 patch.object(
@@ -72,6 +77,12 @@ class ReplyWaitNativeTranscriptTest(unittest.IsolatedAsyncioTestCase):
             messages = run.await_args.args[1]
             tools = run.await_args.args[2]
             rendered = json.dumps(messages, ensure_ascii=False)
+            self.assertEqual(messages[0]["content"], baseline)
+            self.assertIn("等待期间的新偏好", rendered)
+            self.assertIn("<replace", rendered)
+            self.assertTrue(messages[2]["_memory_change"])
+            draft = run.await_args.args[4]
+            self.assertEqual(draft.memory_context[memory_id]["content"], "等待期间的新偏好")
             self.assertNotIn("Required reply follow-up", system)
             self.assertIn("<workflow_contract>", rendered)
             self.assertNotIn("<reply_timeline>", rendered)
@@ -85,7 +96,7 @@ class ReplyWaitNativeTranscriptTest(unittest.IsolatedAsyncioTestCase):
             self.assertIn("<recent_episodes>", str(messages[1]["content"]))
             self.assertEqual(
                 [message["role"] for message in messages],
-                ["user", "user", "user"],
+                ["user", "user", "user", "user"],
             )
             self.assertNotIn("[runtime time gap]", str(messages[-1]["content"]))
             self.assertNotIn("晚上选个游戏吧", rendered)
