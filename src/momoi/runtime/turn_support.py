@@ -114,7 +114,7 @@ USER_CONTEXT_SECTION_ORDER = (
     "episode_timeline",
     "current_webhook_task",
     "autonomous_heartbeat",
-    "current_owner_bubbles",
+    "current_messages",
 )
 
 def pack_user_context(*items: tuple[str, str]) -> str:
@@ -202,14 +202,14 @@ def owner_content_blocks(
         blocks.append({"type": "text", "text": f"{runtime_text}\n\n"})
     for index, event in enumerate(events):
         received_at = context_timestamp(event.received_at, timezone)
-        opening = "<current_owner_bubbles>\n" if index == 0 else ""
+        opening = "<current_messages>\n" if index == 0 else ""
         blocks.append({
             "type": "text",
-            "text": f'{opening}<bubble time={quoteattr(received_at)}>\n{escape(event.text.strip())}',
+            "text": f'{opening}<message role="user" time={quoteattr(received_at)}>\n{escape(event.text.strip())}',
         })
         blocks.extend(content_blocks(event.segments))
-        blocks.append({"type": "text", "text": "\n</bubble>\n"})
-    closing = "</current_owner_bubbles>" if events else ""
+        blocks.append({"type": "text", "text": "\n</message>\n"})
+    closing = "</current_messages>" if events else ""
     blocks.append({"type": "text", "text": closing})
     return blocks
 

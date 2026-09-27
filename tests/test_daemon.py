@@ -1505,11 +1505,11 @@ class DaemonAsyncTest(unittest.IsolatedAsyncioTestCase):
                             or "偶尔看看最近有什么有趣的新游戏。" not in request
                             or "<autonomous_heartbeat>" not in request
                             or "<self_state>" not in request
-                            or "<recent_topic_reference>" not in request
+                            or "<recent_topic_reference>" in request
                             or "<recent_heartbeat_activities>" in request
                             or "<recent_turn_base>" in request
                             or "<recent_turn_append>" in request
-                            or "最近的聊天话题" not in request
+                            or "最近的聊天话题" in request
                             or "天气 Goal 已触发并成功送达" in request
                             or "<pending_owner_reply>" in request
                             or "reply_wait" in system_request
@@ -2374,8 +2374,8 @@ class DaemonAsyncTest(unittest.IsolatedAsyncioTestCase):
         self.assertNotIn("Trusted runtime context", current_text)
         # The tail carries what moves with the Turn, ending in owner speech.
         # Slow-changing memory sits ahead of the transcript instead.
-        self.assertIn("<current_owner_bubbles>", current_text)
-        self.assertIn("</current_owner_bubbles>", current_text)
+        self.assertIn("<current_messages>", current_text)
+        self.assertIn("</current_messages>", current_text)
         self.assertIn("<workflow_contract>", current_text)
         self.assertNotIn("Owner Turn: recall first", current_text)
         self.assertIn("当前阶段：owner", current_text)
@@ -2383,7 +2383,7 @@ class DaemonAsyncTest(unittest.IsolatedAsyncioTestCase):
         self.assertIn("<self_state>", current_text)
         self.assertLess(
             current_text.index("<self_state>"),
-            current_text.index("<current_owner_bubbles>"),
+            current_text.index("<current_messages>"),
         )
         self.assertNotIn("<long_term_memories>", current_text)
         self.assertNotIn("<context_resolution>", current_text)

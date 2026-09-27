@@ -142,17 +142,8 @@ def heartbeat_self_state_lines(value: str = "{}", *, current_time: str = "") -> 
             "state", "intensity", "age_minutes", "updated_at",
         )})
         lines.append(f"<mood{attributes}><cause>{escape(str(mood.get('cause') or ''))}</cause></mood>")
-    activity = state.get("activity")
     if state.get("last_heartbeat_at"):
-        attributes = _attributes({"at": state["last_heartbeat_at"]})
-        if isinstance(activity, dict) and activity.get("text"):
-            fields = [
-                f"<{key}>{escape(str(activity.get(key) or ''))}</{key}>"
-                for key in ("text", "result")
-            ]
-            lines.append(f"<heartbeat{attributes}>" + "".join(fields) + "</heartbeat>")
-        else:
-            lines.append(f"<heartbeat{attributes} />")
+        lines.append(f'<heartbeat at={quoteattr(str(state["last_heartbeat_at"]))} />')
     return "\n".join(lines)
 
 

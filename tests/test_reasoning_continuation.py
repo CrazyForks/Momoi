@@ -117,6 +117,8 @@ class ReasoningContinuationTest(unittest.IsolatedAsyncioTestCase):
                 failed_rounds=0, last_tool_error="",
             )
             request = owner_request_messages(messages, remind_bubbles=True)
+            self.assertEqual(request, messages)
+            self.assertIsNot(request, messages)
             self.assertEqual(openai_messages("", request)[0]["reasoning_content"], "private thought")
             self.assertEqual(messages[0]["content"], [{"type": "text", "text": "answer"}])
 

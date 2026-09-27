@@ -203,9 +203,10 @@ class AgentLoop:
                 and tool["name"] not in harness.blocked_tool_names
             )
             round_directives = (
-                f"当前阶段：{stage}。本轮允许调用的已加载工具："
-                + ", ".join(callable_names)
-                + "。其余可见工具仅供接口参考，本轮不可调用。开场、结束及依赖顺序仍按本轮契约和工具说明执行。"
+                f"当前阶段：{stage}。本轮不可调用的可见工具："
+                + (", ".join(sorted(str(tool["name"]) for tool in request_tools
+                                     if tool["name"] not in callable_names)) or "无")
+                + "。其他已加载工具仍须遵守契约及依赖顺序；未加载能力须先通过 tool_enable 开启，开启不解除阶段限制。"
             ) if llm_round == 1 and stage in {"owner", "heartbeat", "goal", "webhook", "reply_followup", "plan_step"} else ""
             if round_directives and round_directives != last_round_directives:
                 directive = "<runtime_directives>\n" + round_directives + "\n</runtime_directives>"

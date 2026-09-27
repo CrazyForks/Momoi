@@ -1,5 +1,4 @@
 import asyncio
-import json
 import logging
 import math
 import time
@@ -10,12 +9,10 @@ from ...observability.events import log_event
 from ...observability.values import safe_preview
 from ...models import AgentReply, TurnDraft
 from ...storage.delivery.reply_wait import REPLY_FOLLOWUP_RETRY_SECONDS
-from ...storage import estimate_tokens, truncate_tokens
 from ..agent import TurnExecutionSpec
 from ..context.current_state import pack_current_turn_context
 from ..context.presentation import (
     heartbeat_self_state_lines,
-    heartbeat_topic_lines,
 )
 from ..transcript.rendering import owner_idle_gap_message
 from ..turn_support import (
@@ -155,43 +152,14 @@ class HeartbeatWorkflow:
         contact_window = self.store.heartbeat_contact_window(
             self.config.notifications
         )
-        recent_topics: list[dict[str, object]] = []
-        topic_tokens = 0
-        for episode in self.store.list_recent_episode_directory(8):
-            topic = {
-                "title": episode["title"],
-                "created_timestamp": episode.get("created_timestamp"),
-                "updated_timestamp": episode.get("updated_timestamp"),
-                "summary": truncate_tokens(
-                    str(
-                        episode["narrative_summary"] or episode["working_summary"] or ""
-                    ),
-                    160,
-                ),
-                "topics": episode["topics"],
-                "entities": episode["entities"],
-                "open_loops": episode["open_loops"],
-            }
-            size = estimate_tokens(json.dumps(topic, ensure_ascii=False))
-            if recent_topics and topic_tokens + size > 1200:
-                break
-            recent_topics.append(topic)
-            topic_tokens += size
         shared = self.shared_turn_context(turn_id)
         conversation_rows = shared["rows"]
-        transcript = shared["transcript"]
         transcript_messages = shared["history"]
         idle_gap = owner_idle_gap_message(
             conversation_rows,
             now=time.time(),
             timezone=self.store.timezone,
         )
-        recent_heartbeats = ", ".join(dict.fromkeys(
-            f"H{message_id}"
-            for group in (*transcript.orphaned, *transcript.groups)
-            if group.role == "heartbeat"
-            for message_id in group.message_ids
-        ))
         artifact_root = self.tool_executor.artifact_root.resolve()
         heartbeat_event = (
             f"Autonomous artifact directory: {artifact_root}\n"
@@ -210,11 +178,6 @@ class HeartbeatWorkflow:
                     current_time=datetime.now(self.store.timezone).isoformat(timespec="seconds"),
                 ),
             ),
-            (
-                "recent_topic_reference",
-                heartbeat_topic_lines(recent_topics),
-            ),
-            ("recent_heartbeats", recent_heartbeats),
         )
         system = self._system()
         injected_memories = shared["memories"]

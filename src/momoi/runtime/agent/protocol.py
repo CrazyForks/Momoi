@@ -8,11 +8,6 @@ from ..parsing import parse_response
 from ..turn_support import ExternalToolTurnError, MAX_CONSECUTIVE_TOOL_FAILURES
 from .workflow import TurnExecutionSpec, WorkflowProtocolError
 
-OWNER_BUBBLE_REQUEST_REMINDER = (
-    "Use send_bubbles or send_voice for owner-visible messages. "
-    "Call end_turn when finished; it may follow delivery in the same response."
-)
-
 _PRIVATE_REASONING_BLOCK_TYPES = frozenset(
     {"reasoning", "thinking", "redacted_thinking"}
 )
@@ -150,44 +145,7 @@ def owner_request_messages(
 ) -> list[dict[str, Any]]:
     """Build an Owner-only wire copy without changing canonical Turn history."""
 
-    request_messages = copy.deepcopy(messages)
-    if not remind_bubbles:
-        return request_messages
-    user_message = next(
-        (
-            message
-            for message in reversed(request_messages)
-            if message.get("role") == "user"
-        ),
-        None,
-    )
-    if user_message is None:
-        return request_messages
-    content = user_message.get("content")
-    if isinstance(content, str):
-        user_message["content"] = (
-            f"{content}\n\n{OWNER_BUBBLE_REQUEST_REMINDER}".lstrip()
-        )
-        return request_messages
-    if not isinstance(content, list):
-        user_message["content"] = OWNER_BUBBLE_REQUEST_REMINDER
-        return request_messages
-    text_block = next(
-        (
-            block
-            for block in reversed(content)
-            if isinstance(block, dict) and block.get("type") == "text"
-        ),
-        None,
-    )
-    if text_block is None:
-        content.append({"type": "text", "text": OWNER_BUBBLE_REQUEST_REMINDER})
-    else:
-        text = str(text_block.get("text") or "")
-        text_block["text"] = (
-            f"{text}\n\n{OWNER_BUBBLE_REQUEST_REMINDER}".lstrip()
-        )
-    return request_messages
+    return copy.deepcopy(messages)
 
 
 def parse_end_turn(

@@ -82,8 +82,8 @@ def test_self_state_preserves_metadata_and_text_boundaries():
     assert root.find("mood").attrib == {"state": "playful", "intensity": "0", "age_minutes": "0", "updated_at": "updated"}
     assert root.find("mood/cause").text == cause
     assert root.find("heartbeat").attrib == {"at": "heartbeat"}
-    assert root.find("heartbeat/text").text == activity
-    assert root.find("heartbeat/result").text == "结果 & 原文"
+    assert root.find("heartbeat/text") is None
+    assert root.find("heartbeat/result") is None
     assert [item.tag for item in root] == ["time", "mood", "heartbeat"]
 
 

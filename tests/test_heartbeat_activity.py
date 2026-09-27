@@ -206,7 +206,8 @@ def test_upgrade_recovers_exact_heartbeat_not_owner_overwrite(tmp_path):
                 + heartbeat_self_state_lines(store.self_state_context())
                 + "</state>"
             )
-            assert (root.find("heartbeat/text") is not None) == bool(expected[0])
+            assert root.find("heartbeat/text") is None
+            assert root.find("heartbeat") is not None
             assert root.find("activity") is None
         finally:
             store.close()
