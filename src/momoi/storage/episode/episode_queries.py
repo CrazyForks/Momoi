@@ -3,6 +3,7 @@ from __future__ import annotations
 from .episode_cues import stored_cue_texts
 
 import json
+import re
 import sqlite3
 from typing import TYPE_CHECKING
 
@@ -18,6 +19,28 @@ from ..memory.memory_values import estimate_tokens, token_chunk, truncate_tokens
 
 if TYPE_CHECKING:
     from ...semantic.models import DenseRecallEvidence
+
+
+def keyword_sentence_excerpt(content: str, keyword: str, max_chars: int = 100):
+    """Keep the hit sentence and at most one whole sentence on either side."""
+    max_chars = max(1, min(100, max_chars))
+    match = re.search(re.escape(keyword), content, re.IGNORECASE)
+    anchor, hit_end = (match.start(), match.end()) if match else (0, 0)
+    boundaries = [0, *(m.end() for m in re.finditer(r"[。！？!?；;\n]|\.(?=\s|$)", content))]
+    if boundaries[-1] != len(content):
+        boundaries.append(len(content))
+    index = next((i for i in range(len(boundaries) - 1)
+                  if boundaries[i] <= anchor < boundaries[i + 1]), 0)
+    start, end = boundaries[index:index + 2] if len(boundaries) > 1 else (0, 0)
+    if end - start > max_chars:
+        start = max(start, anchor - max(0, (max_chars - (hit_end - anchor)) // 2))
+        end = min(len(content), start + max_chars)
+    else:
+        if index > 0 and end - boundaries[index - 1] <= max_chars:
+            start = boundaries[index - 1]
+        if index + 2 < len(boundaries) and boundaries[index + 2] - start <= max_chars:
+            end = boundaries[index + 2]
+    return start, end
 
 
 class EpisodeQueryStore:
@@ -298,7 +321,7 @@ class EpisodeQueryStore:
         return {"start": self.context_timestamp(row[0]),
                 "end": self.context_timestamp(row[1])}
 
-    def episode_keyword_evidence(self, episode_id, keywords, *, limit=3, max_chars=600):
+    def episode_keyword_evidence(self, episode_id, keywords, *, limit=3, max_chars=100):
         """Hydrate selected topics only; never search model paraphrases as evidence."""
         terms = list(dict.fromkeys(str(term).strip() for term in keywords if str(term).strip()))
         rows = self._db.execute(
@@ -324,9 +347,7 @@ class EpisodeQueryStore:
         matches = []
         for row, matched in hits[:limit]:
             content = row["content"]
-            anchor = min(content.casefold().find(term.casefold()) for term in matched)
-            start = max(0, anchor - 100) if len(content) > max_chars else 0
-            end = min(len(content), start + max_chars)
+            start, end = keyword_sentence_excerpt(content, matched[0], max_chars)
             row.update(content=content[start:end], original_chars=len(content),
                        excerpt_start=start, excerpt_end=end,
                        timestamp=self.context_timestamp(row["created_at"]))

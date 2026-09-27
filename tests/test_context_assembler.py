@@ -227,7 +227,7 @@ class ContextAssemblerTest(unittest.TestCase):
             evidence = store.episode_keyword_evidence("hotel", ["早餐"])
             self.assertEqual(evidence["matched_message_count"], 5)
             self.assertEqual(len(evidence["matches"]), 3)
-            self.assertTrue(all(len(row["content"]) <= 600 for row in evidence["matches"]))
+            self.assertTrue(all(len(row["content"]) <= 100 for row in evidence["matches"]))
             root = ElementTree.fromstring("\n".join(_episode_match_lines(evidence, 2000, set())))
             self.assertEqual(root.get("total_matches"), "5")
             self.assertEqual(root.get("omitted"), "2")
@@ -1600,3 +1600,15 @@ class ContextAssemblerTest(unittest.TestCase):
             )
             self.assertTrue(retrieval["recall_memories"])
             store.close()
+
+
+def test_keyword_excerpt_keeps_sentence_boundaries_and_caps_long_sentence():
+    from momoi.storage.episode.episode_queries import keyword_sentence_excerpt
+
+    text = "无关。" * 50 + "前一句。早餐九点，9楼。后一句。" + "其他。" * 50
+    start, end = keyword_sentence_excerpt(text, "早餐")
+    assert text[start:end] == "前一句。早餐九点，9楼。后一句。"
+    long_text = "甲" * 200 + "早餐九点，9楼" + "乙" * 200
+    start, end = keyword_sentence_excerpt(long_text, "早餐")
+    assert end - start <= 100
+    assert "早餐九点，9楼" in long_text[start:end]

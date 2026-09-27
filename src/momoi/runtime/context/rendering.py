@@ -136,7 +136,7 @@ def _episode_match_lines(
         content = str(match["content"])
         original_chars = int(match.get("original_chars", len(content)))
         start = int(match.get("excerpt_start", 0))
-        content = truncate_tokens(content[:600], per_match)
+        content = truncate_tokens(content[:100], per_match)
         clipped = start > 0 or start + len(content) < original_chars
         attributes.update(original_chars=original_chars, truncated=str(clipped).lower())
         end_clipped = start + len(content) < original_chars
