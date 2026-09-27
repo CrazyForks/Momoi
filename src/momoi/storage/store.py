@@ -22,7 +22,7 @@ from .episode.episode_annealing import EpisodeAnnealingStore
 from .episode.episode_consolidation import EpisodeConsolidationStore
 from .memory.memory_operations import MemoryOperationStore
 from .memory.memory_mutations import MemoryMutationStore
-from .memory.memory_inventory import MemoryInventoryStore
+from .memory.memory_inventory import MemoryInventoryRepository
 from .memory.memory_recall import MemoryRecallStore
 from .memory.memory_maintenance_commits import MemoryMaintenanceCommitStore
 from .memory.memory_maintenance_evidence import MemoryMaintenanceEvidenceStore
@@ -40,7 +40,7 @@ from .semantic.semantic_spaces import SemanticSpaceStore
 from .semantic.semantic_sources import SemanticSourceStore
 from .ops.thinking import ThinkingStore
 from .ops.observability import ObservabilityStore
-from .ops.request_metrics import RequestMetricsStore
+from .ops.request_metrics import RequestMetricsRepository
 from .reflection.reflection_records import ReflectionRecordStore
 from .reflection.reflection_schedule import ReflectionScheduleStore
 from .reflection.reflection_source import ReflectionSourceStore
@@ -62,18 +62,19 @@ from .conversation.turn_commits import TurnCommitStore
 from .ops.webhooks import WebhookStore
 from .core.lifecycle import LifecycleStore
 
-from .agenda.plans import PlanStore
+from .agenda.plans import PlanRepository
+from .repositories import RepositoryFacade
+from .core.transactions import transaction
 
 class Store(
+    RepositoryFacade,
     ImageStore,
-    PlanStore,
     CurrentStateTaskStore,
     LifecycleStore,
     GoalStore,
     EmotionStore,
     TurnStore,
     ObservabilityStore,
-    RequestMetricsStore,
     ContextPlanStore,
     InboxStore,
     ReflectionScheduleStore,
@@ -101,7 +102,6 @@ class Store(
     MemoryMaintenanceQueueStore,
     MemoryMaintenanceEvidenceStore,
     MemoryMaintenanceCommitStore,
-    MemoryInventoryStore,
     MemoryRecallStore,
     MemoryMutationStore,
     MemoryOperationStore,
@@ -138,11 +138,25 @@ class Store(
             self._search_backend,
         )
         self._usage_accounting: UsageAccounting | None = None
+        self.plans = PlanRepository(
+            self._db, archive_progress=self._archive_progress_messages,
+            has_external_effect=self.turn_has_external_effect,
+        )
+        self.memory_inventory = MemoryInventoryRepository(self._db)
+        self.request_metrics = RequestMetricsRepository(self._db)
         self._initialize_database()
         self.current_state = CurrentStateManager(self._db)
         self._recover_emotion_outbox()
         self._recover_outbox()
         self._recover_webhooks()
+
+    def transaction(self):
+        """Own a transaction across repository calls (no await inside this block).
+
+        Legacy Store methods that commit directly are not yet composable here.
+        Use the extracted repositories or audited turn commit entry points.
+        """
+        return transaction(self._db)
 
     def set_usage_accounting(self, plugin: UsageAccounting | None) -> None:
         self._usage_accounting = plugin

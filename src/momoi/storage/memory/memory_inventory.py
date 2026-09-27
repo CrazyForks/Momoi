@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import sqlite3
 import time
+from ..core.transactions import transaction
 from typing import cast
 
 from ..contracts import ActiveMemory, InventoryMemory
@@ -9,7 +10,10 @@ from ..contracts import ActiveMemory, InventoryMemory
 from .memory_values import MEMORY_ACTIVATIONS, format_memory
 
 
-class MemoryInventoryStore:
+class MemoryInventoryRepository:
+    def __init__(self, database):
+        self._db = database
+
     def maintenance_memory_inventory(self) -> list[InventoryMemory]:
         self.purge_expired_memories()
         now = time.time()
@@ -45,14 +49,14 @@ class MemoryInventoryStore:
             return 0
         ids = [int(row["id"]) for row in rows]
         placeholders = ",".join("?" for _ in ids)
-        self._db.execute(
-            f"DELETE FROM memory_evidence WHERE memory_id IN ({placeholders})",
-            ids,
-        )
-        self._db.execute(
-            f"DELETE FROM memories WHERE id IN ({placeholders})", ids
-        )
-        self._db.commit()
+        with transaction(self._db):
+            self._db.execute(
+                f"DELETE FROM memory_evidence WHERE memory_id IN ({placeholders})",
+                ids,
+            )
+            self._db.execute(
+                f"DELETE FROM memories WHERE id IN ({placeholders})", ids
+            )
         return len(ids)
 
     def _memory_rows(

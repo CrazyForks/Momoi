@@ -5,6 +5,7 @@ import time
 import uuid
 
 from ...models import AgentReply, IncomingMessage, TurnDraft
+from ..core.transactions import transaction
 from ..core.scheduling import next_schedule_at
 
 
@@ -37,7 +38,7 @@ class TurnCommitStore:
         event_ids = [event.event_id for event in events]
         now = time.time()
         user_created_at = _owner_message_created_at(events, now)
-        with self._db:
+        with transaction(self._db):
             source_json = json.dumps(event_ids, ensure_ascii=False)
             self._db.execute(
                 """INSERT OR IGNORE INTO turns
@@ -156,7 +157,7 @@ class TurnCommitStore:
     ) -> str:
         turn_id = turn_id or uuid.uuid4().hex
         now = time.time()
-        with self._db:
+        with transaction(self._db):
             self._archive_progress_messages(
                 turn_id, json.dumps([f"goal:{goal_id}"])
             )

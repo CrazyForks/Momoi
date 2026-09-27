@@ -1,6 +1,7 @@
 """Finite, immediate plans, independent of scheduled goals."""
 import json
 import time
+from ..core.transactions import transaction
 import uuid
 from typing import Any, cast
 
@@ -17,7 +18,12 @@ CREATE TABLE IF NOT EXISTS task_plans (
 """
 
 
-class PlanStore:
+class PlanRepository:
+    def __init__(self, database, *, archive_progress, has_external_effect):
+        self._db = database
+        self._archive_progress_messages = archive_progress
+        self.turn_has_external_effect = has_external_effect
+
     def task_plan(self, plan_id: str) -> PlanRecord | None:
         row = self._db.execute("SELECT * FROM task_plans WHERE id=?", (plan_id,)).fetchone()
         if row is None:
@@ -56,7 +62,7 @@ class PlanStore:
             return plan
         plan_id = uuid.uuid4().hex
         now = time.time()
-        with self._db:
+        with transaction(self._db):
             self._db.execute(
                 "INSERT INTO task_plans (id,source_turn_id,channel,title,request,status,steps_json,step_index,created_at,updated_at) VALUES (?,?,?,?,?,'draft',?,0,?,?)",
                 (plan_id, turn_id, channel, args["title"], args["request"], json.dumps(normalized), now, now),
@@ -94,11 +100,11 @@ class PlanStore:
                 if key in previous:
                     normalized[plan["step_index"]][key] = previous[key]
         review = {**plan["review"], "approved_version": None, "approval": None}
-        with self._db: self._db.execute("UPDATE task_plans SET steps_json=?,request=?,status='draft',review_json=?,version=version+1,updated_at=? WHERE id=? AND version=?",(json.dumps(normalized,ensure_ascii=False),request if request is not None else plan["request"],json.dumps(review, ensure_ascii=False),time.time(),plan_id,version))
+        with transaction(self._db): self._db.execute("UPDATE task_plans SET steps_json=?,request=?,status='draft',review_json=?,version=version+1,updated_at=? WHERE id=? AND version=?",(json.dumps(normalized,ensure_ascii=False),request if request is not None else plan["request"],json.dumps(review, ensure_ascii=False),time.time(),plan_id,version))
         return self.task_plan(plan_id)
 
     def pause_task_plan(self, plan_id: str, turn_id: str) -> PlanRecord | None:
-        with self._db:
+        with transaction(self._db):
             plan = self.task_plan(plan_id)
             if plan is not None and plan["status"] == "running":
                 plan["steps"][plan["step_index"]]["interrupted_turn_id"] = turn_id
@@ -152,7 +158,7 @@ class PlanStore:
             raise ValueError("interrupted step may have acted externally; inspect it and create a new plan")
         context = {**context, "completed_through": plan["step_index"],
                    "resume_count": int((plan.get("context") or {}).get("resume_count", 0)) + 1}
-        with self._db:
+        with transaction(self._db):
             self._db.execute(
                 "UPDATE task_plans SET status='ready', context_json=?, steps_json=?, updated_at=? WHERE id=? AND status='paused' AND version=?",
                 (json.dumps(context, ensure_ascii=False), json.dumps(plan["steps"], ensure_ascii=False), time.time(), plan_id, version),
@@ -164,7 +170,7 @@ class PlanStore:
         step = plan["steps"][plan["step_index"]]
         step.update(pause_reason="round_limit", paused_at=time.time(),
                     checkpoint_turn_id=turn_id, status="paused")
-        with self._db:
+        with transaction(self._db):
             self._archive_progress_messages(turn_id, json.dumps([f"plan:{plan_id}"]))
             self._db.execute("INSERT INTO messages (turn_id,role,content,created_at,source_event_ids_json,delivery_state) "
                              "VALUES (?,'assistant',?,?,?,'internal')", (
@@ -183,7 +189,7 @@ class PlanStore:
             raise ValueError("plan no longer paused")
         step = plan["steps"][plan["step_index"]]
         step.update(result=summary, output_refs=output_refs)
-        with self._db:
+        with transaction(self._db):
             self._db.execute("UPDATE task_plans SET steps_json=?,updated_at=? WHERE id=?",
                              (json.dumps(plan["steps"], ensure_ascii=False), time.time(), plan_id))
             self._db.execute("UPDATE messages SET content=? WHERE turn_id=? AND delivery_state='internal' "
@@ -196,7 +202,7 @@ class PlanStore:
     def cancel_task_plan(self, plan_id: str, channel: str) -> PlanRecord:
         plan=self.task_plan(plan_id)
         if plan is None or plan["channel"] != channel: raise ValueError("plan not found")
-        with self._db: self._db.execute("UPDATE task_plans SET status='cancelled',updated_at=?,version=version+1 WHERE id=? AND status NOT IN ('completed','cancelled')",(time.time(),plan_id))
+        with transaction(self._db): self._db.execute("UPDATE task_plans SET status='cancelled',updated_at=?,version=version+1 WHERE id=? AND status NOT IN ('completed','cancelled')",(time.time(),plan_id))
         return self.task_plan(plan_id)
 
     def submit_task_plan(self, plan_id: str, channel: str, version: int, summary: str, evidence: str, validation: str, turn_id: str) -> PlanRecord:
@@ -216,7 +222,7 @@ class PlanStore:
         review = {"summary": summary, "evidence": evidence, "validation": validation,
                   "submitted_version": version, "submitted_turn_id": turn_id,
                   "submitted_at": time.time(), "approved_version": None}
-        with self._db:
+        with transaction(self._db):
             self._db.execute("UPDATE task_plans SET status='awaiting_approval', review_json=?, updated_at=? WHERE id=?",
                              (json.dumps(review, ensure_ascii=False), time.time(), plan_id))
         return self.task_plan(plan_id)
@@ -243,12 +249,12 @@ class PlanStore:
                 or approval.get("turn_id") == review["submitted_turn_id"]):
             raise ValueError("requires a new owner approval after the proposal was submitted")
         review.update(approved_version=version, approval=approval)
-        with self._db:
+        with transaction(self._db):
             self._db.execute("UPDATE task_plans SET status='ready', context_json=?, review_json=?, updated_at=? WHERE id=? AND status='awaiting_approval'", (json.dumps(context, ensure_ascii=False), json.dumps(review, ensure_ascii=False), time.time(), plan_id))
         return self.task_plan(plan_id)
 
     def claim_task_plan(self) -> PlanRecord | None:
-        with self._db:
+        with transaction(self._db):
             row = self._db.execute("""SELECT p.id FROM task_plans p JOIN turns t ON t.id=p.source_turn_id
                 WHERE p.status='ready' AND t.state='completed'
                 AND json_extract(p.review_json, '$.approved_version')=p.version
@@ -259,17 +265,17 @@ class PlanStore:
         return self.task_plan(row[0])
 
     def stop_task_plans(self, channel: str | None = None) -> None:
-        with self._db:
+        with transaction(self._db):
             self._db.execute("""UPDATE task_plans SET status='cancelled', updated_at=?
                 WHERE status IN ('draft','awaiting_approval','paused','ready','running') AND (? IS NULL OR channel=?)""", (time.time(), channel, channel))
 
     def recover_task_plans(self, plan_id: str | None = None) -> None:
         # Never replay an interrupted step: its external outcome may be unknown.
-        with self._db:
+        with transaction(self._db):
             self._db.execute("UPDATE task_plans SET status='blocked', updated_at=? WHERE status='running' AND (? IS NULL OR id=?)", (time.time(), plan_id, plan_id))
 
     def finish_task_plan_step(self, plan_id: str, turn_id: str, outcome: str, summary: str, output_refs: list[str], abort: bool = False) -> dict[str, Any]:
-        with self._db:
+        with transaction(self._db):
             plan = self.task_plan(plan_id)
             if plan is None or plan["status"] != "running":
                 raise ValueError("plan no longer running")

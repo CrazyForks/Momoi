@@ -1,6 +1,7 @@
 """Request monitoring independent of billable usage and prompt dumps."""
 import json
 import time
+from ..core.transactions import transaction
 
 from ..contracts import MetricsPage, RequestMetricRecord, RequestShape
 
@@ -19,7 +20,10 @@ def compare_shapes(current: RequestShape, previous: RequestShape) -> tuple[int, 
     return prefix, boundary
 
 
-class RequestMetricsStore:
+class RequestMetricsRepository:
+    def __init__(self, database):
+        self._db = database
+
     def record_request_metric(self, record: RequestMetricRecord) -> None:
         data = dict(record)
         shape = data["shape"]
@@ -47,7 +51,7 @@ class RequestMetricsStore:
         data["reuse_ratio_est"] = reuse
         data["cache_alert"] = bool(reuse is not None and reuse >= .8 and ratio is not None
                                    and ratio < .5 and input_tokens >= 4096)
-        with self._db:
+        with transaction(self._db):
             self._db.execute(
                 """INSERT INTO llm_request_metrics
                    (created_at, route, stage, model, status, input_tokens, output_tokens,
