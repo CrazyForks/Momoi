@@ -30,6 +30,7 @@ def request_shape(payload) -> RequestShape:
     parts.extend(fingerprint(message) for message in messages)
     return {"settings_hash": fingerprint(settings)["hash"],
             "settings_fields": {key: fingerprint(value)["hash"] for key, value in settings.items()}, "parts": parts,
+            "tool_parts": [fingerprint(tool) for tool in payload.get("tools", [])],
             "message_count": len(messages), "input_tokens_est": sum(p["tokens_est"] for p in parts)}
 
 

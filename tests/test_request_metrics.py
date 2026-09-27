@@ -140,3 +140,26 @@ def test_effort_change_preserves_prefix_reuse_and_flags_parameter(tmp_path):
     assert row["changed_settings"] == ["reasoning_effort"]
     assert row["cache_alert"] is True
     store.close()
+
+
+def test_tool_change_counts_shared_tools_and_reports_unchanged_system(tmp_path):
+    from momoi.storage.ops.request_metrics import compare_shapes
+    messages = [{"role": "system", "content": "stable system"},
+                {"role": "user", "content": "stable memory"}]
+    a = {"tools": [{"name": "first"}, {"name": "second"}], "messages": messages}
+    b = {**a, "tools": [*a["tools"], {"name": "third"}]}
+    before, after = request_shape(a), request_shape(b)
+    prefix, boundary = compare_shapes(after, before)
+    assert boundary == "tools[2]"
+    assert prefix == sum(t["tokens_est"] for t in before["tool_parts"])
+    store = Store(tmp_path / "metrics.sqlite3")
+    store.record_request_metric(metric(payload=a))
+    store.record_request_metric(metric(payload=b))
+    row = store.dashboard_request_metrics()["items"][0]
+    assert row["system_unchanged"]
+    assert row["common_message_prefix_count"] == 1
+    assert row["tool_comparison_granularity"] == "item"
+    assert row["reuse_ratio_est"] > 0
+    del before["tool_parts"]
+    assert compare_shapes(after, before) == (0, "tools")
+    store.close()

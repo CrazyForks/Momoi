@@ -12,6 +12,14 @@ def compare_shapes(current: RequestShape, previous: RequestShape) -> tuple[int, 
     boundary = "new_tail"
     for index, (a, b) in enumerate(zip(current["parts"], previous["parts"])):
         if a["hash"] != b["hash"]:
+            if index == 0 and "tool_parts" in current and "tool_parts" in previous:
+                matched = 0
+                for left, right in zip(current["tool_parts"], previous["tool_parts"]):
+                    if left["hash"] != right["hash"]:
+                        break
+                    prefix += left["tokens_est"]
+                    matched += 1
+                return prefix, f"tools[{matched}]"
             boundary = labels[index] if index < len(labels) else f"transcript[{index - 4}]"
             break
         prefix += a["tokens_est"]
@@ -40,6 +48,18 @@ class RequestMetricsRepository:
                     changed_at=best[1] if best else "no_baseline",
                     compared_request_id=best[2] if best else None,
                     compared_stage=best[3] if best else None)
+        if best:
+            previous_parts = best[4]["parts"]
+            data["system_unchanged"] = shape["parts"][1]["hash"] == previous_parts[1]["hash"]
+            common_messages = 0
+            for left, right in zip(shape["parts"][2:], previous_parts[2:]):
+                if left["hash"] != right["hash"]:
+                    break
+                common_messages += 1
+            data["common_message_prefix_count"] = common_messages
+            data["tool_comparison_granularity"] = (
+                "item" if "tool_parts" in shape and "tool_parts" in best[4] else "whole"
+            )
         data["settings_changed"] = shape["settings_hash"] != best[4]["settings_hash"] if best else None
         fields = shape.get("settings_fields")
         previous_fields = best[4].get("settings_fields") if best else None
