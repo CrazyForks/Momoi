@@ -144,7 +144,12 @@ class Store(
         )
         self.memory_inventory = MemoryInventoryRepository(self._db)
         self.request_metrics = RequestMetricsRepository(self._db)
-        self._initialize_database()
+        try:
+            self._initialize_database()
+        except BaseException:
+            self._thinking.close()
+            self._db.close()
+            raise
         self.current_state = CurrentStateManager(self._db)
         self._recover_emotion_outbox()
         self._recover_outbox()

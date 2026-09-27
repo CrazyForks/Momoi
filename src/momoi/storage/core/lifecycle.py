@@ -1,7 +1,6 @@
 import time
-from pathlib import Path
 
-from .migrations import apply_migrations
+from .schema import initialize_schema
 from ..conversation.turns import EPISODE_MAINTENANCE_RESTART_REASON
 from .turn_workflow import turn_workflow_kind_sql
 
@@ -14,8 +13,7 @@ DEFAULT_ACTIVITY = ""
 
 class LifecycleStore:
     def _initialize_database(self) -> None:
-        self._db.executescript(Path(__file__).with_name("schema.sql").read_text())
-        apply_migrations(self._db)
+        initialize_schema(self._db)
         now = time.time()
         self._normalize_goal_schedules(now)
         self._db.execute(

@@ -5,6 +5,8 @@ import re
 import json
 import time
 from collections.abc import Callable
+from contextlib import contextmanager
+from .transactions import transaction
 
 from ..episode.episode_claims import render_verified_claims
 
@@ -32,6 +34,25 @@ def _add_plan_context(database):
 
 
 Migration = Callable[[sqlite3.Connection], None]
+
+
+@contextmanager
+def migration_transaction(database):
+    """Rebuild tables without cascades; validate before committing schema/version."""
+    if database.in_transaction:
+        with transaction(database):
+            yield
+        return
+    foreign_keys = int(database.execute("PRAGMA foreign_keys").fetchone()[0])
+    database.execute("PRAGMA foreign_keys=OFF")
+    try:
+        with transaction(database):
+            yield
+            if database.execute("PRAGMA foreign_key_check").fetchone():
+                raise ValueError("foreign key violation after migration")
+    finally:
+        database.execute(f"PRAGMA foreign_keys={foreign_keys}")
+
 
 
 def _columns(database: sqlite3.Connection, table: str) -> set[str]:
@@ -86,27 +107,22 @@ def _add_turn_workflow(database: sqlite3.Connection, workflow: str) -> None:
     replacement = replacement.replace(
         "'memory_maintenance'", f"'memory_maintenance', '{workflow}'"
     )
-    database.commit()
-    database.execute("PRAGMA foreign_keys=OFF")
-    try:
-        with database:
-            database.execute("BEGIN")
-            database.execute(replacement)
-            columns = ",".join(
-                '"' + str(row[1]) + '"'
-                for row in database.execute("PRAGMA table_info(turns)")
-            )
-            database.execute(
-                f"INSERT INTO turns_new ({columns}) SELECT {columns} FROM turns"
-            )
-            database.execute("DROP TABLE turns")
-            database.execute("ALTER TABLE turns_new RENAME TO turns")
-            for statement in objects:
-                database.execute(statement)
-            if database.execute("PRAGMA foreign_key_check").fetchone():
-                raise ValueError("foreign key violation after turns migration")
-    finally:
-        database.execute("PRAGMA foreign_keys=ON")
+    with migration_transaction(database):
+        database.execute(replacement)
+        columns = ",".join(
+            '"' + str(row[1]) + '"'
+            for row in database.execute("PRAGMA table_info(turns)")
+        )
+        database.execute(
+            f"INSERT INTO turns_new ({columns}) SELECT {columns} FROM turns"
+        )
+        database.execute("DROP TABLE turns")
+        database.execute("ALTER TABLE turns_new RENAME TO turns")
+        for statement in objects:
+            database.execute(statement)
+        if database.execute("PRAGMA foreign_key_check").fetchone():
+            raise ValueError("foreign key violation after turns migration")
+
 
 
 def _add_memory_operation_workflow(database: sqlite3.Connection) -> None:
@@ -290,50 +306,45 @@ def _drop_goal_authority(database: sqlite3.Connection) -> None:
             "AND type IN ('index','trigger') AND sql IS NOT NULL"
         )
     ]
-    database.commit()
-    database.execute("PRAGMA foreign_keys=OFF")
-    try:
-        with database:
-            database.execute("BEGIN")
-            database.execute(
-                """CREATE TABLE goals_new (
-                    id TEXT PRIMARY KEY,
-                    title TEXT NOT NULL,
-                    success_criteria TEXT NOT NULL,
-                    source_event_id TEXT NOT NULL,
-                    status TEXT NOT NULL CHECK (
-                        status IN ('active', 'waiting', 'blocked', 'done', 'cancelled')
-                    ),
-                    plan_json TEXT NOT NULL,
-                    next_action TEXT NOT NULL DEFAULT '',
-                    waiting_for TEXT NOT NULL DEFAULT '',
-                    blocked_reason TEXT NOT NULL DEFAULT '',
-                    latest_result TEXT NOT NULL DEFAULT '',
-                    schedule_json TEXT NOT NULL DEFAULT '',
-                    next_review_at REAL,
-                    retry_at REAL,
-                    failure_count INTEGER NOT NULL DEFAULT 0,
-                    review_claimed_at REAL,
-                    created_at REAL NOT NULL,
-                    updated_at REAL NOT NULL
-                )"""
-            )
-            columns = ",".join(
-                '"' + str(row[1]) + '"'
-                for row in database.execute("PRAGMA table_info(goals)")
-                if str(row[1]) != "authority"
-            )
-            database.execute(
-                f"INSERT INTO goals_new ({columns}) SELECT {columns} FROM goals"
-            )
-            database.execute("DROP TABLE goals")
-            database.execute("ALTER TABLE goals_new RENAME TO goals")
-            for statement in objects:
-                database.execute(statement)
-            if database.execute("PRAGMA foreign_key_check").fetchone():
-                raise ValueError("foreign key violation after goals migration")
-    finally:
-        database.execute("PRAGMA foreign_keys=ON")
+    with migration_transaction(database):
+        database.execute(
+            """CREATE TABLE goals_new (
+                id TEXT PRIMARY KEY,
+                title TEXT NOT NULL,
+                success_criteria TEXT NOT NULL,
+                source_event_id TEXT NOT NULL,
+                status TEXT NOT NULL CHECK (
+                    status IN ('active', 'waiting', 'blocked', 'done', 'cancelled')
+                ),
+                plan_json TEXT NOT NULL,
+                next_action TEXT NOT NULL DEFAULT '',
+                waiting_for TEXT NOT NULL DEFAULT '',
+                blocked_reason TEXT NOT NULL DEFAULT '',
+                latest_result TEXT NOT NULL DEFAULT '',
+                schedule_json TEXT NOT NULL DEFAULT '',
+                next_review_at REAL,
+                retry_at REAL,
+                failure_count INTEGER NOT NULL DEFAULT 0,
+                review_claimed_at REAL,
+                created_at REAL NOT NULL,
+                updated_at REAL NOT NULL
+            )"""
+        )
+        columns = ",".join(
+            '"' + str(row[1]) + '"'
+            for row in database.execute("PRAGMA table_info(goals)")
+            if str(row[1]) != "authority"
+        )
+        database.execute(
+            f"INSERT INTO goals_new ({columns}) SELECT {columns} FROM goals"
+        )
+        database.execute("DROP TABLE goals")
+        database.execute("ALTER TABLE goals_new RENAME TO goals")
+        for statement in objects:
+            database.execute(statement)
+        if database.execute("PRAGMA foreign_key_check").fetchone():
+            raise ValueError("foreign key violation after goals migration")
+
 
 
 def _add_memory_operation_failed_state(database: sqlite3.Connection) -> None:
@@ -354,57 +365,52 @@ def _add_memory_operation_failed_state(database: sqlite3.Connection) -> None:
             "AND type IN ('index','trigger') AND sql IS NOT NULL"
         )
     ]
-    database.commit()
-    database.execute("PRAGMA foreign_keys=OFF")
-    try:
-        with database:
-            database.execute("BEGIN")
-            database.execute(
-                """CREATE TABLE memory_operation_batches_new (
-                    sequence INTEGER PRIMARY KEY AUTOINCREMENT,
-                    id TEXT NOT NULL UNIQUE REFERENCES turns(id),
-                    state TEXT NOT NULL DEFAULT 'pending'
-                        CHECK(state IN ('pending','running','completed','failed')),
-                    operations_json TEXT NOT NULL,
-                    context_json TEXT NOT NULL,
-                    conversation_json TEXT NOT NULL,
-                    events_json TEXT NOT NULL,
-                    attempts INTEGER NOT NULL DEFAULT 0,
-                    retry_at REAL NOT NULL DEFAULT 0,
-                    result_json TEXT,
-                    error TEXT,
-                    created_at REAL NOT NULL,
-                    updated_at REAL NOT NULL
-                )"""
+    with migration_transaction(database):
+        database.execute(
+            """CREATE TABLE memory_operation_batches_new (
+                sequence INTEGER PRIMARY KEY AUTOINCREMENT,
+                id TEXT NOT NULL UNIQUE REFERENCES turns(id),
+                state TEXT NOT NULL DEFAULT 'pending'
+                    CHECK(state IN ('pending','running','completed','failed')),
+                operations_json TEXT NOT NULL,
+                context_json TEXT NOT NULL,
+                conversation_json TEXT NOT NULL,
+                events_json TEXT NOT NULL,
+                attempts INTEGER NOT NULL DEFAULT 0,
+                retry_at REAL NOT NULL DEFAULT 0,
+                result_json TEXT,
+                error TEXT,
+                created_at REAL NOT NULL,
+                updated_at REAL NOT NULL
+            )"""
+        )
+        columns = ",".join(
+            '"' + str(row[1]) + '"'
+            for row in database.execute(
+                "PRAGMA table_info(memory_operation_batches)"
             )
-            columns = ",".join(
-                '"' + str(row[1]) + '"'
-                for row in database.execute(
-                    "PRAGMA table_info(memory_operation_batches)"
-                )
+        )
+        database.execute(
+            f"INSERT INTO memory_operation_batches_new ({columns}) "
+            f"SELECT {columns} FROM memory_operation_batches"
+        )
+        database.execute("DROP TABLE memory_operation_batches")
+        database.execute(
+            "ALTER TABLE memory_operation_batches_new "
+            "RENAME TO memory_operation_batches"
+        )
+        for statement in objects:
+            database.execute(statement)
+        database.execute(
+            "UPDATE sqlite_sequence SET seq=("
+            "SELECT COALESCE(MAX(sequence), 0) FROM memory_operation_batches"
+            ") WHERE name='memory_operation_batches'"
+        )
+        if database.execute("PRAGMA foreign_key_check").fetchone():
+            raise ValueError(
+                "foreign key violation after memory_operation_batches migration"
             )
-            database.execute(
-                f"INSERT INTO memory_operation_batches_new ({columns}) "
-                f"SELECT {columns} FROM memory_operation_batches"
-            )
-            database.execute("DROP TABLE memory_operation_batches")
-            database.execute(
-                "ALTER TABLE memory_operation_batches_new "
-                "RENAME TO memory_operation_batches"
-            )
-            for statement in objects:
-                database.execute(statement)
-            database.execute(
-                "UPDATE sqlite_sequence SET seq=("
-                "SELECT COALESCE(MAX(sequence), 0) FROM memory_operation_batches"
-                ") WHERE name='memory_operation_batches'"
-            )
-            if database.execute("PRAGMA foreign_key_check").fetchone():
-                raise ValueError(
-                    "foreign key violation after memory_operation_batches migration"
-                )
-    finally:
-        database.execute("PRAGMA foreign_keys=ON")
+
 
 
 def _add_memory_operation_failures(database: sqlite3.Connection) -> None:
@@ -618,16 +624,23 @@ MIGRATIONS: tuple[Migration, ...] = (
 SCHEMA_VERSION = len(MIGRATIONS)
 
 
-def apply_migrations(database: sqlite3.Connection) -> None:
+def validate_schema_version(database: sqlite3.Connection) -> int:
     current = int(database.execute("PRAGMA user_version").fetchone()[0])
     if current > SCHEMA_VERSION:
         raise RuntimeError(
             f"database schema version {current} is newer than supported "
             f"version {SCHEMA_VERSION}"
         )
+    return current
+
+
+def apply_migrations(database: sqlite3.Connection) -> None:
+    current = validate_schema_version(database)
+    if database.in_transaction:
+        raise RuntimeError("migrations require an idle connection")
     for version, migration in enumerate(MIGRATIONS, start=1):
         if version <= current:
             continue
-        with database:
+        with migration_transaction(database):
             migration(database)
             database.execute(f"PRAGMA user_version={version}")
