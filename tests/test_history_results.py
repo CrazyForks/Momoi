@@ -117,3 +117,26 @@ def test_file_history_preserves_path_range_and_ref():
     assert result['start_line'] == 20 and result['end_line'] == 90
     assert result['result_ref'] == 'tr_file'
     assert result['history_truncated']
+
+
+def test_real_file_lines_preserve_text_and_continuation():
+    payload = {'ok': True, 'path': '/notes.md', 'total_lines': 200,
+               'content_offset': 80, 'next_content_offset': 2000, 'truncated': True,
+               'sha256': 'abc', 'result_ref': 'tr_file',
+               'lines': [{'line': 10, 'text': '开' * 100 + '\n'},
+                         {'line': 11, 'text': '中' * 1000 + '\n'},
+                         {'line': 12, 'text': '尾' * 100}]}
+    result = results(render_exchanges([exchange('f', 'read_file', payload)]))[0]
+    assert result['preview'] == '开' * 80 + '\n[...truncated...]\n' + '尾' * 80
+    assert (result['start_line'], result['end_line']) == (10, 12)
+    assert result['next_content_offset'] == 2000 and result['truncated']
+    assert result['sha256'] == 'abc'
+
+
+def test_non_feed_list_does_not_drop_unknown_business_fields():
+    payload = {'ok': True, 'result_ref': 'tr_inventory',
+               'items': [{'id': 'item', 'name': '药品', 'quantity': 0,
+                          'warnings': '重要警告' * 300}]}
+    result = results(render_exchanges([exchange('i', 'inventory', payload)]))[0]
+    assert 'items' not in result
+    assert 'preview' in result and result['result_ref'] == 'tr_inventory'

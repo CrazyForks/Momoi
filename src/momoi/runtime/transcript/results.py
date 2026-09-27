@@ -137,17 +137,25 @@ def historical_results(exchanges: list[dict], *, history_format: int = 3) -> Non
             body = payload.get("content", raw)
             if not isinstance(body, str):
                 body = json.dumps(body, ensure_ascii=False)
+            if history_format >= 3 and name == "read_file":
+                lines = payload.get("lines")
+                if isinstance(lines, list) and lines and all(
+                    isinstance(line, dict) and isinstance(line.get("text"), str)
+                    and isinstance(line.get("line"), int) for line in lines
+                ):
+                    body = "".join(line["text"] for line in lines)
+                    compact.update(start_line=lines[0]["line"], end_line=lines[-1]["line"])
             compact.update(history_truncated=True, preview=preview(body))
             if history_format >= 3:
                 if payload.get("ok") is True:
                     compact.pop("provenance", None)
                     if compact.get("error") is None:
                         compact.pop("error", None)
-                    listing = list_excerpt(payload)
+                    listing = list_excerpt(payload) if name.startswith("mcp__weibo__") else None
                     if listing is not None:
                         compact.pop("preview", None)
                         compact.update(listing)
-                for key in ("path", "start_line", "end_line", "total_lines", "url", "message"):
+                for key in ("path", "start_line", "end_line", "total_lines", "content_offset", "next_content_offset", "sha256", "truncated", "url", "message"):
                     if key in payload:
                         compact[key] = preview(str(payload[key])) if isinstance(payload[key], str) else payload[key]
                 if name in {"read_file", "read"} and "path" not in compact:
