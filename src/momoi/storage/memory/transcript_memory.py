@@ -30,8 +30,9 @@ class TranscriptMemoryStore:
                 compact = True
             if state is None:
                 state = {"revision": 0, "snapshot_revision": 0, "snapshot": current, "observed": current,
-                         "events": [], "boundary": boundary, "overrides": {}, "snapshot_overrides": {}}
+                         "history_format": 2, "events": [], "boundary": boundary, "overrides": {}, "snapshot_overrides": {}}
             else:
+                state.setdefault("history_format", 1)
                 previous = state["observed"]
                 changes = []
                 for identifier in sorted(previous.keys() | current.keys(), key=int):
@@ -64,6 +65,7 @@ class TranscriptMemoryStore:
                     })
                 state["observed"] = current
             if compact:
+                state["history_format"] = 2
                 state["snapshot_revision"] = state["revision"]
                 state["snapshot"] = current
                 state["snapshot_overrides"] = dict(state["overrides"])
@@ -88,6 +90,7 @@ class TranscriptMemoryStore:
             state = json.loads(row[0])
             if state["revision"] != revision:
                 return
+            state["history_format"] = 2
             state["snapshot_revision"] = state["revision"]
             state["snapshot"] = state["observed"]
             state["snapshot_overrides"] = dict(state["overrides"])

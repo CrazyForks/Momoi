@@ -162,9 +162,9 @@ EPISODE_SUMMARY_FINISH_SPEC: dict[str, Any] = {
                 "type": "string", "maxLength": 1200,
                 "description": (
                     "Evidence-backed 5W1H summary: what, who, when, where, why, how. "
-                    "Use the labels 发生了什么、参与者、时间、地点、原因、经过. "
+                    "Cover all six elements in concise prose without repeating facts or requiring separate labels. "
                     "Explicitly mark unstated or inapplicable elements; do not infer missing facts. "
-                    "Preserve useful names, numbers, chronology, corrections and outcomes. "
+                    "Preserve useful names, numbers, chronology, corrections and unresolved outcomes. Distinguish owner statements, assistant inferences, promises and verified results. Quote corrected wording only when necessary; do not reproduce repetitive phrasing. "
                     "Keep the summary within 1000 characters."
                 ),
             },

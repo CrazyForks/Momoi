@@ -167,3 +167,17 @@ def test_running_request_sees_changes_folded_by_another_executor(store):
     assert '<delete' in messages[-1]["content"]
     assert messages[-1]["_memory_change"] == folded["revision"]
     assert store.transcript_memory_context(["b"])["boundary"] == "b"
+
+
+def test_existing_window_adopts_history_format_only_after_compaction(tmp_path):
+    import json
+    from momoi.storage import Store
+    store = Store(tmp_path / 'format.db')
+    state = store.transcript_memory_context(['old'])
+    del state['history_format']
+    store._db.execute('UPDATE transcript_memory_state SET data_json=? WHERE id=1', (json.dumps(state),))
+    store._db.commit()
+    assert store.transcript_memory_context(['old'])['history_format'] == 1
+    assert store.transcript_memory_context(['old'], compact=True)['history_format'] == 2
+    assert store.transcript_memory_context(['old'])['history_format'] == 2
+    store.close()

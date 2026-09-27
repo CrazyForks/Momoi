@@ -102,12 +102,13 @@ class ContextService:
         rows = [row for row in rows if str(row["turn_id"]) in retained]
         activity = self.store.turn_activity(ids)
         transcript = build_transcript(rows, timezone=self.store.timezone, tool_activity=activity)
+        memory_state = self.store.transcript_memory_context(ids)
         history = render_messages(
             [*transcript.orphaned, *transcript.groups],
             timezone=self.store.timezone, tool_activity=activity,
             native_exchanges={identifier: exchanges[identifier] for identifier in ids},
+            history_format=memory_state.get("history_format", 2),
         )
-        memory_state = self.store.transcript_memory_context(ids)
         memories = {int(key): value for key, value in memory_state["observed"].items()
                     if value["activation"] == "always"}
         snapshot = [value for value in memory_state["snapshot"].values()

@@ -462,11 +462,11 @@ def test_native_exchange_replays_assistant_text_and_send_tool_once():
         "results": [{"type": "tool_result", "tool_use_id": "send-1",
                      "content": '{"ok":true,"state":"committed"}'}],
     }]})
-    assert [item["role"] for item in messages] == ["user", "assistant", "user", "user"]
+    assert [item["role"] for item in messages] == ["user", "assistant", "user"]
     assert messages[1]["content"][0]["text"] == "先回应他。"
     assert messages[1]["content"][1]["name"] == "send_bubbles"
     assert "committed" in str(messages[2])
-    assert "delivered" in str(messages[3])
+    assert "message delivery confirmation" not in str(messages)
     assert sum(sent in str(item) for item in messages) == 1
 
 
@@ -675,3 +675,33 @@ def test_build_transcript_returns_protocol_messages_and_groups():
     ]
     assert len(transcript.groups) == 2
     assert transcript.token_estimate > 0
+
+
+@pytest.mark.parametrize('kind', ['heartbeat', 'goal', 'plan_step'])
+@pytest.mark.parametrize('speaks', [False, True])
+def test_autonomous_completion_follows_native_actions(kind, speaks):
+    rows = []
+    if speaks:
+        rows.append(bubble(1, '已检查', turn_id='auto', offset=5))
+    rows.append(dict(id=2, turn_id='auto', role=kind, content='检查完成', created_at=BASE + 10))
+    raw = '{"ok":true,"state":"completed","provenance":{"source":"runtime"}}'
+    exchanges = {'auto': [{
+        'content': [{'type': 'text', 'text': '开始检查'},
+                    {'type': 'tool_use', 'id': 'check', 'name': 'exec', 'input': {'command': 'check'}}],
+        'results': [{'type': 'tool_result', 'tool_use_id': 'check', 'content': raw}],
+    }]}
+    messages = render_messages(build_groups(rows), native_exchanges=exchanges)
+    assert '开始检查' in str(messages[0])
+    assert messages[1]['content'][0]['content'] == raw
+    assert '检查完成' in str(messages[2])
+    assert len(messages) == 3
+    assert 'message delivery confirmation' not in str(messages)
+
+
+def test_webhook_trigger_stays_before_native_actions():
+    rows = [dict(id=1, turn_id='auto', role='event', content='门开了',
+                 event_source='webhook:door', created_at=BASE)]
+    exchanges = {'auto': [{'content': [{'type': 'text', 'text': '检查门锁'}], 'results': []}]}
+    messages = render_messages(build_groups(rows), native_exchanges=exchanges)
+    assert '门开了' in str(messages[0])
+    assert '检查门锁' in str(messages[1])
