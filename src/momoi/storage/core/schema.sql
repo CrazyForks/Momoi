@@ -770,3 +770,6 @@ CREATE TABLE IF NOT EXISTS transcript_memory_state (
     id INTEGER PRIMARY KEY CHECK (id=1),
     data_json TEXT NOT NULL
 );
+
+CREATE INDEX IF NOT EXISTS idx_request_metrics_turn_call
+ON llm_request_metrics(json_extract(data_json, '$.turn_id'), json_extract(data_json, '$.call_id'));

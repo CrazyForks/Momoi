@@ -163,3 +163,28 @@ def test_tool_change_counts_shared_tools_and_reports_unchanged_system(tmp_path):
     del before["tool_parts"]
     assert compare_shapes(after, before) == (0, "tools")
     store.close()
+
+
+def test_first_tool_latency_includes_cancelled_request_and_records_once(tmp_path, monkeypatch):
+    from momoi.storage.ops import request_metrics
+    store = Store(tmp_path / 'metrics.db')
+    start = time.time()
+    store._db.execute("INSERT INTO turns(id,kind,source_ids_json,state,started_at,updated_at) VALUES(?,?,?,?,?,?)",
+                      ('turn', 'owner', '[]', 'running', start, start))
+    store._db.commit()
+    first = metric(status='cancelled')
+    first.update(turn_id='turn', call_id='cancelled')
+    store.record_request_metric(first)
+    second = metric()
+    second.update(turn_id='turn', call_id='send')
+    store.record_request_metric(second)
+    monkeypatch.setattr(request_metrics.time, 'time', lambda: start + 220)
+    store.record_first_tool('turn', 'send', 'send_bubbles')
+    monkeypatch.setattr(request_metrics.time, 'time', lambda: start + 225)
+    store.record_first_tool('turn', 'send', 'end_turn')
+    data = store.dashboard_request_metrics()
+    assert data['totals']['first_tool_ms'] == pytest.approx(220000)
+    assert data['stages'][0]['first_tool_ms'] == pytest.approx(220000)
+    assert data['items'][0]['first_tool_name'] == 'send_bubbles'
+    assert 'first_tool_ms' not in data['items'][1]
+    store.close()

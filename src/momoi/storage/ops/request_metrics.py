@@ -30,6 +30,33 @@ class RequestMetricsRepository:
     def __init__(self, database):
         self._db = database
 
+    def record_first_tool(self, turn_id: str, call_id: str, name: str) -> None:
+        """Attach one turn-level latency sample to the request that led to execution."""
+        now = time.time()
+        with transaction(self._db):
+            turn = self._db.execute("SELECT started_at FROM turns WHERE id=?", (turn_id,)).fetchone()
+            if turn is None:
+                return
+            recorded = self._db.execute(
+                "SELECT 1 FROM llm_request_metrics WHERE json_extract(data_json, '$.turn_id')=? "
+                "AND json_extract(data_json, '$.first_tool_ms') IS NOT NULL LIMIT 1", (turn_id,),
+            ).fetchone()
+            if recorded:
+                return
+            row = self._db.execute(
+                "SELECT id, data_json FROM llm_request_metrics WHERE status='success' "
+                "AND json_extract(data_json, '$.turn_id')=? "
+                "AND json_extract(data_json, '$.call_id')=? ORDER BY id DESC LIMIT 1",
+                (turn_id, call_id),
+            ).fetchone()
+            if row is None:
+                return
+            data = json.loads(row["data_json"])
+            data.update(first_tool_ms=max(0, (now - turn["started_at"]) * 1000),
+                        first_tool_name=name, first_tool_at=now)
+            self._db.execute("UPDATE llm_request_metrics SET data_json=? WHERE id=?",
+                             (json.dumps(data), row["id"]))
+
     def record_request_metric(self, record: RequestMetricRecord) -> None:
         data = dict(record)
         shape = data["shape"]
@@ -102,7 +129,7 @@ class RequestMetricsRepository:
             SUM(cache_read_tokens) cache_read_tokens, SUM(uncached_tokens) uncached_tokens,
             SUM(CASE WHEN cache_read_tokens IS NOT NULL THEN input_tokens END) cache_input_tokens,
             COUNT(cache_read_tokens) cache_reported_requests,
-            AVG(duration_ms) duration_ms, AVG(first_response_ms) first_response_ms"""
+            AVG(duration_ms) duration_ms, AVG(json_extract(data_json, '$.first_tool_ms')) first_tool_ms"""
         def enrich(row):
             value = dict(row)
             denominator = value.get("cache_input_tokens")
@@ -128,4 +155,4 @@ class RequestMetricsRepository:
         return dict(totals=totals, stages=stages, trend=trend, items=items,
                     next_cursor=items[-1]["id"] if len(rows) > limit else None,
                     filters={"stages": sorted({r["stage"] for r in choices}), "models": sorted({r["model"] for r in choices})},
-                    retention_days=30, timing="non_streaming_response_headers")
+                    retention_days=30, timing="turn_first_tool")

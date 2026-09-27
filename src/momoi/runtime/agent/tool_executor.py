@@ -128,6 +128,10 @@ class ToolExecutor:
         round_number: int,
         channel: str,
     ) -> ToolCallTrace:
+        try:
+            self.store.record_first_tool(turn_id, call_id, call.name)
+        except Exception:
+            logger.warning("first_tool_metric_failed", exc_info=True)
         journaled = source in {
             "mcp",
             "builtin",

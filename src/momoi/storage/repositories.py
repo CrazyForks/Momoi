@@ -74,6 +74,9 @@ class RepositoryFacade:
     def active_memory(self, kind: str, key: str) -> ActiveMemory | None:
         return self.memory_inventory.active_memory(kind, key)
 
+    def record_first_tool(self, turn_id: str, call_id: str, name: str) -> None:
+        return self.request_metrics.record_first_tool(turn_id, call_id, name)
+
     def record_request_metric(self, record: RequestMetricRecord) -> None:
         return self.request_metrics.record_request_metric(record)
 

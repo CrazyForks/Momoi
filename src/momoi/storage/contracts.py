@@ -90,6 +90,9 @@ class RequestMetricRecord(TypedDict):
     status: Literal["success", "error", "cancelled"]
     usage: dict[str, float | int | bool] | None
     first_response_ms: float | None
+    first_tool_ms: NotRequired[float]
+    first_tool_name: NotRequired[str]
+    first_tool_at: NotRequired[float]
     duration_ms: float
     http_status: NotRequired[int | None]
     error_type: NotRequired[str | None]
