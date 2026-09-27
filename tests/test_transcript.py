@@ -11,7 +11,6 @@ from momoi.runtime.transcript.building import (
 )
 from momoi.runtime.transcript.rendering import (
     owner_idle_gap_message,
-    render_proactive_bubble_evidence,
     render_messages as _render_messages,
     turn_labels,
 )
@@ -565,9 +564,7 @@ def test_pending_proactive_speech_is_evidence_without_claiming_owner_silence():
         bubble(1, "喝水啦", turn_id="goal1", delivery_state="queued"),
         bubble(2, "外卖到了", turn_id="goal2", offset=10, delivery_state="queued"),
     ])
-    evidence = render_proactive_bubble_evidence(
-        transcript.orphaned, timezone=TEST_TIMEZONE,
-    )
+    evidence = "\n".join(text(message) for message in render_messages(transcript.orphaned))
     assert evidence.count('delivery="queued"') == 2
     assert evidence.count('<bubble time="') == 2
     assert "喝水啦" in evidence and "外卖到了" in evidence
@@ -603,11 +600,9 @@ def test_proactive_speech_without_an_owner_message_is_kept_as_evidence():
     assert transcript.messages == []
     assert len(transcript.orphaned) == 2
 
-    evidence = render_proactive_bubble_evidence(
-        transcript.orphaned,
-        timezone=TEST_TIMEZONE,
-    )
-    assert "[ASSISTANT]" in evidence
+    messages = render_messages(transcript.orphaned)
+    evidence = "\n".join(text(message) for message in messages)
+    assert messages[0]["role"] == "assistant"
     assert (
         '<bubble time="2026-08-31T20:00:00+08:00">\n'
         '我看到一条新闻\n</bubble>'

@@ -7,7 +7,6 @@ from datetime import datetime
 from xml.sax.saxutils import escape, quoteattr
 from zoneinfo import ZoneInfo
 
-from ...models import speaker_label
 from ...storage.core.timestamps import context_timestamp
 from .results import historical_results
 
@@ -442,35 +441,3 @@ def render_messages(
                     replayed_turns.add(turn_id)
         previous = group
     return messages
-
-def render_proactive_bubble_evidence(
-    groups: Sequence[TranscriptGroup],
-    *,
-    timezone: ZoneInfo,
-    tool_activity: Mapping[str, Sequence[Mapping[str, object]]] | None = None,
-) -> str:
-    """Render leading Momoi speech as evidence without fabricating dialogue."""
-
-    rendered = render_messages(
-        groups,
-        timezone=timezone,
-        tool_activity=tool_activity,
-    )
-    parts = [
-        "Committed assistant bubbles before the retained owner transcript (pending delivery is marked):"
-    ]
-    for message in rendered:
-        content = "\n".join(
-            str(block.get("text") or "")
-            for block in message.get("content", [])
-            if isinstance(block, Mapping)
-        ).strip()
-        if not content:
-            continue
-        label = (
-            speaker_label("assistant")
-            if message.get("role") == "assistant"
-            else "Conversation state"
-        )
-        parts.append(f"[{label}]\n{content}")
-    return "\n\n".join(parts) if len(parts) > 1 else ""

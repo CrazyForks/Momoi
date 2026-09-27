@@ -83,7 +83,6 @@ class PlanWorkflow:
             shared = self.shared_turn_context(turn_id)
             messages = frozen_plan_messages(
                 shared["messages"], plan, step_rows=[], timezone=self.store.timezone,
-                source_messages=context.get("messages"),
             )
             messages[-1]["content"].insert(0, {"type": "text", "text": pack_current_turn_context(
                 self.store, "plan_step", ("self_state", heartbeat_self_state_lines(

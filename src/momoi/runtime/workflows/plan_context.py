@@ -30,7 +30,7 @@ def current_step_xml(plan):
 
 
 def frozen_plan_messages(messages, plan, *, step_rows, timezone, tool_activity=None,
-                         native_exchanges=None, source_messages=None):
+                         native_exchanges=None):
     """Shared history followed by the approved plan and durable step handoff."""
     import copy
 
