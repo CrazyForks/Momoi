@@ -130,11 +130,11 @@ class PlanWorkflow:
                 # Never replay actions after a timeout: their outcome may be unknown.
                 closing_id = self._turn_id("plan-close", turn_id)
                 self.store.begin_turn(closing_id, "plan_step", [f"plan:{plan_id}"])
-                from ..transcript.rendering import _native_exchange_messages
+                from ..transcript.native import render_exchanges
                 # Reconstruct paired exchanges if cancellation happened mid-batch.
                 closing_messages = [*frozen_plan_messages(
                     shared["messages"], plan, step_rows=[], timezone=self.store.timezone,
-                ), *_native_exchange_messages(self.store.turn_exchanges([turn_id]).get(turn_id, []))]
+                ), *render_exchanges(self.store.turn_exchanges([turn_id]).get(turn_id, []))]
                 if hard_round_limit:
                     # Round boundaries have complete tool pairs. Preserve the
                     # live evidence and soft-audit advice for accurate handoff.

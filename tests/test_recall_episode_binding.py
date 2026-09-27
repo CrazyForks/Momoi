@@ -150,9 +150,13 @@ class RecallEpisodeBindingTest(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(activity[0]["recall_result"]["memory"], "0" * 2000)
             self.assertEqual(activity[1]["recall_arguments"], {"query": "1"})
             from momoi.runtime.transcript.models import TranscriptGroup
-            from momoi.runtime.transcript.rendering import _assistant_body
+            from momoi.runtime.transcript.evidence import render_group_evidence
             group = TranscriptGroup("assistant", (), (), (), (turn_id,), 0, 0)
-            rendered = "\n".join(_assistant_body(group, activity, 0, daemon.store.timezone, "T-1"))
+            rendered = render_group_evidence(
+                [group], 0, tool_activity={turn: activity for turn in group.turn_ids},
+                action_limit=0, timezone=daemon.store.timezone,
+                labels={turn: "T-1" for turn in group.turn_ids},
+            )["content"][0]["text"]
             self.assertEqual(rendered.count("<historical_recall>"), 2)
             self.assertIn("0" * 2000, rendered)
             self.assertIn("1" * 2000, rendered)

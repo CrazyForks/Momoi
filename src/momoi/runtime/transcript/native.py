@@ -1,0 +1,43 @@
+"""Replay native assistant/tool journals without synthesizing legacy speech."""
+from collections.abc import Mapping, Sequence
+from copy import deepcopy
+
+from .results import historical_results
+
+def render_exchanges(
+    exchanges: Sequence[Mapping[str, object]],
+) -> list[dict[str, object]]:
+    """Replay model text, tool calls, then the observations the model received."""
+    exchanges = deepcopy(list(exchanges))
+    historical_results(exchanges)
+    messages: list[dict[str, object]] = []
+    for exchange in exchanges:
+        content = exchange.get("content")
+        if not isinstance(content, (str, list)):
+            continue
+        calls = [
+            block for block in content
+            if isinstance(block, dict) and block.get("type") == "tool_use"
+        ] if isinstance(content, list) else []
+        results = exchange.get("results")
+        if not isinstance(results, list):
+            continue
+        result_ids = {
+            str(block.get("tool_use_id") or "") for block in results
+            if isinstance(block, dict) and block.get("type") == "tool_result"
+        }
+        # A Turn can end before every tool in a batch runs. Keep the historical
+        # API exchange valid and mark those calls as interrupted.
+        complete_results = list(results)
+        for call in calls:
+            identifier = str(call.get("id") or "")
+            if identifier and identifier not in result_ids:
+                complete_results.append({
+                    "type": "tool_result", "tool_use_id": identifier,
+                    "content": '{"ok":false,"error":"not_executed"}',
+                })
+        messages.append({"role": "assistant", "content": content})
+        if complete_results:
+            messages.append({"role": "user", "content": complete_results})
+    return messages
+

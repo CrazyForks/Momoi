@@ -9,7 +9,8 @@ from .models import (
     TranscriptGroup,
     text_value,
 )
-from .rendering import render_bubble, render_event, render_review, render_messages
+from .records import render_bubble, render_event, render_review
+from .rendering import render_messages
 
 
 def _visible(row: Mapping[str, object]) -> bool:

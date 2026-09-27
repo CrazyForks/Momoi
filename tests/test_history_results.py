@@ -1,7 +1,7 @@
 import json
 from copy import deepcopy
 
-from momoi.runtime.transcript.rendering import _native_exchange_messages
+from momoi.runtime.transcript.native import render_exchanges
 
 
 def exchange(identifier, name, result):
@@ -23,13 +23,13 @@ def test_history_preview_keeps_edges_reference_and_does_not_mutate_live_result()
         'chunk_start': 100, 'chunk_end': 1500, 'next_cursor': 'cursor',
     })]
     original = deepcopy(source)
-    replay = _native_exchange_messages(source)
+    replay = render_exchanges(source)
     result = results(replay)[0]
     assert result['preview'] == '开' * 80 + '\n[...truncated...]\n' + '尾' * 80
     assert result['result_ref'] == 'tr_original'
     assert result['chunk_start'] == 100 and result['next_cursor'] == 'cursor'
     assert source == original
-    assert replay == _native_exchange_messages(source)
+    assert replay == render_exchanges(source)
     assert replay[0]['content'] == source[0]['content']
 
 
@@ -40,7 +40,7 @@ def test_error_run_preserves_pairing_distinct_errors_and_stops_at_success():
     source += [exchange('ok', 'read_file', {'ok': True}),
                exchange('next', 'read_file', {'ok': False, 'error': 'missing'}),
                exchange('other', 'exec', {'ok': False, 'error': 'missing'})]
-    replay = _native_exchange_messages(source)
+    replay = render_exchanges(source)
     output = results(replay)
     assert output[0]['error_run_count'] == 3
     assert [e['count'] for e in output[0]['errors']] == [2, 1]
@@ -58,7 +58,7 @@ def test_structured_large_result_retains_failure_and_reference():
         'ok': False, 'error': 'exit_nonzero', 'result_ref': 'tr_exec',
         'stdout': 'start' + 'x' * 3000 + 'end',
     })]
-    result = results(_native_exchange_messages(source))[0]
+    result = results(render_exchanges(source))[0]
     assert result['ok'] is False
     assert result['error'] == 'exit_nonzero'
     assert result['result_ref'] == 'tr_exec'
@@ -73,6 +73,6 @@ def test_recall_search_reuse_and_errors_are_never_compacted():
         {'ok': False, 'error': 'invalid_recall', 'message': 'details' * 1000},
         {'ok': False, 'error': 'invalid_recall', 'message': 'details' * 1000},
     ])]
-    replay = _native_exchange_messages(source)
+    replay = render_exchanges(source)
     for i, item in enumerate(source):
         assert replay[i * 2 + 1]['content'] == item['results']

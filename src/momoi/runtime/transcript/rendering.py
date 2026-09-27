@@ -1,14 +1,16 @@
-import json
-from copy import deepcopy
-from xml.etree.ElementTree import Element, SubElement, tostring
+"""Compose the timeline, delegating journal replay and evidence projection.
 
+Native tool pairs remain intact; old or partial turns use the explicit evidence
+reader so replay never moves actions across an intervening input.
+"""
 from collections.abc import Mapping, Sequence
 from datetime import datetime
-from xml.sax.saxutils import escape, quoteattr
+from xml.sax.saxutils import quoteattr
 from zoneinfo import ZoneInfo
 
-from ...storage.core.timestamps import context_timestamp
-from .results import historical_results
+from .native import render_exchanges
+from .evidence import render_group_evidence
+from .records import render_event, render_review, text_message
 
 from .models import (
     DEFAULT_ACTION_LIMIT,
@@ -47,7 +49,7 @@ def owner_idle_gap_message(
     if elapsed < OWNER_IDLE_GAP_SECONDS:
         return None
     local = datetime.fromtimestamp(at, timezone).isoformat(timespec="seconds")
-    return _message(
+    return text_message(
         "user",
         "[runtime time gap]\n"
         f"The owner's last message was at {local}; no newer owner message has arrived "
@@ -91,210 +93,10 @@ def _silence(
         return None
     if group.role == "assistant":
         if "queued" in previous.part_states:
-            return _message("user", "[previous assistant messages still being delivered]")
+            return text_message("user", "[previous assistant messages still being delivered]")
         waited = max(0.0, group.started_at - previous.ended_at)
-        return _message("user", f"[owner did not reply · {_elapsed(waited)} later]")
-    return _message("assistant", "[ended the Turn without replying]")
-
-def render_bubble(
-    text: str,
-    *,
-    delivery_state: str = "delivered",
-    turn: str = "",
-    time: str = "",
-) -> str:
-    attributes = ""
-    if time:
-        attributes += f" time={quoteattr(time)}"
-    if turn:
-        attributes += f" turn={quoteattr(turn)}"
-    if delivery_state == "queued":
-        attributes += ' delivery="queued"'
-    return f"<bubble{attributes}>\n{escape(text)}\n</bubble>"
-
-
-def render_event(
-    text: str, identifier: int, source: str, received_at: float, timezone: ZoneInfo
-) -> str:
-    timestamp = datetime.fromtimestamp(received_at, timezone).isoformat(timespec="seconds")
-    return (
-        f'<event id="E{identifier}" source={quoteattr(source)} received_at="{timestamp}">\n'
-        f'{escape(text)}\n</event>'
-    )
-
-
-def render_review(
-    kind: str, text: str, identifier: int, completed_at: float, timezone: ZoneInfo
-) -> str:
-    timestamp = datetime.fromtimestamp(completed_at, timezone).isoformat(timespec="seconds")
-    if kind == "plan_step":
-        try:
-            record = json.loads(text)
-        except (ValueError, TypeError):
-            record = {"result": text}
-        if not isinstance(record, dict):
-            record = {"result": text}
-        root = Element("plan_step", id=f"P{identifier}", completed_at=timestamp)
-        for key in ("plan_id", "step_id", "status"):
-            if key in record:
-                root.set(key, str(record[key]))
-        SubElement(root, "result").text = str(record.get("result", ""))
-        outputs = SubElement(root, "outputs")
-        for ref in record.get("output_refs", []):
-            SubElement(outputs, "output", ref=str(ref))
-        if "plan_status" in record:
-            SubElement(root, "plan_status").text = str(record["plan_status"])
-        return tostring(root, encoding="unicode")
-    prefix = {"goal": "G", "heartbeat": "H", "plan_step": "P"}[kind]
-    return (
-        f'<{kind} id="{prefix}{identifier}" completed_at="{timestamp}">\n'
-        f'{escape(text)}\n</{kind}>'
-    )
-
-
-def _part_bubble(
-    group: TranscriptGroup, index: int, timezone: ZoneInfo, turn: str = ""
-) -> str:
-    state = group.part_states[index] if index < len(group.part_states) else "delivered"
-    moment = group.part_times[index] if index < len(group.part_times) else 0.0
-    timestamp = context_timestamp(moment, timezone) if moment > 0 else ""
-    return render_bubble(
-        group.parts[index], delivery_state=state, turn=turn, time=timestamp
-    )
-
-
-def _message(role: str, text: str) -> dict[str, object]:
-    """Build a message in the block form both provider adapters already take.
-
-    Historical owner messages will carry images and other media alongside their
-    text, and the current request already uses blocks, so the transcript uses
-    one shape throughout rather than mixing bare strings with block lists.
-    """
-
-    return {"role": role, "content": [{"type": "text", "text": text}]}
-
-def _action_line(records: Sequence[Mapping[str, object]]) -> str:
-    """Render one run of calls to the same tool as a single trace line."""
-
-    first = records[0]
-    name = text_value(first.get("name"))
-    subject = text_value(first.get("subject"))
-    head = f"{name}({subject})" if subject else f"{name}()"
-    if len(records) > 1:
-        head += f" ×{len(records)}"
-    failed = [record for record in records if not record.get("ok")]
-    if failed:
-        error = text_value(failed[0].get("error"))
-        outcome = f"failed: {error}" if error else "failed"
-        if len(failed) < len(records):
-            outcome = f"{len(failed)} of {len(records)} {outcome}"
-    else:
-        outcome = "ok"
-    refs = [
-        text_value(record.get("ref"))
-        for record in records
-        if text_value(record.get("ref"))
-    ]
-    if refs:
-        outcome += f" · ref={refs[0]}"
-    return f"[tool_call] {head} -> {outcome}"
-
-def _assistant_body(
-    group: TranscriptGroup,
-    records: Sequence[Mapping[str, object]],
-    action_limit: int,
-    timezone: ZoneInfo,
-    turn: str,
-) -> list[str]:
-    """Interleave what a Turn said with what it did, in the order it happened.
-
-    Momoi narrates work as it goes, so the bubbles only make sense next to the
-    calls they refer to. Consecutive calls to the same tool collapse into one
-    line and a long run is truncated, because a Turn can issue ninety calls and
-    the point is the shape of the work, not a full replay of it.
-    """
-
-    events: list[tuple[float, int, object]] = []
-    for index in range(len(group.parts)):
-        at = group.part_times[index] if index < len(group.part_times) else 0.0
-        events.append((at, 1, _part_bubble(group, index, timezone, turn)))
-    for record in records:
-        events.append((float(record.get("at") or 0.0), 0, record))
-    events.sort(key=lambda item: (item[0], item[1]))
-
-    lines: list[str] = []
-    run: list[Mapping[str, object]] = []
-    shown = 0
-    dropped = 0
-
-    def flush_run() -> None:
-        nonlocal run, shown, dropped
-        if not run:
-            return
-        if shown < action_limit:
-            lines.append(_action_line(run))
-            shown += 1
-        else:
-            dropped += len(run)
-        run = []
-
-    for _at, _kind, item in events:
-        if isinstance(item, str):
-            flush_run()
-            lines.append(item)
-            continue
-        if text_value(item.get("name")) == "recall":
-            flush_run()
-            lines.append("<historical_recall>" + escape(json.dumps({
-                "arguments": item.get("recall_arguments"),
-                "result": item.get("recall_result"),
-            }, ensure_ascii=False)) + "</historical_recall>")
-            continue
-        if run and text_value(run[0].get("name")) != text_value(item.get("name")):
-            flush_run()
-        run.append(item)
-    flush_run()
-    if dropped:
-        lines.append(f"[tool_call] … {dropped} further calls]")
-    return lines
-
-
-def _native_exchange_messages(
-    exchanges: Sequence[Mapping[str, object]],
-) -> list[dict[str, object]]:
-    """Replay model text, tool calls, then the observations the model received."""
-    exchanges = deepcopy(list(exchanges))
-    historical_results(exchanges)
-    messages: list[dict[str, object]] = []
-    for exchange in exchanges:
-        content = exchange.get("content")
-        if not isinstance(content, (str, list)):
-            continue
-        calls = [
-            block for block in content
-            if isinstance(block, dict) and block.get("type") == "tool_use"
-        ] if isinstance(content, list) else []
-        results = exchange.get("results")
-        if not isinstance(results, list):
-            continue
-        result_ids = {
-            str(block.get("tool_use_id") or "") for block in results
-            if isinstance(block, dict) and block.get("type") == "tool_result"
-        }
-        # A Turn can end before every tool in a batch runs. Keep the historical
-        # API exchange valid and mark those calls as interrupted.
-        complete_results = list(results)
-        for call in calls:
-            identifier = str(call.get("id") or "")
-            if identifier and identifier not in result_ids:
-                complete_results.append({
-                    "type": "tool_result", "tool_use_id": identifier,
-                    "content": '{"ok":false,"error":"not_executed"}',
-                })
-        messages.append({"role": "assistant", "content": content})
-        if complete_results:
-            messages.append({"role": "user", "content": complete_results})
-    return messages
+        return text_message("user", f"[owner did not reply · {_elapsed(waited)} later]")
+    return text_message("assistant", "[ended the Turn without replying]")
 
 def render_messages(
     groups: Sequence[TranscriptGroup],
@@ -350,12 +152,12 @@ def render_messages(
                         group.role, content, group.message_ids[index], group.part_times[index], timezone,
                     )
                 )
-            append(_message("user", "\n".join(lines)))
+            append(text_message("user", "\n".join(lines)))
             for turn_id in group.turn_ids:
                 if (native_exchanges and native_exchanges.get(turn_id)
                         and turn_id not in speech_turns
                         and turn_id not in replayed_turns):
-                    extend(_native_exchange_messages(native_exchanges.get(turn_id, ())))
+                    extend(render_exchanges(native_exchanges.get(turn_id, ())))
                     replayed_turns.add(turn_id)
             # Runtime records are neither owner speech nor unanswered bubbles.
             previous = None
@@ -373,7 +175,7 @@ def render_messages(
             ]
             if pending or any(turn_id in replayed_turns for turn_id in group.turn_ids):
                 for turn_id in pending:
-                    extend(_native_exchange_messages(native_exchanges[turn_id]))
+                    extend(render_exchanges(native_exchanges[turn_id]))
                     replayed_turns.add(turn_id)
                 # The tool arguments already carry the sent text. Only replay
                 # the delivery state here, avoiding a second copy of each bubble.
@@ -382,62 +184,21 @@ def render_messages(
                     for index in range(len(group.parts))
                 ]
                 if states:
-                    append(_message(
+                    append(text_message(
                         "user", "[message delivery confirmation] "
                         + ", ".join(states),
                     ))
                 previous = group
                 continue
-        group_labels = [
-            str((labels or {}).get(turn_id) or "")
-            for turn_id in group.turn_ids
-            if (labels or {}).get(turn_id)
-        ]
-        turn = ",".join(dict.fromkeys(group_labels))
-        annotations = []
-        if group.uncertain:
-            annotations.append("delivery uncertain")
-        lines: list[str] = []
-        if annotations:
-            lines.append(f"[{' · '.join(annotations)}]")
-        records = (
-            [
-                record
-                for turn_id in group.turn_ids
-                for record in (tool_activity or {}).get(turn_id, ())
-            ]
-            if group.role == "assistant"
-            else []
-        )
-        if records:
-            # An event may split one Turn's speech into several groups. Assign
-            # each tool record to the corresponding interval exactly once.
-            same_turn = [
-                index for index, candidate in enumerate(groups)
-                if candidate.role == "assistant"
-                and set(candidate.turn_ids).intersection(group.turn_ids)
-            ]
-            earlier = [index for index in same_turn if index < group_index]
-            later = [index for index in same_turn if index > group_index]
-            lower = groups[earlier[-1] + 1].started_at if earlier else float("-inf")
-            upper = groups[group_index + 1].started_at if later else float("inf")
-            records = [
-                record for record in records
-                if lower <= float(record.get("at") or 0.0) < upper
-            ]
-        if records:
-            lines.extend(_assistant_body(group, records, action_limit, timezone, turn))
-        else:
-            lines.extend(
-                _part_bubble(group, index, timezone, turn)
-                for index in range(len(group.parts))
-            )
-        append(_message(group.role, "\n".join(lines)))
+        append(render_group_evidence(
+            groups, group_index, timezone=timezone, tool_activity=tool_activity,
+            action_limit=action_limit, labels=labels,
+        ))
         if group.role == "user" and native_exchanges:
             for turn_id in group.turn_ids:
                 if (native_exchanges.get(turn_id) and turn_id not in speech_turns
                         and turn_id not in replayed_turns):
-                    extend(_native_exchange_messages(native_exchanges.get(turn_id, ())))
+                    extend(render_exchanges(native_exchanges.get(turn_id, ())))
                     replayed_turns.add(turn_id)
         previous = group
     return messages

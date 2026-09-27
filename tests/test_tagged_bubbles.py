@@ -1,5 +1,5 @@
 from momoi.runtime.parsing import parse_tagged_bubbles
-from momoi.runtime.transcript.rendering import render_bubble
+from momoi.runtime.transcript.records import render_bubble
 
 
 def test_reads_logged_transcript_boundaries_and_emotion():
