@@ -67,6 +67,13 @@ def historical_results(exchanges: list[dict], *, history_format: int = 3) -> Non
         for _, payload in run:
             detail = preview(str(payload.get("error") or "tool_failed") + ": "
                              + str(payload.get("message") or ""))
+            if history_format >= 3:
+                diagnostic = {k: payload[k] for k in ("exit_code", "ambiguous", "upstream_error_type") if k in payload}
+                for key in ("stderr_tail", "stderr"):
+                    if payload.get(key):
+                        diagnostic[key] = preview(str(payload[key]))
+                if diagnostic:
+                    detail += " " + json.dumps(diagnostic, ensure_ascii=False)
             errors[detail] = errors.get(detail, 0) + 1
         for index, (block, payload) in enumerate(run):
             compact = {"ok": False, "result_ref": payload.get("result_ref")}
@@ -147,6 +154,21 @@ def historical_results(exchanges: list[dict], *, history_format: int = 3) -> Non
                     compact.update(start_line=lines[0]["line"], end_line=lines[-1]["line"])
             compact.update(history_truncated=True, preview=preview(body))
             if history_format >= 3:
+                if name == "exec":
+                    for key in ("stdout_tail", "stderr_tail", "stdout", "stderr"):
+                        if isinstance(payload.get(key), str):
+                            compact[key] = preview(payload[key])
+                    if any(key in compact for key in ("stdout_tail", "stderr_tail", "stdout", "stderr")):
+                        compact.pop("preview", None)
+                # Preserve control/outcome metadata independently of excerpt size.
+                for key in ("state", "status", "exit_code", "ambiguous", "connection_recovered",
+                            "upstream_error_type", "plan_id", "step_id", "plan_status", "step_index",
+                            "version", "operation_id", "image_id", "count", "pattern", "title",
+                            "requested_url", "content_type", "extract_mode", "source_truncated",
+                            "content_length"):
+                    value = payload.get(key)
+                    if isinstance(value, (str, int, float, bool)):
+                        compact[key] = preview(value) if isinstance(value, str) else value
                 if payload.get("ok") is True:
                     compact.pop("provenance", None)
                     if compact.get("error") is None:

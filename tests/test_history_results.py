@@ -62,8 +62,9 @@ def test_structured_large_result_retains_failure_and_reference():
     assert result['ok'] is False
     assert result['error'] == 'exit_nonzero'
     assert result['result_ref'] == 'tr_exec'
-    assert '[...truncated...]' in result['preview']
-    assert len(result['preview']) < 200
+    assert '[...truncated...]' in result['stdout']
+    assert result['stdout'].startswith('start') and result['stdout'].endswith('end')
+    assert len(result['stdout']) < 200
 
 
 def test_recall_search_reuse_and_errors_are_never_compacted():
@@ -140,3 +141,34 @@ def test_non_feed_list_does_not_drop_unknown_business_fields():
     result = results(render_exchanges([exchange('i', 'inventory', payload)]))[0]
     assert 'items' not in result
     assert 'preview' in result and result['result_ref'] == 'tr_inventory'
+
+
+def test_exec_preserves_exit_and_both_output_streams():
+    source = [exchange('x', 'exec', {'ok': False, 'exit_code': 2,
+        'stdout_tail': 'output' * 300, 'stderr_tail': 'failure' * 300, 'result_ref': 'tr_exec'})]
+    result = results(render_exchanges(source))[0]
+    assert result['exit_code'] == 2 and result['ok'] is False
+    assert result['stdout_tail'].startswith('output')
+    assert result['stderr_tail'].startswith('failure')
+    assert result['result_ref'] == 'tr_exec'
+
+
+def test_error_run_does_not_merge_distinct_exec_failures():
+    source = [exchange(str(i), 'exec', {'ok': False, 'exit_code': i,
+        'stderr_tail': message, 'result_ref': str(i)})
+        for i, message in [(1, 'permission denied'), (2, 'syntax error')]]
+    result = results(render_exchanges(source))[0]
+    assert len(result['errors']) == 2
+    assert 'permission denied' in result['errors'][0]['detail']
+    assert 'syntax error' in result['errors'][1]['detail']
+
+
+def test_large_web_and_plan_results_keep_outcome_metadata():
+    for name, fields in [('web_fetch', {'status': 404, 'requested_url': 'https://example.org',
+                                      'content_type': 'text/html', 'source_truncated': True}),
+                         ('plan_get', {'plan_id': 'p', 'status': 'paused', 'step_index': 2}),
+                         ('mcp__bgmi__update', {'ambiguous': True, 'upstream_error_type': 'TimeoutError'})]:
+        payload = {'ok': False, 'content': 'large' * 300, 'result_ref': 'tr_x', **fields}
+        result = results(render_exchanges([exchange('x', name, payload)]))[0]
+        for key, value in fields.items():
+            assert result[key] == value
