@@ -2,8 +2,10 @@
 import json
 import time
 
+from ..contracts import MetricsPage, RequestMetricRecord, RequestShape
 
-def compare_shapes(current, previous):
+
+def compare_shapes(current: RequestShape, previous: RequestShape) -> tuple[int, str]:
     labels = ["tools", "system", "user[0]", "user[1]"]
     prefix = 0
     boundary = "new_tail"
@@ -18,7 +20,7 @@ def compare_shapes(current, previous):
 
 
 class RequestMetricsStore:
-    def record_request_metric(self, record):
+    def record_request_metric(self, record: RequestMetricRecord) -> None:
         data = dict(record)
         shape = data["shape"]
         # Compare recent compatible requests across stages, not just the previous turn.
@@ -58,7 +60,7 @@ class RequestMetricsStore:
             )
             self._db.execute("DELETE FROM llm_request_metrics WHERE created_at < ?", (time.time() - 30 * 86400,))
 
-    def dashboard_request_metrics(self, *, hours=24, stage="", model="", before=None, limit=50):
+    def dashboard_request_metrics(self, *, hours: int = 24, stage: str = "", model: str = "", before: int | None = None, limit: int = 50) -> MetricsPage:
         where = "created_at >= ?"
         params = [time.time() - hours * 3600]
         for key, value in (("stage", stage), ("model", model)):

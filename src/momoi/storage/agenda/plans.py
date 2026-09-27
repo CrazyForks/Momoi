@@ -2,6 +2,9 @@
 import json
 import time
 import uuid
+from typing import Any, cast
+
+from ..contracts import PlanCreateInput, PlanRecord, PlanStepInput
 
 PLAN_SCHEMA = """
 CREATE TABLE IF NOT EXISTS task_plans (
@@ -15,7 +18,7 @@ CREATE TABLE IF NOT EXISTS task_plans (
 
 
 class PlanStore:
-    def task_plan(self, plan_id):
+    def task_plan(self, plan_id: str) -> PlanRecord | None:
         row = self._db.execute("SELECT * FROM task_plans WHERE id=?", (plan_id,)).fetchone()
         if row is None:
             return None
@@ -24,9 +27,9 @@ class PlanStore:
         plan["version"] = int(plan.get("version", 1))
         plan["context"] = json.loads(plan.pop("context_json") or "null")
         plan["review"] = json.loads(plan.pop("review_json") or "{}")
-        return plan
+        return cast(PlanRecord, plan)
 
-    def create_task_plan(self, args, turn_id, channel):
+    def create_task_plan(self, args: PlanCreateInput, turn_id: str, channel: str) -> PlanRecord:
         if set(args) != {"title", "request", "steps"}:
             raise ValueError("Supply title, request and steps")
         for key in ("title", "request"):
@@ -60,7 +63,7 @@ class PlanStore:
             )
         return self.task_plan(plan_id)
 
-    def update_task_plan(self, plan_id, channel, version, steps, request=None):
+    def update_task_plan(self, plan_id: str, channel: str, version: int, steps: list[PlanStepInput], request: str | None = None) -> PlanRecord:
         plan = self.task_plan(plan_id)
         if plan is None or plan["channel"] != channel: raise ValueError("plan not found")
         if plan["version"] != version: raise ValueError("plan version conflict; reload with plan_get")
@@ -94,7 +97,7 @@ class PlanStore:
         with self._db: self._db.execute("UPDATE task_plans SET steps_json=?,request=?,status='draft',review_json=?,version=version+1,updated_at=? WHERE id=? AND version=?",(json.dumps(normalized,ensure_ascii=False),request if request is not None else plan["request"],json.dumps(review, ensure_ascii=False),time.time(),plan_id,version))
         return self.task_plan(plan_id)
 
-    def pause_task_plan(self, plan_id, turn_id):
+    def pause_task_plan(self, plan_id: str, turn_id: str) -> PlanRecord | None:
         with self._db:
             plan = self.task_plan(plan_id)
             if plan is not None and plan["status"] == "running":
@@ -105,14 +108,14 @@ class PlanStore:
                 )
         return self.task_plan(plan_id)
 
-    def paused_task_plans(self, channel):
+    def paused_task_plans(self, channel: str) -> list[PlanRecord]:
         rows = self._db.execute(
             "SELECT id FROM task_plans WHERE channel=? AND status IN ('draft','awaiting_approval','paused') ORDER BY updated_at",
             (channel,),
         ).fetchall()
         return [self.task_plan(str(row["id"])) for row in rows]
 
-    def plan_resume_safety(self, plan):
+    def plan_resume_safety(self, plan: PlanRecord) -> str:
         if plan["status"] != "paused":
             return "not_paused"
         step = plan["steps"][plan["step_index"]]
@@ -127,7 +130,7 @@ class PlanStore:
             return "requires_review"
         return "safe"
 
-    def resume_task_plan(self, plan_id, channel, version, context, *, owner_feedback=None):
+    def resume_task_plan(self, plan_id: str, channel: str, version: int, context: dict[str, Any], *, owner_feedback: dict[str, Any] | None = None) -> PlanRecord:
         plan = self.task_plan(plan_id)
         if plan is None or plan["channel"] != channel or plan["status"] != "paused":
             raise ValueError("paused plan not found in this channel")
@@ -156,7 +159,7 @@ class PlanStore:
             )
         return self.task_plan(plan_id)
 
-    def pause_task_plan_for_limit(self, plan_id, turn_id):
+    def pause_task_plan_for_limit(self, plan_id: str, turn_id: str) -> None:
         plan = self.task_plan(plan_id)
         step = plan["steps"][plan["step_index"]]
         step.update(pause_reason="round_limit", paused_at=time.time(),
@@ -174,7 +177,7 @@ class PlanStore:
             self._db.execute("UPDATE task_plans SET status='paused',steps_json=?,updated_at=? WHERE id=?",
                              (json.dumps(plan["steps"], ensure_ascii=False), time.time(), plan_id))
 
-    def save_plan_limit_handoff(self, plan_id, summary, output_refs):
+    def save_plan_limit_handoff(self, plan_id: str, summary: str, output_refs: list[str]) -> None:
         plan = self.task_plan(plan_id)
         if plan is None or plan["status"] != "paused":
             raise ValueError("plan no longer paused")
@@ -190,13 +193,13 @@ class PlanStore:
                 json.dumps([f"plan-step-record:{step['checkpoint_turn_id']}"]),
             ))
 
-    def cancel_task_plan(self, plan_id, channel):
+    def cancel_task_plan(self, plan_id: str, channel: str) -> PlanRecord:
         plan=self.task_plan(plan_id)
         if plan is None or plan["channel"] != channel: raise ValueError("plan not found")
         with self._db: self._db.execute("UPDATE task_plans SET status='cancelled',updated_at=?,version=version+1 WHERE id=? AND status NOT IN ('completed','cancelled')",(time.time(),plan_id))
         return self.task_plan(plan_id)
 
-    def submit_task_plan(self, plan_id, channel, version, summary, evidence, validation, turn_id):
+    def submit_task_plan(self, plan_id: str, channel: str, version: int, summary: str, evidence: str, validation: str, turn_id: str) -> PlanRecord:
         plan = self.task_plan(plan_id)
         if plan is None or plan["channel"] != channel:
             raise ValueError("plan not found in this channel")
@@ -218,7 +221,7 @@ class PlanStore:
                              (json.dumps(review, ensure_ascii=False), time.time(), plan_id))
         return self.task_plan(plan_id)
 
-    def start_task_plan(self, plan_id, channel, context=None, *, version=None, approval=None):
+    def start_task_plan(self, plan_id: str, channel: str, context: dict[str, Any] | None = None, *, version: int | None = None, approval: dict[str, Any] | None = None) -> PlanRecord:
         plan = self.task_plan(plan_id)
         if plan is None or plan["channel"] != channel:
             raise ValueError("plan not found in this channel")
@@ -244,7 +247,7 @@ class PlanStore:
             self._db.execute("UPDATE task_plans SET status='ready', context_json=?, review_json=?, updated_at=? WHERE id=? AND status='awaiting_approval'", (json.dumps(context, ensure_ascii=False), json.dumps(review, ensure_ascii=False), time.time(), plan_id))
         return self.task_plan(plan_id)
 
-    def claim_task_plan(self):
+    def claim_task_plan(self) -> PlanRecord | None:
         with self._db:
             row = self._db.execute("""SELECT p.id FROM task_plans p JOIN turns t ON t.id=p.source_turn_id
                 WHERE p.status='ready' AND t.state='completed'
@@ -255,17 +258,17 @@ class PlanStore:
             self._db.execute("UPDATE task_plans SET status='running', updated_at=? WHERE id=?", (time.time(), row[0]))
         return self.task_plan(row[0])
 
-    def stop_task_plans(self, channel=None):
+    def stop_task_plans(self, channel: str | None = None) -> None:
         with self._db:
             self._db.execute("""UPDATE task_plans SET status='cancelled', updated_at=?
                 WHERE status IN ('draft','awaiting_approval','paused','ready','running') AND (? IS NULL OR channel=?)""", (time.time(), channel, channel))
 
-    def recover_task_plans(self, plan_id=None):
+    def recover_task_plans(self, plan_id: str | None = None) -> None:
         # Never replay an interrupted step: its external outcome may be unknown.
         with self._db:
             self._db.execute("UPDATE task_plans SET status='blocked', updated_at=? WHERE status='running' AND (? IS NULL OR id=?)", (time.time(), plan_id, plan_id))
 
-    def finish_task_plan_step(self, plan_id, turn_id, outcome, summary, output_refs, abort=False):
+    def finish_task_plan_step(self, plan_id: str, turn_id: str, outcome: str, summary: str, output_refs: list[str], abort: bool = False) -> dict[str, Any]:
         with self._db:
             plan = self.task_plan(plan_id)
             if plan is None or plan["status"] != "running":

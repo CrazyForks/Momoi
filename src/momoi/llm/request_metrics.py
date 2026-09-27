@@ -8,17 +8,18 @@ from uuid import uuid4
 
 from ..observability.context import current_log_context
 from ..storage import estimate_tokens
+from ..storage.contracts import PromptFingerprint, RequestShape
 
 _active = ContextVar("llm_request_metric", default=None)
 logger = logging.getLogger(__name__)
 
 
-def fingerprint(value):
+def fingerprint(value) -> PromptFingerprint:
     encoded = json.dumps(value, ensure_ascii=False, separators=(",", ":"), sort_keys=True)
     return {"hash": hashlib.sha256(encoded.encode()).hexdigest(), "tokens_est": estimate_tokens(encoded)}
 
 
-def request_shape(payload):
+def request_shape(payload) -> RequestShape:
     messages = payload.get("messages", [])
     system = payload.get("system", [])
     if messages and messages[0].get("role") == "system":

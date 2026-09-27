@@ -2,12 +2,15 @@ from __future__ import annotations
 
 import sqlite3
 import time
+from typing import cast
+
+from ..contracts import ActiveMemory, InventoryMemory
 
 from .memory_values import MEMORY_ACTIVATIONS, format_memory
 
 
 class MemoryInventoryStore:
-    def maintenance_memory_inventory(self) -> list[dict[str, object]]:
+    def maintenance_memory_inventory(self) -> list[InventoryMemory]:
         self.purge_expired_memories()
         now = time.time()
         rows = self._db.execute(
@@ -24,7 +27,7 @@ class MemoryInventoryStore:
                ORDER BY m.id""",
             (now,),
         ).fetchall()
-        return [dict(row) for row in rows]
+        return [cast(InventoryMemory, dict(row)) for row in rows]
 
     def purge_expired_memories(self, *, now: float | None = None) -> int:
         now = time.time() if now is None else now
@@ -96,7 +99,7 @@ class MemoryInventoryStore:
             is not None
         )
 
-    def active_memory(self, kind: str, key: str) -> dict[str, object] | None:
+    def active_memory(self, kind: str, key: str) -> ActiveMemory | None:
         row = self._db.execute(
             """SELECT id, kind, key, content, importance FROM memories AS m
                WHERE m.kind=? AND m.key=? AND m.superseded_by IS NULL
@@ -108,4 +111,4 @@ class MemoryInventoryStore:
                ORDER BY m.id DESC LIMIT 1""",
             (kind, key, time.time()),
         ).fetchone()
-        return dict(row) if row else None
+        return cast(ActiveMemory, dict(row)) if row else None
