@@ -636,7 +636,7 @@ class EpisodeAnnealingTest(unittest.IsolatedAsyncioTestCase):
                 """SELECT state, failure_reason FROM turns
                    WHERE source_ids_json LIKE '%episode-anneal:%'"""
             ).fetchone()
-            self.assertEqual(maintenance_turn["state"], "running")
+            self.assertEqual(maintenance_turn["state"], "cancelled")
             self.assertEqual(maintenance_turn["failure_reason"], "TimeoutError")
             daemon.store.close()
 
@@ -858,6 +858,60 @@ class EpisodeAnnealingTest(unittest.IsolatedAsyncioTestCase):
                 18,
             )
             daemon.store.close()
+
+    async def test_cancelled_range_retries_with_new_turn_and_bounded_backoff(self):
+        with tempfile.TemporaryDirectory() as directory:
+            daemon = MomoiDaemon(config(directory))
+            self.addCleanup(daemon.store.close)
+            daemon.store.create_episode("长期项目", episode_id="episode-main")
+            for ordinal in range(1, 6):
+                add_turn(daemon, ordinal)
+            candidate = daemon.store.claim_episode_annealing_candidate(2, 10000)
+            through = candidate["through_ordinal"]
+            original = daemon._turn_id("episode-anneal", "episode-main", through)
+            daemon.store.begin_turn(original, "episode_anneal", [f"episode-anneal:episode-main:{through}"])
+            daemon.store.cancel_turn(original, reason="WorkflowProtocolError")
+
+            class Provider:
+                calls = 0
+                async def complete(self, *args, **kwargs):
+                    self.calls += 1
+                    raise RuntimeError("upstream unavailable")
+
+            provider = Provider()
+            daemon.provider = provider
+            for attempt in range(1, 4):
+                if attempt > 1:
+                    with daemon.store._db:
+                        daemon.store._db.execute("UPDATE conversation_episodes SET summary_retry_at=0 WHERE id='episode-main'")
+                    candidate = daemon.store.claim_episode_annealing_candidate(2, 10000)
+                with self.assertRaisesRegex(RuntimeError, "upstream unavailable"):
+                    await daemon._anneal_episode_candidate(candidate)
+                episode = daemon.store.episode("episode-main")
+                self.assertEqual(episode["summary_failure_count"], attempt)
+                self.assertIsNone(daemon.store.claim_episode_annealing_candidate(2, 10000))
+            self.assertEqual(provider.calls, 3)
+            self.assertIsNotNone(episode["summary_abandoned_at"])
+            rows = daemon.store._db.execute(
+                "SELECT id,state FROM turns WHERE source_ids_json LIKE '%episode-anneal:episode-main:%'"
+            ).fetchall()
+            self.assertEqual(len(rows), 4)
+            self.assertTrue(all(row["state"] == "cancelled" for row in rows))
+
+    async def test_completed_but_claimable_range_backs_off_without_model_call(self):
+        with tempfile.TemporaryDirectory() as directory:
+            daemon = MomoiDaemon(config(directory))
+            self.addCleanup(daemon.store.close)
+            daemon.store.create_episode("长期项目", episode_id="episode-main")
+            for ordinal in range(1, 6):
+                add_turn(daemon, ordinal)
+            candidate = daemon.store.claim_episode_annealing_candidate(2, 10000)
+            turn_id = daemon._turn_id("episode-anneal", "episode-main", candidate["through_ordinal"])
+            daemon.store.begin_turn(turn_id, "episode_anneal", ["conflict"])
+            daemon.store.complete_background_turn(turn_id)
+            self.assertFalse(await daemon._anneal_episode_candidate(candidate))
+            self.assertIsNone(daemon.store.claim_episode_annealing_candidate(2, 10000))
+            self.assertEqual(daemon.store.episode("episode-main")["summary_failure_count"], 1)
 
     async def test_failed_annealing_releases_claim_with_backoff(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

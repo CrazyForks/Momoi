@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import uuid
 from typing import Any
 
 from ....observability.events import log_event
@@ -76,8 +77,26 @@ class EpisodeAnnealingWorkflow:
             "episode_anneal",
             [f"episode-anneal:{episode_id}:{through_ordinal}"],
         )
-        if state in {"completed", "cancelled"}:
-            self.store.release_episode_annealing(episode_id, failed=False)
+        if state == "cancelled":
+            # The range identifies the work, not an execution attempt. Preserve
+            # the failed/cancelled turn and give an eligible retry its own audit.
+            previous_turn_id = turn_id
+            turn_id = self._turn_id("episode-anneal", episode_id, through_ordinal, uuid.uuid4().hex)
+            state = self.store.begin_turn(
+                turn_id, "episode_anneal",
+                [f"episode-anneal:{episode_id}:{through_ordinal}"],
+            )
+            log_event(logger, logging.INFO, "episode_anneal_retry_started",
+                      stage="episode_anneal", episode_id=episode_id,
+                      turn_id=turn_id, previous_turn_id=previous_turn_id,
+                      through_ordinal=through_ordinal)
+        if state != "running":
+            # A completed range should no longer be claimable. Do not silently
+            # release it into an immediate re-selection loop or advance evidence.
+            self.store.release_episode_annealing(episode_id, failed=True)
+            log_event(logger, logging.WARNING, "episode_anneal_state_conflict",
+                      stage="episode_anneal", episode_id=episode_id,
+                      turn_id=turn_id, state=state, through_ordinal=through_ordinal)
             return False
         try:
             completed = await self._anneal_episode_history(
@@ -86,9 +105,10 @@ class EpisodeAnnealingWorkflow:
                 max_seconds=self.config.episode_annealing.max_seconds,
             )
         except asyncio.CancelledError:
+            self.store.cancel_turn(turn_id, reason="episode_anneal_interrupted")
             raise
         except Exception as error:
-            self.store.record_turn_failure(turn_id, type(error).__name__)
+            self.store.cancel_turn(turn_id, reason=type(error).__name__)
             raise
         if completed:
             self.store.complete_background_turn(turn_id)
