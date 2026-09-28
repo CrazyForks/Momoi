@@ -10,13 +10,12 @@ SEGMENT_SCHEMA: dict[str, Any] = {
         "type": {
             "type": "string",
             "pattern": "^[a-zA-Z0-9_-]{1,40}$",
-            "description": "Segment type, e.g. text, image, file, video, audio, record, reply, link, location, or mention.",
+            "description": '分段类型，例如：文本、图像、文件、视频、音频、记录、回复、链接、位置或提及。',
         },
         "data": {
             "type": "object",
             "description": (
-                "Payload: text uses text; reply uses id; media uses file with a "
-                "local path, HTTP(S) URL, or base64 resource."
+                '负载内容：文本使用 text；回复使用 id；媒体使用 file 并附带本地路径、HTTP(S) URL 或 base64 资源。'
             ),
         },
     },
@@ -30,15 +29,12 @@ CHANNEL_BUBBLE_SCHEMA: dict[str, Any] = {
             "type": "string",
             "minLength": 1,
             "description": (
-                "Put "
-                "blank-line-separated text in separate bubbles. An emotion:// value "
-                "must exactly match emotion://<listed-slug> from <emotion_catalog>; "
-                "it sends a standalone reaction image."
+                '将换行分隔的文本放入独立的气泡中。emotion:// 的值必须精确匹配 <emotion_catalog> 中列出的 emotion://<listed-slug>；它将发送一个独立的反应图像。'
             ),
         },
         {
             "type": "object",
-            "description": "Text may accompany images; file, video, audio, and record messages must stand alone.",
+            "description": '文本可伴随图像；文件、视频、音频和记录消息必须独立存在。',
             "properties": {
                 "segments": {
                     "type": "array",
@@ -88,7 +84,7 @@ MOOD_UPDATE_SCHEMA: dict[str, Any] = {
         "state": {
             "type": "string",
             "pattern": "^[a-z][a-z0-9_-]{0,31}$",
-            "description": ("Current mood, e.g. curious, calm, frustrated, or tired."),
+            "description": ('当前情绪，例如好奇、平静、沮丧或疲惫。'),
         },
         "intensity": {"type": "number", "minimum": 0, "maximum": 1},
         "cause": {"type": "string", "minLength": 1, "maxLength": 300},
@@ -100,12 +96,7 @@ MOOD_UPDATE_SCHEMA: dict[str, Any] = {
 MOOD_DECISION_SCHEMA: dict[str, Any] = {
     "type": "object",
     "description": (
-        "JSON object, never a mood name string. Use {\"decision\": \"unchanged\"} only "
-        "when the persistent mood remains accurate; unchanged permits ONLY decision, so omit "
-        "state, intensity and cause entirely. For updated, supply decision, state, intensity, cause. "
-        "Reassess the persistent mood from its age and this Turn. Update when state, "
-        "intensity, or continuing cause changes, including natural settling. Keep it "
-        "only while all three remain accurate; ignore a reaction that is truly momentary."
+        'JSON 对象，而非情绪名称字符串。仅当持续的情绪状态仍然准确时，才使用 {"decision": "unchanged"}；unchanged 仅允许决策，因此必须完全省略 state、intensity 和 cause。对于 updated，需提供 decision、state、intensity 和 cause。根据情绪的年龄和本轮情况重新评估持续情绪。当状态、强度或持续原因发生变化（包括自然平复）时进行更新。仅在全部三项均准确时保留该记录；忽略真正短暂的反应。'
     ),
     "properties": {
         "decision": {"type": "string", "enum": ["unchanged", "updated"]},
@@ -133,28 +124,13 @@ MOOD_DECISION_SCHEMA: dict[str, Any] = {
 REPLY_WAIT_DECISION_SCHEMA: dict[str, Any] = {
     "type": "object",
     "description": (
-        "Decide whether an unanswered message you have already sent warrants one "
-        "follow-up. Use wait=true only when that message calls for a specific owner "
-        "response and continued silence would leave something meaningful unresolved: "
-        "an answer needed to proceed, a decision or confirmation, or an acknowledgement "
-        "of an urgent concern. An ordinary conversational question qualifies only "
-        "when you actually need its answer enough to follow up after silence. "
-        "Enjoying the conversation, expecting another casual reply, or having more "
-        "to say is not sufficient. Judge the message already sent; do not add a "
-        "question or invitation just to qualify for follow-up. "
-        "wait=false means no automatic follow-up, not that the conversation is over; "
-        "the owner can still reply normally. Use false when no specific response is "
-        "needed or another scheduler owns the follow-up. "
-        "Return a JSON object: {\"wait\":false} alone, or wait=true with "
-        "delay_minutes, expected_information and reason."
+        '判断您已发送但未获回复的消息是否需要进行一次跟进。仅在消息明确要求用户回应且持续沉默会导致有意义的问题未解决时，才使用 wait=true：例如需要答案以继续推进、需要决策或确认，或需要紧急关切的认可。普通的对话性问题仅在您确实需要其答案以便在沉默后进行跟进时才符合条件。享受对话、期待另一条随意回复或有更多内容可说并不足以构成理由。仅针对已发送的消息进行判断；切勿为了符合跟进条件而添加新问题或邀请。wait=false 表示不进行自动跟进，并不意味着对话结束；用户仍可正常回复。当无需特定回应或由其他调度器负责跟进时，使用 false。返回 JSON 对象：单独返回 {"wait":false}，或返回 wait=true 并附带 delay_minutes、expected_information 和 reason。'
     ),
     "properties": {
         "wait": {
             "type": "boolean",
             "description": (
-                "true schedules one follow-up after silence following delivery "
-                "of your message; false schedules none. Choose based on the need "
-                "for the owner's response, not whether the conversation feels open."
+                'true 表示在消息送达后沉默期间安排一次跟进；false 表示不安排任何跟进。选择依据是否需要用户的回应，而非对话是否感觉开放。'
             ),
         },
         "delay_minutes": {
@@ -162,9 +138,7 @@ REPLY_WAIT_DECISION_SCHEMA: dict[str, Any] = {
             "minimum": REPLY_WAIT_MIN_MINUTES,
             "maximum": REPLY_WAIT_MAX_MINUTES,
             "description": (
-                "Whole minutes after successful delivery before following up if "
-                "the owner remains silent. Allow time to answer; choose the delay "
-                "from the urgency and effort of the requested response."
+                '用户保持沉默的情况下，成功送达消息后的完整分钟数，用于进行跟进。给予回答所需的时间；根据所请求回应的紧迫性和努力程度选择合适的延迟时间。'
             ),
         },
         "expected_information": {
@@ -172,10 +146,7 @@ REPLY_WAIT_DECISION_SCHEMA: dict[str, Any] = {
             "minLength": 1,
             "maxLength": 300,
             "description": (
-                "The specific answer, decision, confirmation, or acknowledgement "
-                "needed from the owner in response to your sent message. State what "
-                "would resolve the pending matter; do not describe your own next "
-                "message or a general wish to hear from the owner."
+                '针对您发送的消息，需要从用户处获得的具体答案、决策、确认或认可。说明将解决待决事项的内容；切勿描述您自己的下一条消息或对听到用户回复的一般愿望。'
             ),
         },
         "reason": {
@@ -183,10 +154,7 @@ REPLY_WAIT_DECISION_SCHEMA: dict[str, Any] = {
             "minLength": 1,
             "maxLength": 500,
             "description": (
-                "Why leaving this particular message unanswered warrants a "
-                "follow-up, and what that follow-up should clarify or check. "
-                "Ground it in the pending response; do not invent a new topic, "
-                "assume why the owner is silent, or script a conversational hook."
+                '解释为何不回复此特定消息需要跟进，以及该跟进应澄清或核查的内容。以待决回应为基础；切勿凭空捏造新话题、假设用户沉默的原因，或编写对话钩子。'
             ),
         },
     },
@@ -216,10 +184,7 @@ REPLY_WAIT_DECISION_SCHEMA: dict[str, Any] = {
 HEARTBEAT_ACTIVITY_TOOL_SPEC: dict[str, Any] = {
     "name": "heartbeat_activity",
     "description": (
-        "Record this Heartbeat's actual activity or rest, its result and next check schedule. "
-        "Visible in every conversation workflow, callable only during Heartbeat. "
-        "Must succeed before end_turn; both may share a batch, in that order. "
-        "Stages the latest report for atomic commit when the Heartbeat completes."
+        '记录本次心跳的实际活动或休息情况及其结果和下次检查计划。在所有对话工作流中可见，仅在心跳期间可调用。必须在 end_turn 之前成功；两者可共享一个批次，且顺序如此。当心跳完成时，将最新报告置于原子提交阶段。'
     ),
     "input_schema": {
         "type": "object",
@@ -228,24 +193,24 @@ HEARTBEAT_ACTIVITY_TOOL_SPEC: dict[str, Any] = {
                 "type": "string",
                 "minLength": 1,
                 "maxLength": 300,
-                "description": "Actual activity or rest during this Heartbeat.",
+                "description": '本次心跳期间的实际活动或休息情况。',
             },
             "result": {
                 "type": "string",
                 "maxLength": 2000,
-                "description": "Concrete outcome; empty when none.",
+                "description": '具体结果；若无则留空。',
             },
             "next_check_minutes": {
                 "type": "integer",
                 "minimum": 1,
                 "maximum": 1440,
-                "description": "Minutes until the next autonomous check; obey the interval bounds in the current Heartbeat context.",
+                "description": '距离下次自主检查的分钟数；遵守当前心跳上下文中的间隔界限。',
             },
             "reason": {
                 "type": "string",
                 "minLength": 1,
                 "maxLength": 500,
-                "description": "Why this next check fits the current situation.",
+                "description": '为何此次下次检查符合当前情况。',
             },
         },
         "required": ["activity", "result", "next_check_minutes", "reason"],
@@ -256,10 +221,7 @@ HEARTBEAT_ACTIVITY_TOOL_SPEC: dict[str, Any] = {
 GOAL_REVIEW_TOOL_SPEC: dict[str, Any] = {
     "name": "goal_review",
     "description": (
-        "Stage the current Goal's result and next action or schedule. Callable only "
-        "during a Goal Turn; the runtime supplies its ID. Must succeed before end_turn({}); both calls may be in the same batch, in that order. Changes commit only when that Turn completes. "
-        "Do not pass goal_id or latest_result; use status and result, plus only the "
-        "fields required by that status."
+        '编排当前目标的执行结果与后续行动，或安排调度。仅在目标回合（Goal Turn）期间可调用；运行时会自动提供其 ID。必须在 end_turn({}) 结束前成功完成；两次调用可位于同一批次中且需按此顺序执行。变更仅在对应回合结束时提交。请勿传递 goal_id 或 latest_result；应使用 status 和 result，并仅包含该状态所需的字段。'
     ),
     "input_schema": GOAL_REVIEW_SCHEMA,
 }
@@ -270,11 +232,7 @@ END_TURN_EXAMPLE = {"reply_wait": {"wait": False}, "mood": {"decision": "unchang
 END_TURN_TOOL_SPEC: dict[str, Any] = {
     "name": "end_turn",
     "description": (
-        "Finish this Turn and commit its staged state. Does not send a message. "
-        "Call alone or last after send_bubbles, send_voice, heartbeat_activity, goal_review or save_image_summary; these preceding calls must succeed. Other work tools must finish in earlier rounds. For owner, webhook, heartbeat and reply_followup, "
-        "supply mood and reply_wait objects; reply_followup requires wait=false. "
-        "Heartbeat requires a successful heartbeat_activity before ending. For Goal, call "
-        "goal_review successfully first, then end_turn with empty arguments {}."
+        '结束本轮并提交其暂存状态。不发送消息。可单独调用或在 send_bubbles、send_voice、heartbeat_activity、goal_review 或 save_image_summary 之后最后调用；这些前置调用必须成功。其他工作工具必须在更早的轮次中完成。对于 owner、webhook、heartbeat 和 reply_followup，需提供 mood 和 reply_wait 对象；reply_followup 要求 wait=false。Heartbeat 要求在结束前成功调用 heartbeat_activity。对于 Goal，必须先成功调用 goal_review，然后以空参数 {} 调用 end_turn。'
     ),
     "input_schema": {
         "type": "object",
@@ -380,7 +338,7 @@ def end_turn_correction(error: str, schema: dict[str, Any], arguments: dict[str,
 SEND_BUBBLES_TOOL_SPEC: dict[str, Any] = {
     "name": "send_bubbles",
     "description": (
-        "Send messages to the owner. Starts delivery immediately, independently of end_turn."
+        '向用户发送消息。立即开始投递，独立于 end_turn。'
     ),
     "input_schema": {
         "type": "object",
@@ -389,8 +347,7 @@ SEND_BUBBLES_TOOL_SPEC: dict[str, Any] = {
                 "type": "array",
                 "minItems": 1,
                 "description": (
-                    "Ordered owner-visible messages; each item is delivered as one "
-                    "separate chat bubble."
+                    '按序排列供用户查看的消息；每项内容作为独立的聊天气泡投递。'
                 ),
                 "items": CHANNEL_BUBBLE_SCHEMA,
             },
@@ -434,7 +391,7 @@ def send_bubbles_tool_spec(
                     "type": "string",
                     "enum": channel_names,
                     "description": (
-                        "Delivery channel; omit to use this Turn's channel."
+                        '投递通道；省略则使用当前回合的通道。'
                     ),
                 },
             },

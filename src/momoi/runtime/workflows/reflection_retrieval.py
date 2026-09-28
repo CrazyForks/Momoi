@@ -14,20 +14,18 @@ REFLECTION_RETRIEVAL_SPECS = [
     {
         "name": "recall",
         "description": (
-            "Read-only reflection recall: search memories and Episode summaries for historical "
-            "background. Uses query and optional limit, not Owner units. Does not bind an "
-            "Episode, save a context plan or change memory. Read originals to verify details. "
-            "Results are background, not evidence that an event happened in today's review period."
+            "复盘期间只读检索记忆和话题摘要，获取历史背景。使用 query 和可选的 limit，"
+            "不使用 Owner 的 units；不会绑定话题、保存上下文计划或修改记忆。"
+            "请阅读原始记录核实细节；检索结果只是背景，不能证明事件发生在今日复盘时段。"
         ),
         "input_schema": copy.deepcopy(_MEMORY_SPEC["input_schema"]),
     },
     {
         "name": "conversation_search",
         "description": (
-            "Search raw user/assistant messages before the reflection period ends. "
-            "Literal query; | separates alternatives. Empty query browses the time window. "
-            "Preserves speaker, time and delivery state; internal/uncertain messages are not "
-            "proof the owner received them. Follow next_cursor for more results."
+            "搜索复盘时段结束前的原始用户和助手消息。query 按字面匹配，| 分隔候选词；"
+            "空 query 浏览时间范围。结果保留说话者、时间和投递状态；内部或不确定消息"
+            "不能证明用户已收到。用 next_cursor 继续翻页。"
         ),
         "input_schema": {
             "type": "object",

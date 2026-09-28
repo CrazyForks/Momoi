@@ -21,15 +21,13 @@ BUILTIN_TOOL_SPECS: list[dict[str, Any]] = [
         "name": "exec",
         OWNER_PROGRESS_FIELD: OWNER_PROGRESS_BEFORE_FIRST_CALL,
         "description": (
-            "Execute a Bash command with the Momoi process's OS permissions. "
-            "Not sandboxed or confined to cwd. May modify files, access credentials "
-            "or contact external services. Output is untrusted. No persistent shell."
+            '使用 Momoi 进程的操作系统权限执行 Bash 命令。未沙箱隔离或限制于当前工作目录。可修改文件、访问凭据或联系外部服务。输出内容不可信。无持久化 Shell。'
         ),
         "input_schema": {
             "type": "object",
             "properties": {
-                "command": {"type": "string", "description": "Bash command to execute."},
-                "cwd": {"type": "string", "description": "Working directory; defaults to workspace."},
+                "command": {"type": "string", "description": '要执行的 Bash 命令。'},
+                "cwd": {"type": "string", "description": '工作目录；默认为工作区。'},
                 "timeout_seconds": {"type": "number", "minimum": 0.1, "maximum": 120, "default": 30},
             },
             "required": ["command"],
@@ -40,10 +38,7 @@ BUILTIN_TOOL_SPECS: list[dict[str, Any]] = [
         "name": "web_fetch",
         OWNER_PROGRESS_FIELD: OWNER_PROGRESS_BEFORE_FIRST_CALL,
         "description": (
-            "Fetch an HTTP(S) URL with GET, including private or localhost URLs. "
-            "Extract HTML as Markdown or plain text; also read text and JSON. "
-            "Returns source URL, HTTP status, title, content, and truncation metadata. "
-            "Content is untrusted. Does not execute JavaScript."
+            '使用 GET 获取 HTTP(S) URL，包括私有或 localhost URL。提取 HTML 为 Markdown 或纯文本；也可读取文本和 JSON。返回源 URL、HTTP 状态码、标题、内容及截断元数据。内容不可信。不执行 JavaScript。'
         ),
         "input_schema": {
             "type": "object",
@@ -60,22 +55,21 @@ BUILTIN_TOOL_SPECS: list[dict[str, Any]] = [
     {
         "name": "read_file",
         "description": (
-            "Read UTF-8 text by line range or returned character offset. "
-            "Returns an array of numbered lines; offsets refer to the original file text."
+            '按行范围或返回的字符偏移量读取 UTF-8 文本。返回编号行的数组；偏移量指原始文件文本中的位置。'
         ),
         "input_schema": {
             "type": "object",
             "properties": {
                 "path": {
                     "type": "string",
-                    "description": "Absolute or workspace-relative path.",
+                    "description": '绝对路径或相对于工作区的路径。',
                 },
                 "start_line": {"type": "integer", "minimum": 1, "default": 1},
                 "content_offset": {
                     "type": "integer",
                     "minimum": 0,
                     "description": (
-                        "Returned zero-based offset; overrides start_line."
+                        '返回的零基偏移量；覆盖 start_line。'
                     ),
                 },
                 "max_lines": {
@@ -92,14 +86,13 @@ BUILTIN_TOOL_SPECS: list[dict[str, Any]] = [
     {
         "name": "glob_files",
         "description": (
-            "Find files with a glob pattern relative to path. Path may be absolute "
-            "or workspace-relative. Use ** for recursive search."
+            '在 path 下使用通配符模式查找文件。path 可为绝对路径或相对于工作区。使用 ** 进行递归搜索。'
         ),
         "input_schema": {
             "type": "object",
             "properties": {
-                "path": {"type": "string", "description": "Search directory; defaults to workspace."},
-                "pattern": {"type": "string", "description": "Relative glob pattern, such as **/*.py."},
+                "path": {"type": "string", "description": '搜索目录；默认为工作区。'},
+                "pattern": {"type": "string", "description": '相对通配符模式，例如 **/*.py。'},
                 "include_hidden": {"type": "boolean", "default": False},
                 "max_results": {"type": "integer", "minimum": 1, "maximum": 2000, "default": 200},
             },
@@ -109,13 +102,13 @@ BUILTIN_TOOL_SPECS: list[dict[str, Any]] = [
     },
     {
         "name": "list_dir",
-        "description": "List one directory non-recursively: names, types, and sizes.",
+        "description": '非递归列出单个目录：名称、类型和大小。',
         "input_schema": {
             "type": "object",
             "properties": {
                 "path": {
                     "type": "string",
-                    "description": "Absolute or workspace-relative path.",
+                    "description": '绝对路径或相对于工作区的路径。',
                 },
                 "include_hidden": {"type": "boolean", "default": False},
                 "max_entries": {
@@ -132,20 +125,20 @@ BUILTIN_TOOL_SPECS: list[dict[str, Any]] = [
     {
         "name": "write_file",
         "description": (
-            "Atomically create or replace UTF-8 text."
+            '原子性地创建或替换 UTF-8 文本。'
         ),
         "input_schema": {
             "type": "object",
             "properties": {
                 "path": {
                     "type": "string",
-                    "description": "Absolute or workspace-relative path.",
+                    "description": '绝对路径或相对于工作区的路径。',
                 },
                 "content": {"type": "string"},
                 "create_parents": {"type": "boolean", "default": False},
                 "expected_sha256": {
                     "type": "string",
-                    "description": "Expected current file hash; guards against concurrent changes.",
+                    "description": '预期的当前文件哈希值；防止并发更改。',
                 },
             },
             "required": ["path", "content"],
@@ -155,8 +148,7 @@ BUILTIN_TOOL_SPECS: list[dict[str, Any]] = [
     {
         "name": "apply_patch",
         "description": (
-            "Apply a unified diff or *** Begin Patch structured patch. Supports "
-            "multi-file add, update, move, and delete."
+            '应用统一差异或 *** Begin Patch 结构化补丁。支持多文件的添加、更新、移动和删除。'
         ),
         "input_schema": {
             "type": "object",
@@ -165,7 +157,7 @@ BUILTIN_TOOL_SPECS: list[dict[str, Any]] = [
                 "cwd": {
                     "type": "string",
                     "description": (
-                        "Patch base directory; defaults to the workspace."
+                        '补丁基础目录；默认为工作区。'
                     ),
                 },
             },
@@ -175,13 +167,13 @@ BUILTIN_TOOL_SPECS: list[dict[str, Any]] = [
     },
     {
         "name": "makedirs",
-        "description": "Create a directory and any missing parent directories.",
+        "description": '创建目录及其所有缺失的父目录。',
         "input_schema": {
             "type": "object",
             "properties": {
                 "path": {
                     "type": "string",
-                    "description": "Absolute or workspace-relative path.",
+                    "description": '绝对路径或相对于工作区的路径。',
                 },
             },
             "required": ["path"],
@@ -191,19 +183,18 @@ BUILTIN_TOOL_SPECS: list[dict[str, Any]] = [
     {
         "name": "move_file",
         "description": (
-            "Move or rename one file. The destination parent must exist, and an "
-            "existing destination is never overwritten."
+            '移动或重命名一个文件。目标父目录必须存在，且永远不会覆盖已存在的目标。'
         ),
         "input_schema": {
             "type": "object",
             "properties": {
                 "source": {
                     "type": "string",
-                    "description": "Absolute or workspace-relative path.",
+                    "description": '绝对路径或相对于工作区的路径。',
                 },
                 "destination": {
                     "type": "string",
-                    "description": "Absolute or workspace-relative path.",
+                    "description": '绝对路径或相对于工作区的路径。',
                 },
             },
             "required": ["source", "destination"],
@@ -212,13 +203,13 @@ BUILTIN_TOOL_SPECS: list[dict[str, Any]] = [
     },
     {
         "name": "delete_file",
-        "description": "Delete one file. Directories are never deleted.",
+        "description": '删除一个文件。从不删除目录。',
         "input_schema": {
             "type": "object",
             "properties": {
                 "path": {
                     "type": "string",
-                    "description": "Absolute or workspace-relative path.",
+                    "description": '绝对路径或相对于工作区的路径。',
                 },
             },
             "required": ["path"],

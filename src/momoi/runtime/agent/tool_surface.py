@@ -61,7 +61,7 @@ class ToolSurface:
             if isinstance(config, dict)
             else ""
         )
-        return description or f"External MCP capabilities provided by {group}."
+        return description or f"{group} 提供的外部 MCP 工具。"
 
     @staticmethod
     def _schema_tokens(specs: list[dict[str, Any]]) -> int:

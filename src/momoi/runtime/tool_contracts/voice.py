@@ -3,10 +3,7 @@
 SEND_VOICE_TOOL_SPEC = {
     "name": "send_voice",
     "description": (
-        "Speak one complete passage of text as a voice message. "
-        "Waits for voice synthesis, then starts delivery independently of end_turn. "
-        "If synthesis fails "
-        "after retries, use send_bubbles to reply in text instead."
+        '作为语音消息说出的一段完整文本。等待语音合成后，独立于 end_turn 开始交付。若重试后合成失败，则改用 send_bubbles 以文本回复。'
     ),
     "input_schema": {
         "type": "object",
@@ -15,8 +12,7 @@ SEND_VOICE_TOOL_SPEC = {
                 "type": "string",
                 "minLength": 1,
                 "description": (
-                    "The complete passage to speak aloud. Do not include stickers, "
-                    "reaction images, or emotion:// directives."
+                    '要大声说出的完整段落。不要包含贴纸、反应图片或 emotion:// 指令。'
                 ),
             },
         },

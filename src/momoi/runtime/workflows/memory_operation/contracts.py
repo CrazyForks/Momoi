@@ -9,18 +9,18 @@ from ....storage.memory.memory_values import (
 _EVIDENCE = {
     "type": "array",
     "minItems": 1,
-    "description": "Exact owner citations supporting the change and every resolved request.",
+    "description": '支持变更及所有已解决请求的确切所有者引用。',
     "items": {
         "type": "object",
         "properties": {
             "event_id": {
                 "type": "string",
-                "description": "Supplied authenticated owner event ID.",
+                "description": '提供的已认证所有者事件 ID。',
             },
             "quote": {
                 "type": "string",
                 "minLength": 1,
-                "description": "Exact contiguous substring of that event.",
+                "description": '该事件的精确连续子串。',
             },
         },
         "required": ["event_id", "quote"],
@@ -33,9 +33,7 @@ _MEMORY = {
         "kind": {
             "type": "string", "enum": sorted(MEMORY_KINDS),
             "description": (
-                "Canonical subject kind: profile, preference, relationship, third_party, "
-                "practice, world_knowledge, self_insight, or cross_event_state. "
-                "A specific/shared experience is an Episode, never a memory."
+                '规范的主题类型：profile、preference、relationship、third_party、practice、world_knowledge、self_insight 或 cross_event_state。具体的/共享的体验是一个 Episode，而非 memory。'
             ),
         },
         "key": {"type": "string", "pattern": "^[a-z0-9][a-z0-9_.-]{0,199}$"},
@@ -43,7 +41,7 @@ _MEMORY = {
         "activation": {"type": "string", "enum": sorted(MEMORY_ACTIVATIONS)},
         "expires_at": {
             "type": "null",
-            "description": "Memories do not expire; always null. Temporary state belongs to current state.",
+            "description": '记忆不会过期；始终为 null。临时状态属于当前状态。',
         },
     },
     "required": ["kind", "key", "content", "activation", "expires_at"],
@@ -64,14 +62,14 @@ _MEMORY = {
 }
 MEMORY_OPERATION_FINISH_SPEC: dict[str, Any] = {
     "name": "memory_operation_finish",
-    "description": "Atomically apply the complete decision batch and end this private Turn. Call alone. Omitted current memories remain unchanged.",
+    "description": '原子性地应用完整的决策批次并结束本次私有回合。单独调用。省略的当前记忆保持不变。',
     "input_schema": {
         "type": "object",
         "properties": {
             "decisions": {
                 "type": "array",
                 "minItems": 1,
-                "description": "Resolve every supplied operation exactly once; combine requests concerning the same fact.",
+                "description": '恰好解决一次每个提供的操作；合并涉及同一事实的请求。',
                 "items": {
                     "type": "object",
                     "properties": {
@@ -85,19 +83,14 @@ MEMORY_OPERATION_FINISH_SPEC: dict[str, Any] = {
                             "type": "string",
                             "enum": ["write", "forget", "noop", "defer"],
                             "description": (
-                                "noop when durable meaning is already represented; write to "
-                                "refine or consolidate an existing rule, or add an independent fact. "
-                                "Different wording or another example alone does not require a write."
+                                '当持久含义已表示时执行 noop；写入以细化或整合现有规则，或添加独立事实。不同的措辞或另一个示例本身并不要求写入。'
                             ),
                         },
                         "reason": {"type": "string", "minLength": 1, "maxLength": 500},
                         "target_ids": {
                             "type": "array",
                             "description": (
-                                "Current memory IDs to replace, merge, or forget. For a clarification "
-                                "or useful new condition of an existing rule, include that rule's ID. "
-                                "Empty only for an independently useful fact not already represented; "
-                                "a different key or example does not make a fact independent."
+                                '要替换、合并或遗忘的当前记忆 ID。对于现有规则的澄清或有用的新条件，包含该规则的 ID。仅当为尚未表示的独立有用事实时才为空；不同的键或示例并不能使事实独立。'
                             ),
                             "uniqueItems": True,
                             "items": {"type": "integer", "minimum": 1},
@@ -138,7 +131,7 @@ MEMORY_OPERATION_FINISH_SPEC: dict[str, Any] = {
 }
 MEMORY_OPERATION_SEARCH_SPEC = {
     "name": "memory_operation_search",
-    "description": "Optional read-only lookup when supplied memories cannot identify a target or related duplicate. Searches active confirmed memories across activations. Results become eligible targets. Do not search merely to repeat supplied evidence.",
+    "description": '当提供的记忆无法识别目标或相关重复项时，可选的只读查找。在激活中搜索活跃的已确认记忆。结果成为合格的目标。不要仅为了重复提供的证据而搜索。',
     "input_schema": {
         "type": "object",
         "properties": {
@@ -147,11 +140,7 @@ MEMORY_OPERATION_SEARCH_SPEC = {
                 "minLength": 1,
                 "maxLength": 240,
                 "description": (
-                    "A concise literal subject or alternative phrases separated by |, "
-                    "for example 面试|interview or OAuth2|cloud sandbox. Each alternative "
-                    "is matched as a whole phrase by keyword search; spaces within a "
-                    "phrase are preserved, not keyword separators. Do not concatenate "
-                    "unrelated terms and dates into one query phrase."
+                    '简洁的字面主题或替代短语，用 | 分隔，例如 面试|interview 或 OAuth2|cloud sandbox。每个替代项作为整体短语通过关键词搜索进行匹配；短语内的空格予以保留，而非关键词分隔符。不要将不相关的术语和日期连接成一个查询短语。'
                 ),
             },
         },

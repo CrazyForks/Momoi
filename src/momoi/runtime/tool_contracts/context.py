@@ -2,7 +2,9 @@ import copy
 import json
 from typing import Any
 
-from ...semantic.cue_contract import CUE_QUERY_CONTRACT
+CUE_QUERY_TOOL_DESCRIPTION = (
+    '使用对话的语言来表达检索场景、意图及相关内容、人物、任务或关键词。保留有助于区分主题的姓名和标识符。不要捏造事实或将不相关的事件联系起来。基于当前对话，撰写一个自然语言查询，描述当前所需的历史信息。归档提示描述了未来可能需要记忆的场景；当前查询则表达该需求本身。两者通过相同的场景、意图及相关内容进行语义匹配。仅使用已知上下文来缩小查询范围并解析引用。不要猜测未知答案；知道原始提示的措辞并非必需。该查询同时搜索话题摘要和单独嵌入的 CUES。'
+)
 from ...storage import MEMORY_KINDS
 
 
@@ -23,31 +25,7 @@ RECALL_EXAMPLES = [
 ]
 
 RECALL_SCOPE_CONTRACT = (
-    "Recall scope: assess whether supplied context leaves a historical question that "
-    "could change understanding or action. Use skip when it does not. For search, use "
-    "the narrowest kind allowlist (empty/omitted means all canonical memory kinds), "
-    "one query where possible, and add only non-overlapping evidence needs. Use reuse "
-    "only when the displayed recent_recall_context query set covers the entire need; "
-    "proximity, mood, or Episode membership is not coverage. Keep Episode action "
-    "independent of retrieval: continue only for the same concrete experience, new "
-    "only for a distinct experience worth keeping, otherwise none. For continue or new, "
-    "give a specific reason comparing the current topic with the candidate Episode or "
-    "recent conversation: is this truly the same experience, or has the topic changed? "
-    "Do not continue merely because the candidate is recent or is the only candidate. "
-    "Split independent "
-    "outcomes into separate units; corrections replace revoked intent. Preserve known "
-    "subjects, literal identifiers, and uncertainty; do not invent unresolved identity. "
-    "If identity is unresolved, search for it first and ask if the evidence cannot "
-    "identify it. Resolve pronouns from context without inventing answers or new "
-    "retrieval needs; seek clarification when context cannot resolve a reference. "
-    "Reuse requires no new historical dependency. Add queries only for needs that "
-    "one record could not settle together. Episode membership cannot be established "
-    "by proximity, mood, time, or setting. Do not write runtime-owned archives. "
-    "Choose how to respond after assessing the evidence. "
-    "A recalled episode's confidence is a bounded query-relevance signal, not a "
-    "calibrated probability or factual truth. An absent value means no query-specific "
-    "score is available. Establish what happened from source evidence, accounting "
-    "for speaker, time, modality, and uncertainty. "
+    '检索范围：评估所供上下文是否遗留可能改变理解或行动的历史问题。若无此类问题则使用 skip。对于搜索，使用范围最小的 kind 列表（空/省略表示所有标准记忆类型），尽可能使用单个查询，且仅添加非重叠的证据需求。仅在已显示的 recent_recall_context 查询集覆盖全部需求时使用 reuse；邻近性、情绪或话题归属不构成覆盖。保持话题动作与检索独立：仅对同一具体体验使用 continue，仅对值得保留的独立体验使用 new，否则使用 none。对于 continue 或 new，需给出具体理由，对比当前主题与候选话题或近期对话：这是否确为同一体验，还是主题已变？切勿仅因候选者较新或是唯一候选者就使用 continue。将独立结果拆分为不同单元；更正操作替换被撤销的意图。保留已知主体、字面标识符及不确定性；切勿臆造未解决的实体身份。若身份未解决，先进行搜索，若证据无法识别则询问。从上下文中解析代词，切勿臆造答案或新增检索需求；当上下文无法解析指代时寻求澄清。reuse 无需新的历史依赖。只有当单条记录无法同时回答多个问题时才增加查询。话题归属不能通过邻近性、情绪、时间或场景建立。切勿编写运行时拥有的归档。在评估证据后决定如何响应。已检索话题的置信度是受限的查询相关性信号，而非校准后的概率或事实真相。缺失值表示无可用的查询特定分数。从源证据中确立发生的事件，并考虑说话者、时间、模态及不确定性。'
 )
 
 
@@ -72,32 +50,14 @@ def recall_correction(message: str) -> dict[str, Any]:
 RECALL_TOOL_SPEC: dict[str, Any] = {
     "name": "recall",
     "description": (
-        "Retrieve confirmed memory, dated reflection, and Episode summaries. "
-        "In an Owner Turn, include once in the opening tool batch and bind its "
-        "archival Episode membership; independent tools may accompany it. "
-        "In a Heartbeat, search after discovering specific content and before each "
-        "owner-visible send; use one search unit with episode.action=none, and wait "
-        "for the result before sending. Heartbeat recall does not archive an Episode. "
-        "Retry until successful; wait for its results before dependent calls. "
-        "Later calls in the same Turn may retrieve additional evidence. Each call "
-        "adds evidence without replacing the original intent or Episode routing for "
-        "the same owner input. Later units may describe a new search angle; skip "
-        "does not clear earlier results. New owner messages may revise intent. "
-        "skip/reuse return status without repeating evidence already in the transcript; "
-        "search returns this call's evidence rather than accumulated earlier results. "
-        "Every call and result is retained in the Turn transcript. "
-        "Arguments must contain units, an array of intent objects; do not flatten its fields "
-        "or stringify nested JSON. "
-        + RECALL_SCOPE_CONTRACT
-        + "Minimal example when context is sufficient: "
-        + json.dumps(RECALL_SKIP_EXAMPLE, ensure_ascii=False)
+        ('检索已确认的记忆、带日期的反思和话题摘要。在用户回合中，在首批工具调用中调用一次，并确定其归档话题归属；独立工具可伴随其运行。在心跳周期中，于发现特定内容后且每次向用户可见发送前进行搜索；使用一个搜索单元，设置 episode.action=none，并等待结果后再发送。心跳周期的检索不会归档话题。重试直至成功；在依赖调用前等待其结果。同一回合中的后续调用可检索额外证据。每次调用均增加证据，且不替换相同用户输入的原有意图或话题路由。后续单元可描述新的搜索角度；跳过操作不清除早期结果。新的用户消息可修订意图。skip/reuse 返回状态时不会重复返回 transcript 中已有的证据；搜索返回本次调用的证据而非累积的早期结果。每次调用及结果均保留在回合转录中。参数必须包含 units（意图对象数组）；切勿扁平化其字段或将嵌套 JSON 字符串化。' + RECALL_SCOPE_CONTRACT + '最小示例（上下文充足时）：' + json.dumps(RECALL_SKIP_EXAMPLE, ensure_ascii=False))
     ),
     "input_schema": {
         "type": "object",
         "properties": {
             "units": {
                 "type": "array",
-                "description": "Required wrapper: one object per independent owner intent, not a JSON string.",
+                "description": '必填数组：每个独立的用户意图对应一个对象，而非 JSON 字符串。',
                 "minItems": 1,
                 "maxItems": 4,
                 "items": {
@@ -109,10 +69,7 @@ RECALL_TOOL_SPEC: dict[str, Any] = {
                             "pattern": r"\S",
                             "maxLength": 160,
                             "description": (
-                                "Objectively describe the owner's current request or "
-                                "shared information, incorporating corrections. "
-                                "Preserve uncertainty; do not add unstated needs or "
-                                "your intended response strategy."
+                                '客观描述用户的当前请求或共享信息，并纳入修正内容。保留不确定性；不要添加未陈述的需求或您计划的响应策略。'
                             ),
                         },
                         "kind": {
@@ -122,17 +79,14 @@ RECALL_TOOL_SPEC: dict[str, Any] = {
                             "uniqueItems": True,
                             "items": {"type": "string", "enum": sorted(MEMORY_KINDS)},
                             "description": (
-                                "Optional memory-kind allowlist. Empty or omitted means all "
-                                "canonical kinds; use this to avoid importing unrelated memory. "
-                                "Episode summaries are searched separately and are not kinds."
+                                '可选的记忆种类白名单。为空或省略表示所有规范种类；使用此字段以避免导入不相关的记忆。话题摘要单独搜索，不属于种类。'
                             ),
                         },
                         "recall_mode": {
                             "type": "string",
                             "enum": ["search", "reuse", "skip"],
                             "description": (
-                                "search for missing historical evidence; reuse a prior "
-                                "query scope; skip when supplied context is sufficient."
+                                '搜索缺失的历史证据；复用之前的查询范围；当提供的上下文已足够时跳过。'
                             ),
                         },
                         "recall_queries": {
@@ -140,7 +94,7 @@ RECALL_TOOL_SPEC: dict[str, Any] = {
                             "minItems": 0,
                             "maxItems": 3,
                             "description": (
-                                "Non-overlapping historical evidence needs."
+                                '非重叠的历史证据需求。'
                             ),
                             "items": {
                                 "type": "object",
@@ -149,7 +103,7 @@ RECALL_TOOL_SPEC: dict[str, Any] = {
                                         "type": "string",
                                         "minLength": 1,
                                         "maxLength": 240,
-                                        "description": CUE_QUERY_CONTRACT,
+                                        "description": CUE_QUERY_TOOL_DESCRIPTION,
                                     },
                                     "keywords": {
                                         "type": "array",
@@ -157,11 +111,7 @@ RECALL_TOOL_SPEC: dict[str, Any] = {
                                         "maxItems": 6,
                                         "items": {"type": "string", "maxLength": 60},
                                         "description": (
-                                            "Sparse OR anchors: literal canonical names, "
-                                            "IDs, titles, or distinctive supported event phrases. "
-                                            "No standalone verbs, "
-                                            "pronouns, generic words, or inferred answers; "
-                                            "empty if no reliable anchor exists."
+                                            '关键词 OR 锚点：字面准确名称、ID、标题或独特的支持事件短语。不得包含独立动词、代词、通用词汇或推断出的答案；若无可靠锚点则为空。'
                                         ),
                                     },
                                 },
@@ -171,12 +121,12 @@ RECALL_TOOL_SPEC: dict[str, Any] = {
                         },
                         "recall_from_turn_id": {
                             "type": "string",
-                            "description": ("Source Turn in recent_recall_context."),
+                            "description": ('recent_recall_context 中的来源轮次。'),
                         },
                         "episode": {
                             "type": "object",
                             "description": (
-                                "Independent archival decision; does not affect recall_mode."
+                                '独立的归档决策；不影响 recall_mode。'
                             ),
                             "properties": {
                                 "action": {
@@ -186,14 +136,14 @@ RECALL_TOOL_SPEC: dict[str, Any] = {
                                 "ref": {
                                     "type": "string",
                                     "description": (
-                                        "Candidate Episode id for continue; "
-                                        f"{NEW_EPISODE_REF} for new; empty for none."
+                                        "continue 时填写候选话题 ID；"
+                                        f"{NEW_EPISODE_REF} 用于 new；none 时留空。"
                                     ),
                                 },
                                 "title": {
                                     "type": "string",
                                     "maxLength": 80,
-                                    "description": "Specific title for new; otherwise empty.",
+                                    "description": 'new 的具体标题；否则为空。',
                                 },
                                 "reason": {
                                     "type": "string",
@@ -201,10 +151,7 @@ RECALL_TOOL_SPEC: dict[str, Any] = {
                                     "maxLength": 300,
                                     "pattern": r"\S",
                                     "description": (
-                                        "For continue, explain the concrete continuity with the "
-                                        "candidate Episode and why this is not a topic switch. "
-                                        "For new, explain why this is a distinct experience "
-                                        "worth archiving rather than a continuation."
+                                        '对于 continue，解释与候选话题的具体连续性以及为何这不是主题切换。对于 new，解释为何这是一个值得归档而非延续的独立体验。'
                                     ),
                                 },
                             },
@@ -215,7 +162,7 @@ RECALL_TOOL_SPEC: dict[str, Any] = {
                                                 "reason": {"const": ""}}},
                                 {"required": ["ref", "reason"], "properties": {
                                     "action": {"const": "continue"},
-                                    "ref": {"minLength": 1, "description": "Copy an actual candidate Episode id."},
+                                    "ref": {"minLength": 1, "description": '复制实际的候选话题 ID。'},
                                     "title": {"const": ""}}},
                                 {"required": ["ref", "title", "reason"], "properties": {
                                     "action": {"const": "new"},
@@ -275,8 +222,7 @@ def heartbeat_begin_spec(group_descriptions: dict[str, str]) -> dict[str, Any]:
     return {
         "name": "heartbeat_begin",
         "description": (
-            "Begin the chosen autonomous activity and enable the selected MCP groups. "
-            "For an owner-visible message, use recall after discovering the specific content."
+            '开始所选自主活动并启用选定的 MCP 组。对于用户可见的消息，在发现具体内容后使用 recall。'
         ),
         "input_schema": {
             "type": "object",
@@ -286,7 +232,7 @@ def heartbeat_begin_spec(group_descriptions: dict[str, str]) -> dict[str, Any]:
                     "minLength": 1,
                     "maxLength": 300,
                     "description": (
-                        "What you will do or experience in this Heartbeat."
+                        '本次 Heartbeat 中您将执行的操作或体验。'
                     ),
                 },
                 "mode": {
@@ -302,7 +248,7 @@ def heartbeat_begin_spec(group_descriptions: dict[str, str]) -> dict[str, Any]:
                         **({"enum": group_ids} if group_ids else {}),
                     },
                     "description": (
-                        "MCP groups required by the chosen activity. "
+                        "所选活动所需的 MCP 工具组："
                         + "; ".join(
                             f"{group}: {description}"
                             for group, description in groups.items()
@@ -318,8 +264,7 @@ def heartbeat_begin_spec(group_descriptions: dict[str, str]) -> dict[str, Any]:
                         "maxLength": 300,
                     },
                     "description": (
-                        "Minimum ordered checks, result branches, and completion "
-                        "or continuation condition."
+                        '最小有序检查、结果分支及完成或延续条件。'
                     ),
                 },
             },

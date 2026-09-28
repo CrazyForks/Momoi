@@ -26,7 +26,7 @@ be supported without independently establishing the event described.
 """
 SPEC = {
     "name": "episode_cue_admit",
-    "description": "Admit fully source-supported cue indices only.",
+    "description": "只返回得到来源完整支持的线索索引。",
     "input_schema": {
         "type": "object", "properties": {"supported_indices": {
             "type": "array", "uniqueItems": True,

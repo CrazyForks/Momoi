@@ -33,7 +33,7 @@ def _schedule_schema(description: str | None = None) -> dict[str, Any]:
                     "kind": {"type": "string", "enum": ["daily"]},
                     "times": {
                         "type": "array",
-                        "description": "Daily times in the application's configured timezone.",
+                        "description": '应用程序配置时区内的每日次数。',
                         "items": {
                             "type": "string",
                             "pattern": r"^(?:[01]\d|2[0-3]):[0-5]\d$",
@@ -57,7 +57,7 @@ AGENDA_TOOL_SPECS: list[dict[str, Any]] = [
     {
         "name": "goal_create",
         OWNER_PROGRESS_FIELD: OWNER_PROGRESS_BEFORE_FIRST_CALL,
-        "description": "Persist work that must continue in a future Turn.",
+        "description": '持续执行需在下一轮继续的工作。',
         "input_schema": {
             "type": "object",
             "properties": {
@@ -66,10 +66,10 @@ AGENDA_TOOL_SPECS: list[dict[str, Any]] = [
                 "next_action": {"type": "string", "pattern": r"\S"},
                 "next_review_at": {
                     **_REVIEW_TIME_SCHEMA,
-                    "description": "Future review time for a one-time Goal.",
+                    "description": '一次性目标的下次检查时间。',
                 },
                 "schedule": _schedule_schema(
-                    "Recurrence; the runtime computes the next review."
+                    "周期安排；运行时计算下次检查时间。"
                 ),
             },
             "required": ["title", "success_criteria", "next_action"],
@@ -83,7 +83,7 @@ AGENDA_TOOL_SPECS: list[dict[str, Any]] = [
     {
         "name": "goal_update",
         "description": (
-            "Update an existing open Goal; omitted state fields retain their current values."
+            '更新现有未结束的目标；省略的状态字段保留其当前值。'
         ),
         "input_schema": {
             "type": "object",
@@ -92,31 +92,30 @@ AGENDA_TOOL_SPECS: list[dict[str, Any]] = [
                 "status": {"type": "string", "enum": ["active", "waiting", "blocked"]},
                 "next_action": {
                     "type": "string",
-                    "description": "Next concrete step; active Goals need one.",
+                    "description": '下一步具体行动；进行中的目标需要至少一个。',
                 },
                 "waiting_for": {
                     "type": "string",
-                    "description": "Unmet condition; waiting Goals need one.",
+                    "description": '未满足的条件；等待中的目标需要一个。',
                 },
                 "blocked_reason": {
                     "type": "string",
-                    "description": "Obstacle preventing progress; blocked Goals need one.",
+                    "description": '阻碍进展的障碍；受阻的目标需要一个。',
                 },
                 "result": {
                     "type": "string",
                     "description": (
-                        "Concrete checks, actions, and verified outcome. "
-                        "Exclude owner state supplied fresh by memory or conversation."
+                        '具体的检查、行动及已验证的结果。排除由记忆或对话提供的最新用户状态。'
                     ),
                 },
                 "next_review_at": {
                     **_REVIEW_TIME_SCHEMA,
-                    "description": "Future review; required for waiting or non-recurring active. Omit for recurring active.",
+                    "description": '下次检查时间；等待中或非重复性进行中的目标需要此项，重复性进行中的目标可省略。',
                 },
                 "schedule": _schedule_schema(),
                 "clear_schedule": {
                     "type": "boolean",
-                    "description": "Remove existing recurrence.",
+                    "description": '移除现有重复周期。',
                 },
             },
             "required": ["goal_id", "status"],
@@ -139,7 +138,7 @@ AGENDA_TOOL_SPECS: list[dict[str, Any]] = [
     {
         "name": "goal_finish",
         "description": (
-            "Close a Goal successfully when all success criteria are achieved."
+            '当所有成功标准达成时，成功关闭目标。'
         ),
         "input_schema": {
             "type": "object",
@@ -152,7 +151,7 @@ AGENDA_TOOL_SPECS: list[dict[str, Any]] = [
         "name": "goal_cancel",
         OWNER_PROGRESS_FIELD: OWNER_PROGRESS_BEFORE_FIRST_CALL,
         "description": (
-            "Close a Goal without success when abandoned, obsolete, or stopped."
+            '当被放弃、过时或停止时，无成功结果地关闭目标。'
         ),
         "input_schema": {
             "type": "object",
@@ -167,7 +166,7 @@ AGENDA_TOOL_SPECS: list[dict[str, Any]] = [
 GOAL_REVIEW_SCHEMA: dict[str, Any] = {
     "type": "object",
     "description": (
-        "Outcome of the current Goal review; the runtime supplies the Goal ID."
+        '当前目标检查的结果；运行时提供目标 ID。'
     ),
     "properties": {
         **{
@@ -178,9 +177,7 @@ GOAL_REVIEW_SCHEMA: dict[str, Any] = {
         "next_review_at": {
             **_REVIEW_TIME_SCHEMA,
             "description": (
-                "Future review. Active Goals reuse existing recurrence when omitted; "
-                "required when no recurrence remains, including after clear_schedule. "
-                "Omit for recurring active Goals."
+                '下次检查时间。进行中的目标若省略则复用现有重复周期；若无剩余重复周期（包括 clear_schedule 之后）则需要此项，重复性进行中的目标可省略。'
             ),
         },
         "status": {
@@ -193,8 +190,7 @@ GOAL_REVIEW_SCHEMA: dict[str, Any] = {
             "maxLength": 2000,
             "pattern": r"\S",
             "description": (
-                "Concrete checks, actions, and verified outcome of this review, or the "
-                "reason for cancellation."
+                '本次检查的具体检查、行动及已验证结果，或取消原因。'
             ),
         },
     },
@@ -217,7 +213,7 @@ GOAL_REVIEW_SCHEMA: dict[str, Any] = {
     ],
     "oneOf": [
         {
-            "description": "Continue work. Schedule a future review, or reuse the recurring schedule.",
+            "description": '继续工作。安排下次检查，或复用重复性计划。',
             "properties": {
                 "status": {"enum": ["active"]},
                 "next_action": {"pattern": r"\S"},
@@ -225,7 +221,7 @@ GOAL_REVIEW_SCHEMA: dict[str, Any] = {
             "required": ["next_action"],
         },
         {
-            "description": "Await a condition.",
+            "description": '等待条件。',
             "properties": {
                 "status": {"enum": ["waiting"]},
                 "waiting_for": {"pattern": r"\S"},
@@ -234,7 +230,7 @@ GOAL_REVIEW_SCHEMA: dict[str, Any] = {
             "required": ["waiting_for", "next_review_at"],
         },
         {
-            "description": "Cannot proceed.",
+            "description": '无法继续。',
             "properties": {
                 "status": {"enum": ["blocked"]},
                 "blocked_reason": {"pattern": r"\S"},
@@ -243,7 +239,7 @@ GOAL_REVIEW_SCHEMA: dict[str, Any] = {
             "required": ["blocked_reason"],
         },
         {
-            "description": "done when success criteria are met; cancelled when no longer pursued.",
+            "description": '满足成功标准时标记为 done；不再追求时标记为 cancelled。',
             "properties": {"status": {"enum": ["done", "cancelled"]}},
             "maxProperties": 2,
         },

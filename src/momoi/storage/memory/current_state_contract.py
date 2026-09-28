@@ -21,9 +21,7 @@ CURRENT_STATE_TRIGGER_STAGES = frozenset({"owner"})
 CURRENT_STATE_CHANGE_SCHEMA = {
     "type": "object",
     "description": (
-        "Return empty add and delete arrays when nothing changes. "
-        "Long-term preferences belong to memory; scheduled work belongs to goals. "
-        "All changes are validated and committed atomically."
+        '若无变更，返回空的添加和删除数组。长期偏好属于记忆；计划性工作属于目标。所有变更均经过验证并原子性提交。'
     ),
     "properties": {
         "delete": {
@@ -31,11 +29,7 @@ CURRENT_STATE_CHANGE_SCHEMA = {
             "maxItems": MAX_SLOTS,
             "uniqueItems": True,
             "description": (
-                "IDs of existing slots contradicted or ended by new evidence. "
-                "A replacement requires deleting the old slot and adding its successor "
-                "in this same change set, atomically. "
-                "Use IDs from the current maintenance snapshot. "
-                "The backend handles time-based expiry."
+                '现有槽位的 ID 与新证据相矛盾或已被新证据终结。替换需在同一变更集中原子性地删除旧槽位并添加其继任者。请使用当前维护快照中的 ID。后端处理基于时间的过期。'
             ),
             "items": {
                 "type": "string",
@@ -47,7 +41,7 @@ CURRENT_STATE_CHANGE_SCHEMA = {
         "add": {
             "type": "array",
             "maxItems": MAX_SLOTS,
-            "description": "New evidence-supported states; reuse an existing dimension when applicable.",
+            "description": '由新证据支持的状态；在适用时复用现有维度。',
             "items": {
                 "type": "object",
                 "properties": {
@@ -56,7 +50,7 @@ CURRENT_STATE_CHANGE_SCHEMA = {
                         "minLength": 1,
                         "maxLength": SUBJECT_MAX_LENGTH,
                         "pattern": r"\S",
-                        "description": "The known state holder. Distinguish owner, assistant and other established entities.",
+                        "description": '已知状态持有者。区分用户、助手及其他已确立的实体。',
                     },
                     "key": {
                         "type": "string",
@@ -64,8 +58,7 @@ CURRENT_STATE_CHANGE_SCHEMA = {
                         "maxLength": KEY_MAX_LENGTH,
                         "pattern": KEY_PATTERN,
                         "description": (
-                            "State dimension. Reuse existing keys instead of inventing synonyms. "
-                            "Only one active slot per subject and key is allowed."
+                            '状态维度。应复用现有键而非发明同义词。每个主题和键仅允许一个活动槽位。'
                         ),
                     },
                     "value": {
@@ -73,38 +66,34 @@ CURRENT_STATE_CHANGE_SCHEMA = {
                         "minLength": 1,
                         "maxLength": VALUE_MAX_LENGTH,
                         "pattern": r"\S",
-                        "description": "A concise current fact or already-decided arrangement affecting near-term responses, supported by the supplied evidence. A future action may have an already-effective decision; preserve attribution and uncertainty.",
+                        "description": '由所提供证据支持的简洁当前事实或已决定的近期安排。未来行动可能已有生效决定；保留归因与不确定性。',
                     },
                     "status": {
                         "type": "string", "enum": ["observed", "inferred"],
-                        "description": "Observed means directly stated by the source, not independently proven. Mark deductions inferred.",
+                        "description": '观察到的内容直接陈述自来源，而非独立证明。标记推论得出的内容。',
                     },
                     "source_turn": {
                         "type": "string", "minLength": 1,
-                        "description": "Exact T-N label of the evidence Turn in this transcript.",
+                        "description": '本对话转录中该证据 Turn 的精确 T-N 标签。',
                     },
                     "source_id": {
                         "type": "string", "minLength": 1,
-                        "description": "Exact source id from source_evidence (event:... or message:...).",
+                        "description": '来自 source_evidence（event:... 或 message:...）的精确源 ID。',
                     },
                     "source": {
                         "type": "string", "minLength": 1, "maxLength": 512,
-                        "description": "Exact contiguous quote from one source message. Never attribute assistant words to the owner. Runtime resolves speaker and evidence time.",
+                        "description": '来自单一源消息的精确连续引用。切勿将助手的言论归因于用户。运行时解析说话者与证据时间。',
                     },
                     "uncertainty": {
                         "type": "string", "maxLength": 512,
-                        "description": "What remains unconfirmed; required nonempty for inferred states, otherwise may be empty.",
+                        "description": '尚未确认的内容；对于推论状态必须非空，否则可为空。',
                     },
                     "ttl_seconds": {
                         "type": "integer",
                         "minimum": 1,
                         "maximum": MAX_TTL_SECONDS,
                         "description": (
-                            "How long new evidence justifies retaining this fact, starting at commit time. "
-                            "Retain only an evidence-supported window up to 24 hours; a future action does not exclude its currently effective constraints. Longer duration alone does not make a fact durable. For genuinely durable facts, "
-                            "use memory_operation instead of a current-state slot. "
-                            "Seeing or reusing a slot is not evidence for renewal. Expiry means unknown, "
-                            "not that the opposite state holds. Renewal requires fresh evidence and delete + add."
+                            '新证据支持保留该事实的时长，从提交时间开始计算。仅保留最多 24 小时的由证据支持的窗口；未来行动不排除其当前有效的约束。仅凭更长持续时间并不使事实持久。对于真正持久的事实，请使用 memory_operation 而非当前状态槽位。看到或复用槽位并非续期的证据。过期意味着未知，而非相反状态成立。续期需要新证据并执行删除 + 添加。'
                         ),
                     },
                 },

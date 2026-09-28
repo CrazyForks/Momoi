@@ -8,7 +8,7 @@ def tool_enable_spec(group_descriptions: dict[str, str]) -> dict[str, Any]:
     }
     return {
         "name": "tool_enable",
-        "description": "Enable the MCP groups needed for the next action.",
+        "description": '启用下一行动所需的 MCP 组。',
         "input_schema": {
             "type": "object",
             "properties": {
@@ -32,8 +32,7 @@ def tool_enable_spec(group_descriptions: dict[str, str]) -> dict[str, Any]:
 READ_TOOL_RESULT_SPEC: dict[str, Any] = {
     "name": "read_tool_result",
     "description": (
-        "Continue a truncated tool-result snapshot without rerunning the tool. "
-        "Cannot read workspace files."
+        '继续截断的工具结果快照，无需重新运行工具。无法读取工作区文件。'
     ),
     "input_schema": {
         "type": "object",
@@ -41,12 +40,12 @@ READ_TOOL_RESULT_SPEC: dict[str, Any] = {
             "result_ref": {
                 "type": "string",
                 "pattern": "^tr_[0-9a-f]{32}$",
-                "description": "Copy result_ref unchanged from the truncated result.",
+                "description": '从截断的结果中复制未更改的 result_ref。',
             },
             "cursor": {
                 "type": "string",
                 "minLength": 1,
-                "description": "Latest next_cursor from the preceding chunk; omit for the first chunk.",
+                "description": '前一个分片中的最新 next_cursor；首个分片可省略。',
             },
         },
         "required": ["result_ref"],

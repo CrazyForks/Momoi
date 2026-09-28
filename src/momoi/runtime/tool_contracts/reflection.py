@@ -6,8 +6,7 @@ from ...storage import MEMORY_KINDS
 REFLECTION_FINISH_SPEC: dict[str, Any] = {
     "name": "reflection_finish",
     "description": (
-        "Store the daily reflection, lasting memories, and conversation closures, "
-        "then end this private Turn."
+        '存储每日反思、持久记忆和对话结束内容，然后结束此私有 Turn。'
     ),
     "input_schema": {
         "type": "object",
@@ -17,15 +16,14 @@ REFLECTION_FINISH_SPEC: dict[str, Any] = {
                 "minLength": 1,
                 "maxLength": 6000,
                 "description": (
-                    "Chinese diary of meaningful experiences, feelings, opinions, "
-                    "changed understanding, and unresolved questions."
+                    '有意义经历、感受、观点、理解变化及未决问题的中文日记。'
                 ),
             },
             "conversation_actions": {
                 "type": "array",
                 "maxItems": 32,
                 "description": (
-                    "Housekeeping of <open_conversations>; empty when none is needed."
+                    '<open_conversations>的维护工作；无需时为空。'
                 ),
                 "items": {
                     "type": "object",
@@ -34,7 +32,7 @@ REFLECTION_FINISH_SPEC: dict[str, Any] = {
                             "type": "string",
                             "minLength": 1,
                             "maxLength": 128,
-                            "description": "Episode id from <open_conversations>.",
+                            "description": '来自<open_conversations>的话题 ID。',
                         },
                         "action": {
                             "type": "string",
@@ -54,9 +52,7 @@ REFLECTION_FINISH_SPEC: dict[str, Any] = {
                 "type": "array",
                 "maxItems": 12,
                 "description": (
-                    "Durable claims worth retaining beyond today. May be empty; do not "
-                    "manufacture lessons to fill the list. Do not record a specific or "
-                    "shared experience/event; those belong to the Episode summary."
+                    '值得保留至今天的持久主张。可为空；不要编造教训以填充列表。不要记录特定或共享的经历/事件；这些属于话题摘要。'
                 ),
                 "items": {
                     "type": "object",
@@ -65,34 +61,19 @@ REFLECTION_FINISH_SPEC: dict[str, Any] = {
                             "type": "string",
                             "enum": sorted(MEMORY_KINDS),
                             "description": (
-                                "profile: who the owner is, their background, rhythm, "
-                                "and habits; preference: what the owner wants, including "
-                                "constraints and standing wording; relationship: the bond "
-                                "and its boundaries, forms of address, agreements; "
-                                "third_party: stable facts about other people; practice: "
-                                "reusable methods or decision processes, including tool "
-                                "usage; world_knowledge: observed knowledge about the world; "
-                                "self_insight: subjective understanding of your own feelings "
-                                "or tendencies; cross_event_state: a durable state that "
-                                "outlives the event that produced it. A specific or shared "
-                                "experience belongs to the day's Episode, not here; record "
-                                "only a durable claim matching the selected kind."
+                                'profile：用户身份、背景、节奏与习惯；preference：用户的需求，包括约束条件及既定措辞；relationship：关系纽带及其边界、称呼方式与约定；third_party：关于他人的稳定事实；practice：可复用的方法或决策流程（含工具使用）；world_knowledge：对世界的观察所得知识；self_insight：对自身感受或倾向的主观理解；cross_event_state：超越产生它的事件而持续存在的状态。具体或共享的经历属于当天的 Episode，不在此记录；仅记录符合所选类型的持久性主张。'
                             ),
                         },
                         "key": {
                             "type": "string",
-                            "description": "Stable lowercase dot-separated key.",
+                            "description": '稳定的小写点分隔键。',
                         },
                         "content": {
                             "type": "string",
                             "minLength": 1,
                             "maxLength": 1000,
                             "description": (
-                                "Concisely describe what happened, was understood, or was "
-                                "learned, according to kind, within the evidence's scope. "
-                                "For practice, include applicability and an "
-                                "observable outcome; absence of criticism is not evidence "
-                                "of success."
+                                '根据类型，在证据范围内简明描述发生、被理解或被学习的内容。对于 practice，需包含适用性及可观察的结果；未受批评并非成功的证据。'
                             ),
                         },
                         "evidence": {
@@ -100,8 +81,7 @@ REFLECTION_FINISH_SPEC: dict[str, Any] = {
                             "minLength": 1,
                             "maxLength": 500,
                             "description": (
-                                "Exact contiguous quote from the supplied day or tool "
-                                "evidence supporting this conclusion, not merely its topic."
+                                '支持该结论的来自所提供当日或工具证据的精确连续引文，而非仅其主题。'
                             ),
                         },
                         "confidence": {
@@ -109,8 +89,7 @@ REFLECTION_FINISH_SPEC: dict[str, Any] = {
                             "minimum": 0,
                             "maximum": 1,
                             "description": (
-                                "Confidence that the evidence supports the recorded claim, "
-                                "including its scope; not its importance or your resolve."
+                                '证据支持所记录主张（含其范围）的确信度；非其重要性或你的决心。'
                             ),
                         },
                     },

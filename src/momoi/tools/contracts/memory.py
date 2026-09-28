@@ -13,8 +13,7 @@ MEMORY_TOOL_SPECS: list[dict[str, Any]] = [
     {
         "name": "memory_search",
         "description": (
-            "Search committed memory for earlier facts, people, preferences, events, "
-            "or vague references not already resolved by supplied context."
+            '在已提交的记忆中搜索早期事实、人物、偏好、事件或未由提供上下文解析的模糊引用。'
         ),
         "input_schema": {
             "type": "object",
@@ -22,7 +21,7 @@ MEMORY_TOOL_SPECS: list[dict[str, Any]] = [
                 "query": {
                     "type": "string",
                     "description": (
-                        "Concise subject; use `|` for alternative names of the same subject."
+                        '简洁的主题；使用 `|` 表示同一主题的替代名称。'
                     ),
                 },
                 "limit": {
@@ -39,8 +38,7 @@ MEMORY_TOOL_SPECS: list[dict[str, Any]] = [
     {
         "name": "episode_search",
         "description": (
-            "Search archived Episodes by keyword or time. "
-            "Returns paginated summaries and evidence locations, not raw messages."
+            '按关键词或时间搜索已归档的话题。返回分页摘要及证据位置，而非原始消息。'
         ),
         "input_schema": {
             "type": "object",
@@ -48,14 +46,13 @@ MEMORY_TOOL_SPECS: list[dict[str, Any]] = [
                 "query": {
                     "type": "string",
                     "description": (
-                        "Concise subject, optionally with `|` aliases; empty browses "
-                        "time_range chronologically."
+                        '简洁的主题，可选带 `|` 别名；为空时则按时间顺序浏览时间范围。'
                     ),
                 },
                 "time_range": {
                     "type": "object",
                     "description": (
-                        "Window; defaults to 30 days. Use all only when older history matters."
+                        '窗口；默认为 30 天。仅在旧历史记录重要时使用 all。'
                     ),
                     "properties": {
                         "kind": {
@@ -82,7 +79,7 @@ MEMORY_TOOL_SPECS: list[dict[str, Any]] = [
                 "cursor": {
                     "type": "integer",
                     "minimum": 0,
-                    "description": "Offset returned as next_cursor.",
+                    "description": '偏移量作为 next_cursor 返回。',
                 },
             },
             "required": ["query"],
@@ -92,8 +89,7 @@ MEMORY_TOOL_SPECS: list[dict[str, Any]] = [
     {
         "name": "episode_read",
         "description": (
-            "Read paginated raw Episode messages with role, time, delivery state, "
-            "and evidence locations, plus bounded execution evidence. Use turn_id and after_sequence to page historical tool calls; assistant_text is internal commentary, not proof of completion."
+            '读取分页的原始话题消息，包含角色、时间、投递状态及证据位置，以及有界执行证据。使用 turn_id 和 after_sequence 对历史工具调用进行分页；assistant_text 为内部评论，并非完成证明。'
         ),
         "input_schema": {
             "type": "object",
@@ -102,22 +98,21 @@ MEMORY_TOOL_SPECS: list[dict[str, Any]] = [
                     "type": "string",
                     "minLength": 1,
                     "maxLength": 200,
-                    "description": "Episode id from recall or episode_search.",
+                    "description": '来自 recall 或 episode_search 的话题 id。',
                 },
-                "turn_id": {"type": "string", "description": "Read execution evidence for this Turn within the Episode."},
-                "after_sequence": {"type": "integer", "minimum": 0, "description": "Execution cursor returned as next_after_sequence; requires turn_id."},
+                "turn_id": {"type": "string", "description": '读取该 Turn 在话题内的执行证据。'},
+                "after_sequence": {"type": "integer", "minimum": 0, "description": '执行游标作为 next_after_sequence 返回；需要 turn_id。'},
                 "before_ordinal": {
                     "type": "integer",
                     "minimum": 2,
                     "description": (
-                        "next_before_ordinal for an older page; omit for newest."
+                        '旧页面的 next_before_ordinal；最新页面则省略。'
                     ),
                 },
                 "time_range": {
                     "type": "object",
                     "description": (
-                        "Exact message-time window; prefer a narrow range because raw "
-                        "messages are verbose."
+                        '精确的消息时间窗口；因原始消息冗长，请优先使用较窄的范围。'
                     ),
                     "properties": {
                         "kind": {
@@ -138,12 +133,12 @@ MEMORY_TOOL_SPECS: list[dict[str, Any]] = [
                 "message_id": {
                     "type": "integer",
                     "minimum": 1,
-                    "description": ("Message id returned with next_content_offset."),
+                    "description": ('消息 id 随 next_content_offset 返回。'),
                 },
                 "content_offset": {
                     "type": "integer",
                     "minimum": 0,
-                    "description": ("next_content_offset for the same message_id."),
+                    "description": ('同一消息 id 的 next_content_offset。'),
                 },
             },
             "required": ["episode_id"],
@@ -153,50 +148,40 @@ MEMORY_TOOL_SPECS: list[dict[str, Any]] = [
     {
         "name": "memory_operation",
         "description": (
-            "Change durable memory (default scope=memory) or temporary state (scope=current_state). "
-            "For existing temporary state, use current_state: replace updates, forget deletes. "
-            "New states can only be added by background state maintenance; add is forbidden in this scope. "
-            "Use the existing subject/key; a missing or expired dimension cannot be created by replace. "
-            "Provide ttl_seconds for replace, omit it for forget. Do not renew without fresh evidence. "
-            "Only record temporary facts or behavior directly supported by current owner input, not your guesses. "
-            "In current_state_maintenance use current_state_finish instead. "
-            "The following review rules apply only to durable memory: "
-            "The runtime attaches recalled memories and conversation; private review runs "
-            "after this Turn commits. Acceptance does not mean the change is effective. "
-            "Do not repeat an accepted request."
+            '更改持久化记忆（默认 scope=memory）或临时状态（scope=current_state）。对于现有临时状态，使用 current_state：replace 用于更新，forget 用于删除。新状态只能由后台状态维护添加；此范围内禁止 add。请使用现有的主题/键；缺失或过期的维度无法通过 replace 创建。为 replace 提供 ttl_seconds，forget 则省略。若无新鲜证据，请勿续期。仅记录当前用户输入直接支持的临时事实或行为，而非您的猜测。在 current_state_maintenance 中使用 current_state_finish。以下审查规则仅适用于持久化记忆：运行时附加召回的记忆和对话；私有审查在该 Turn 提交后运行。接受不意味着更改已生效。请勿重复已接受的请求。'
         ),
         "input_schema": {
             "type": "object",
             "properties": {
                 "type": {
                     "type": "string", "enum": ["add", "replace", "forget"],
-                    "description": "Operation, not memory category. add creates durable memory requests only; replace updates or corrects an existing fact; forget deletes an ended, disproved, or explicitly unwanted fact. For current_state, replace atomically replaces the existing subject/key value and TTL; no separate forget is needed.",
+                    "description": '操作类型，而非记忆类别。add 仅创建持久化记忆请求；replace 更新或更正现有事实；forget 删除已结束、被证伪或明确不需要的事实。对于 current_state，replace 原子性地替换现有主题/键的值和 TTL；无需单独的 forget。',
                 },
                 "content": {
                     "type": "string",
                     "minLength": 1,
                     "maxLength": 2000,
-                    "description": "New scoped fact for add/replace; subject to forget for forget. Preserve the owner's polarity, object, conditions, and duration.",
+                    "description": 'add/replace 的新范围化事实；forget 则受其约束。保留用户的极性、对象、条件和持续时间。',
                 },
                 "evidence": {
                     "type": "string",
                     "minLength": 1,
                     "maxLength": 500,
-                    "description": "Exact contiguous quote from a current authenticated owner message.",
+                    "description": '来自当前认证用户消息的精确连续引用。',
                 },
                 "scope": {"type": "string", "enum": ["memory", "current_state"],
-                          "description": "Storage category: memory (default) for durable facts, preferences, rules, or relationships; current_state only for updating or deleting existing temporary facts or time-limited behavior (up to 24 hours). Durable memory kind and activation are classified by background review, not by the type parameter."},
+                          "description": '存储类别：memory（默认）用于持久化事实、偏好、规则或关系；current_state 仅用于更新或删除现有临时事实或限时行为（最长 24 小时）。持久化记忆种类和激活由后台审查分类，而非 type 参数。'},
                 "subject": {"type": "string", "minLength": 1, "maxLength": 128,
-                            "description": "current_state only: owner, assistant, or an established entity."},
+                            "description": 'current_state 仅限：用户、助手或已建立的实体。'},
                 "key": {"type": "string", "minLength": 1, "maxLength": 64,
                         "pattern": "^[a-z][a-z0-9_.-]*$",
-                        "description": "current_state only: dimension without the subject prefix; reuse the existing key. For owner.diet.intake use subject=owner, key=diet.intake. replace/forget require an existing dimension; adding is not allowed."},
+                        "description": 'current_state 仅限：不带主题前缀的维度；复用现有键。对于 owner.diet.intake 使用 subject=owner，key=diet.intake。replace/forget 需要现有维度；不允许添加。'},
                 "ttl_seconds": {"type": "integer", "minimum": 1, "maximum": 86400,
-                                "description": "current_state replace only: evidence-supported remaining duration from this write."},
+                                "description": 'current_state replace 仅限：本次写入中由证据支持的剩余持续时间。'},
                 "target_id": {
                     "type": "integer",
                     "minimum": 1,
-                    "description": "Durable memory only: optional memory_id already displayed in this Turn. Omit when unknown. For current_state use subject/key instead.",
+                    "description": '持久记忆：仅当本回合已显示可选的 memory_id 时使用；未知时省略。当前状态请使用 subject/key 替代。',
                 },
             },
             "required": ["type", "content", "evidence"],

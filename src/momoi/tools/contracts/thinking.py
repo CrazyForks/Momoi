@@ -9,26 +9,25 @@ THINKING_TOOL_SPECS: list[dict[str, Any]] = [
     {
         "name": "thinking_search",
         "description": (
-            "Search recorded model thinking by Turn, keyword, or time. Returns "
-            "compact excerpts, not full reasoning."
+            '按回合、关键词或时间搜索已记录的模型思考过程，返回精简摘录而非完整推理。'
         ),
         "input_schema": {
             "type": "object",
             "properties": {
                 "turn_id": {
                     "type": "string",
-                    "description": "Exact Turn id.",
+                    "description": '精确的回合 ID。',
                 },
                 "query": {
                     "type": "string",
                     "description": (
-                        "Exact keyword or `|`-separated alternatives."
+                        '精确关键词或用 `|` 分隔的备选项。'
                     ),
                 },
                 "time_range": {
                     "type": "object",
                     "description": (
-                        "Window; defaults to 30 days without turn_id."
+                        '窗口期；若无 turn_id，默认为 30 天。'
                     ),
                     "properties": {
                         "kind": {
@@ -49,7 +48,7 @@ THINKING_TOOL_SPECS: list[dict[str, Any]] = [
                 "stage": {
                     "type": "string",
                     "description": (
-                        "Call stage, e.g. owner, webhook, heartbeat, goal, reflection."
+                        '调用阶段，例如 owner、webhook、heartbeat、goal、reflection 等。'
                     ),
                 },
                 "limit": {
@@ -61,7 +60,7 @@ THINKING_TOOL_SPECS: list[dict[str, Any]] = [
                 "cursor": {
                     "type": "integer",
                     "minimum": 0,
-                    "description": "Offset returned as next_cursor.",
+                    "description": '偏移量作为 next_cursor 返回。',
                 },
             },
             "additionalProperties": False,
@@ -70,7 +69,7 @@ THINKING_TOOL_SPECS: list[dict[str, Any]] = [
     {
         "name": "thinking_read",
         "description": (
-            "Read recorded thinking for a Turn from thinking_search."
+            '从 thinking_search 读取某回合的思考记录。'
         ),
         "input_schema": {
             "type": "object",
@@ -81,7 +80,7 @@ THINKING_TOOL_SPECS: list[dict[str, Any]] = [
                 },
                 "call_id": {
                     "type": "string",
-                    "description": "Call id from thinking_search; omit to read all calls in the Turn.",
+                    "description": '来自 thinking_search 的调用 ID；省略则读取该回合的所有调用。',
                 },
             },
             "required": ["turn_id"],

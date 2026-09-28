@@ -8,14 +8,14 @@ _EVIDENCE_SCHEMA = {
             "type": "string",
             "minLength": 1,
             "description": (
-                "Copy event_id verbatim from <owner_evidence>, including its channel prefix."
+                '从<owner_evidence>逐字复制 event_id，包括其频道前缀。'
             ),
         },
         "quote": {
             "type": "string",
             "minLength": 1,
             "description": (
-                "Exact contiguous substring of that event's content; no paraphrase."
+                '该事件内容的精确连续子串；不要改写。'
             ),
         },
     },
@@ -26,31 +26,31 @@ _EVIDENCE_SCHEMA = {
 MEMORY_MAINTENANCE_FINISH_SPEC: dict[str, object] = {
     "name": "memory_maintenance_finish",
     "description": (
-        "Apply the confirmed-memory maintenance batch and end this private Turn."
+        '应用确认的记忆维护批次并结束此私有 Turns。'
     ),
     "input_schema": {
         "type": "object",
-        "description": "Cover every mutable id exactly once: unchanged in reviewed_ids, changed, or deferred in regroup anchor_ids.",
+        "description": '精确覆盖每个可变 ID 一次：在 reviewed_ids 中保持不变，已变更，或在 regroup anchor_ids 中推迟。',
         "properties": {
             "reviewed_ids": {
                 "type": "array",
                 "uniqueItems": True,
                 "items": {"type": "integer", "minimum": 1},
                 "description": (
-                    "Mutable memory ids kept unchanged."
+                    '保持不变的内存 ID。'
                 ),
             },
             "changes": {
                 "type": "array",
                 "description": (
-                    "State changes for mutable memories."
+                    '可变记忆的变更状态。'
                 ),
                 "items": {
                     "oneOf": [
                         {
                             "type": "object",
                             "description": (
-                                "Replace one mutable row."
+                                '替换一行可变行。'
                             ),
                             "properties": {
                                 "action": {
@@ -61,7 +61,7 @@ MEMORY_MAINTENANCE_FINISH_SPEC: dict[str, object] = {
                                     "type": "integer",
                                     "minimum": 1,
                                     "description": (
-                                        "Target id from <mutable_memories>."
+                                        '来自<mutable_memories>的目标 ID。'
                                     ),
                                 },
                                 "content": {
@@ -69,22 +69,20 @@ MEMORY_MAINTENANCE_FINISH_SPEC: dict[str, object] = {
                                     "minLength": 1,
                                     "maxLength": 2000,
                                     "description": (
-                                        "Complete final content for the surviving row. "
-                                        "Do not broaden the supported facts."
+                                        '幸存行的完整最终内容。不要扩大支持的事实。'
                                     ),
                                 },
                                 "activation": {
                                     "type": "string",
                                     "enum": ["always", "recall"],
                                     "description": (
-                                        "Final activation."
+                                        '最终激活。'
                                     ),
                                 },
                                 "expires_at": {
                                     "type": "null",
                                     "description": (
-                                        "Always null; memories do not expire. "
-                                        "Temporary state belongs to current state."
+                                        '始终为 null；记忆不会过期。临时状态属于当前状态。'
                                     ),
                                 },
                                 "evidence": {
@@ -93,9 +91,7 @@ MEMORY_MAINTENANCE_FINISH_SPEC: dict[str, object] = {
                                         {"type": "null"},
                                     ],
                                     "description": (
-                                        "Required exact owner evidence for any factual "
-                                        "correction. Use null only if object, scope, "
-                                        "conditions, duration and polarity are unchanged."
+                                        '任何事实更正所需的精确所有者证据。仅在对象、范围、条件、持续时间和极性未变更时使用 null。'
                                     ),
                                 },
                                 "reason": {
@@ -103,8 +99,7 @@ MEMORY_MAINTENANCE_FINISH_SPEC: dict[str, object] = {
                                     "minLength": 1,
                                     "maxLength": 400,
                                     "description": (
-                                        "Short audit reason explaining what changed "
-                                        "and why."
+                                        '简短的审计理由，解释变更内容及原因。'
                                     ),
                                 },
                             },
@@ -122,7 +117,7 @@ MEMORY_MAINTENANCE_FINISH_SPEC: dict[str, object] = {
                         {
                             "type": "object",
                             "description": (
-                                "Keep one mutable survivor and absorb the source rows."
+                                '保留一个可变幸存者并吸收源行。'
                             ),
                             "properties": {
                                 "action": {
@@ -133,7 +128,7 @@ MEMORY_MAINTENANCE_FINISH_SPEC: dict[str, object] = {
                                     "type": "integer",
                                     "minimum": 1,
                                     "description": (
-                                        "Mutable id to keep; excluded from source_ids."
+                                        '要保留的可变 ID；排除在 source_ids 之外。'
                                     ),
                                 },
                                 "source_ids": {
@@ -142,8 +137,7 @@ MEMORY_MAINTENANCE_FINISH_SPEC: dict[str, object] = {
                                     "uniqueItems": True,
                                     "items": {"type": "integer", "minimum": 1},
                                     "description": (
-                                        "Other mutable ids absorbed by survivor_id. "
-                                        "Each source is retired through superseded_by."
+                                        '被 survivor_id 吸收的其他可变 ID。每个源通过 superseded_by 退役。'
                                     ),
                                 },
                                 "content": {
@@ -151,21 +145,20 @@ MEMORY_MAINTENANCE_FINISH_SPEC: dict[str, object] = {
                                     "minLength": 1,
                                     "maxLength": 2000,
                                     "description": (
-                                        "Complete final survivor content."
+                                        '幸存行的完整最终内容。'
                                     ),
                                 },
                                 "activation": {
                                     "type": "string",
                                     "enum": ["always", "recall"],
                                     "description": (
-                                        "Final activation; always is legal only "
-                                        "when every merged row was already always."
+                                        '最终激活；仅当每行合并行始终合法时才总是合法。'
                                     ),
                                 },
                                 "expires_at": {
                                     "type": "null",
                                     "description": (
-                                        "Always null; memories do not expire."
+                                        '始终为 null；记忆不会过期。'
                                     ),
                                 },
                                 "evidence_event_ids": {
@@ -174,8 +167,7 @@ MEMORY_MAINTENANCE_FINISH_SPEC: dict[str, object] = {
                                     "uniqueItems": True,
                                     "items": {"type": "string", "minLength": 1},
                                     "description": (
-                                        "Exact event_id strings from <owner_evidence> "
-                                        "supporting final content; copy verbatim."
+                                        '支持最终内容的来自<owner_evidence>的精确 event_id 字符串；逐字复制。'
                                     ),
                                 },
                                 "reason": {
@@ -183,8 +175,7 @@ MEMORY_MAINTENANCE_FINISH_SPEC: dict[str, object] = {
                                     "minLength": 1,
                                     "maxLength": 400,
                                     "description": (
-                                        "Short audit reason proving why these rows are "
-                                        "one fact/event rather than merely related."
+                                        '简短的审计理由，证明这些行为何属于同一事实/事件，而非仅仅相关。'
                                     ),
                                 },
                             },
@@ -203,7 +194,7 @@ MEMORY_MAINTENANCE_FINISH_SPEC: dict[str, object] = {
                         {
                             "type": "object",
                             "description": (
-                                "Retire one mutable fact. Expired recent rows are purged by the runtime."
+                                '退役一个可变事实。过期的最近行由运行时清除。'
                             ),
                             "properties": {
                                 "action": {
@@ -214,7 +205,7 @@ MEMORY_MAINTENANCE_FINISH_SPEC: dict[str, object] = {
                                     "type": "integer",
                                     "minimum": 1,
                                     "description": (
-                                        "Mutable id to retire."
+                                        '用于退役的可变标识符。'
                                     ),
                                 },
                                 "evidence": _EVIDENCE_SCHEMA,
@@ -223,8 +214,7 @@ MEMORY_MAINTENANCE_FINISH_SPEC: dict[str, object] = {
                                     "minLength": 1,
                                     "maxLength": 400,
                                     "description": (
-                                        "Short audit reason naming the explicit owner "
-                                        "revocation."
+                                        '简短的审计理由，指明显式的所有者撤销。'
                                     ),
                                 },
                             },
@@ -242,7 +232,7 @@ MEMORY_MAINTENANCE_FINISH_SPEC: dict[str, object] = {
             "regroup_requests": {
                 "type": "array",
                 "description": (
-                    "Defer anchors that need related read-only ids promoted into a later mutable group."
+                    '推迟需要相关只读 ID 提升为后续可变组的锚点。'
                 ),
                 "items": {
                     "type": "object",
@@ -253,7 +243,7 @@ MEMORY_MAINTENANCE_FINISH_SPEC: dict[str, object] = {
                             "uniqueItems": True,
                             "items": {"type": "integer", "minimum": 1},
                             "description": (
-                                "Mutable ids that must wait."
+                                '必须等待的可变 ID。'
                             ),
                         },
                         "include_ids": {
@@ -262,15 +252,14 @@ MEMORY_MAINTENANCE_FINISH_SPEC: dict[str, object] = {
                             "uniqueItems": True,
                             "items": {"type": "integer", "minimum": 1},
                             "description": (
-                                "Related ids found only in context/directory; they "
-                                "must not already be mutable."
+                                '仅在上下文/目录中发现的相关 ID；它们不能已经是可变的。'
                             ),
                         },
                         "reason": {
                             "type": "string",
                             "minLength": 1,
                             "maxLength": 400,
-                            "description": "Why these ids require one later review group.",
+                            "description": '这些 ID 为何需要一个后续审查组。',
                         },
                     },
                     "required": ["anchor_ids", "include_ids", "reason"],
@@ -281,7 +270,7 @@ MEMORY_MAINTENANCE_FINISH_SPEC: dict[str, object] = {
                 "type": "string",
                 "maxLength": 500,
                 "description": (
-                    "Private audit summary of keeps, changes, and deferrals."
+                    '保留、变更和推迟的私有审计摘要。'
                 ),
             },
         },

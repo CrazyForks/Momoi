@@ -147,7 +147,7 @@ async def select_topics(provider, store, request, queries, candidates, *, memory
     ]
     spec = {
         "name": "select_topics",
-        "description": "Select relevant topic indices, best first; empty when none is relevant.",
+        "description": "选择相关话题的索引，最相关的排在前面；没有相关话题时返回空列表。",
         "input_schema": {"type": "object", "properties": {
             "indices": {"type": "array", "maxItems": len(candidates), "uniqueItems": True,
                         "items": {"type": "integer", "minimum": 0, "maximum": max(0, len(candidates)-1)}},

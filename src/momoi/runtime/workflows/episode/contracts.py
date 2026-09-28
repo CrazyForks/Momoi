@@ -7,7 +7,7 @@ _TURN_IDS_SCHEMA: dict[str, Any] = {
     "type": "array",
     "minItems": 1,
     "uniqueItems": True,
-    "description": "T-XX references from pending_turns in this request's transcript.",
+    "description": 'T-XX 参考当前请求转录中的 pending_turns。',
     "items": {"type": "string", "pattern": "^T-[1-9][0-9]*$"},
 }
 _TAGS_SCHEMA: dict[str, Any] = {
@@ -87,9 +87,7 @@ _NEW_SCHEMA: dict[str, Any] = {
 EPISODE_CLASSIFY_TURNS_SPEC: dict[str, Any] = {
     "name": "episode_classify_turns",
     "description": (
-        "Persist classifications for any non-empty, not-yet-covered subset of the "
-        "pending Turns. Calls in one response must use non-overlapping Turn subsets. "
-        "The result reports durable covered and remaining Turn ids."
+        '对任何非空且尚未覆盖的 pending Turns 子集保持分类。单次响应中的调用必须使用互不重叠的 Turns 子集。结果报告持久化已覆盖和剩余的 Turns ID。'
     ),
     "input_schema": {
         "type": "object",
@@ -115,8 +113,7 @@ EPISODE_CLASSIFY_TURNS_SPEC: dict[str, Any] = {
 EPISODE_CONSOLIDATION_FINISH_SPEC: dict[str, Any] = {
     "name": "episode_consolidation_finish",
     "description": (
-        "Finish classification only after every pending Turn has a durable Store "
-        "decision. The runtime rejects this call while any Turn remains."
+        '仅在所有 pending Turns 均拥有持久的 Store 决策后才完成分类。运行时会在仍有 Turns 剩余时拒绝此调用。'
     ),
     "input_schema": {
         "type": "object",
@@ -127,14 +124,14 @@ EPISODE_CONSOLIDATION_FINISH_SPEC: dict[str, Any] = {
 
 _SUMMARY_CLAIM_SCHEMA: dict[str, Any] = {
     "type": "object",
-    "description": "Copy citation metadata from previous_verified_claims or new_messages.",
+    "description": '从 previous_verified_claims 或 new_messages 复制引用元数据。',
     "properties": {
         "message_id": {"type": "integer", "minimum": 1},
         "turn_id": {"type": "string", "minLength": 1},
         "ordinal": {"type": "integer", "minimum": 1},
         "quote": {
             "type": "string", "minLength": 1, "maxLength": 1000,
-            "description": "Exact contiguous substring of the cited raw message.",
+            "description": '被引用的原始消息的精确连续子串。',
         },
     },
     "required": ["message_id", "turn_id", "ordinal", "quote"],
@@ -144,9 +141,7 @@ _SUMMARY_CLAIM_SCHEMA: dict[str, Any] = {
 EPISODE_SUMMARY_FINISH_SPEC: dict[str, Any] = {
     "name": "episode_summary_finish",
     "description": (
-        "Submit the complete evidence-backed working summary for the claimed Episode. "
-        "The runtime verifies every citation against archived raw messages before "
-        "committing it."
+        '提交所声称 Episode 的完整证据支持的作业摘要。运行时会针对归档的原始消息验证每个引用后再提交。'
     ),
     "input_schema": {
         "type": "object",
@@ -161,16 +156,12 @@ EPISODE_SUMMARY_FINISH_SPEC: dict[str, Any] = {
             "narrative_summary": {
                 "type": "string", "maxLength": 1200,
                 "description": (
-                    "Evidence-backed 5W1H summary: what, who, when, where, why, how. "
-                    "Cover all six elements in concise prose without repeating facts or requiring separate labels. "
-                    "Explicitly mark unstated or inapplicable elements; do not infer missing facts. "
-                    "Preserve useful names, numbers, chronology, corrections and unresolved outcomes. Distinguish owner statements, assistant inferences, promises and verified results. Quote corrected wording only when necessary; do not reproduce repetitive phrasing. "
-                    "Keep the summary within 1000 characters."
+                    '证据支持的 5W1H 摘要：what、who、when、where、why、how。在简洁的行文中涵盖所有六个要素，不重复事实或需要单独标签。明确标记未陈述或不适用要素；不要推断缺失事实。保留有用的名称、数字、时间顺序、更正和未解决结果。区分所有者陈述、助手推断、承诺和已验证结果。仅在必要时引用更正后的措辞；不要复述重复的措辞。保持摘要在 1000 个字符以内。'
                 ),
             },
             "emotional_context": {
                 "type": "object",
-                "description": "Evidence-supported feelings and tone; use empty strings where unknown.",
+                "description": '证据支持的感受和语气；未知处使用空字符串。',
                 "properties": {
                     "owner": {"type": "string", "maxLength": 300},
                     "assistant": {"type": "string", "maxLength": 300},
@@ -198,7 +189,7 @@ EPISODE_SUMMARY_FINISH_SPEC: dict[str, Any] = {
             "outcomes": {
                 "type": "array",
                 "maxItems": 12,
-                "description": "Concise completed results, decisions, or changes, not a task list.",
+                "description": '简洁的已完成结果、决策或变更，而非任务列表。',
                 "items": {"type": "string", "minLength": 1, "maxLength": 500},
             },
         },
