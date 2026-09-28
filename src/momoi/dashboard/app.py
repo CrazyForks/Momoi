@@ -340,6 +340,8 @@ def create_dashboard_app(
         return web.json_response(store.dashboard_usage(days=days))
 
     async def request_metrics(request: web.Request) -> web.Response:
+        plugin = request.app[BALANCE_PROVIDER]
+        store.set_usage_accounting(plugin.accounting if plugin is not None else None)
         return web.json_response(store.dashboard_request_metrics(
             hours=_bounded_int(request, "hours", 24, 1, 168),
             limit=_bounded_int(request, "limit", 50, 1, 100),

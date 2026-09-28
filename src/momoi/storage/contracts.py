@@ -103,6 +103,7 @@ class RequestMetricRecord(TypedDict):
 
 
 class MetricsPage(TypedDict):
+    cost_available: bool
     totals: dict[str, Any]
     stages: list[dict[str, Any]]
     trend: list[dict[str, Any]]

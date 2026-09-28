@@ -81,4 +81,7 @@ class RepositoryFacade:
         return self.request_metrics.record_request_metric(record)
 
     def dashboard_request_metrics(self, *, hours: int=24, stage: str='', model: str='', before: int | None=None, limit: int=50) -> MetricsPage:
-        return self.request_metrics.dashboard_request_metrics(hours=hours, stage=stage, model=model, before=before, limit=limit)
+        plugin = self._usage_accounting
+        return self.request_metrics.dashboard_request_metrics(
+            hours=hours, stage=stage, model=model, before=before, limit=limit,
+            estimate=None if plugin is None else plugin.estimate_cost)

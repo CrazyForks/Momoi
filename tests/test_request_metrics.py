@@ -188,3 +188,28 @@ def test_first_tool_latency_includes_cancelled_request_and_records_once(tmp_path
     assert data['items'][0]['first_tool_name'] == 'send_bubbles'
     assert 'first_tool_ms' not in data['items'][1]
     store.close()
+
+
+def test_per_request_cost_uses_usage_buckets_and_respects_disabled_accounting(tmp_path):
+    from momoi.integrations.adapters.deepseek import DeepSeekAccounting
+
+    store = Store(tmp_path / 'db')
+    record = metric(hit=9000)
+    record['model'] = 'deepseek-v4-flash'
+    record['usage']['cache_write'] = 50
+    store.record_request_metric(record)
+    missing = metric()
+    missing['usage'] = None
+    store.record_request_metric(missing)
+    assert all(row['estimated_cost'] is None for row in store.dashboard_request_metrics()['items'])
+    store.set_usage_accounting(DeepSeekAccounting())
+    rows = store.dashboard_request_metrics()['items']
+    assert store.dashboard_request_metrics()['cost_available'] is True
+    assert rows[0]['estimated_cost'] is None
+    expected = DeepSeekAccounting().estimate_cost(
+        record['model'], record['created_at'], cache_read=9000,
+        uncached=1000, cache_write=50, output=100)
+    assert rows[1]['estimated_cost'] == pytest.approx(expected)
+    store.set_usage_accounting(None)
+    assert store.dashboard_request_metrics()['items'][1]['estimated_cost'] is None
+    store.close()

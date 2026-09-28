@@ -1,6 +1,7 @@
 """Request monitoring independent of billable usage and prompt dumps."""
 import json
 import time
+from collections.abc import Callable
 from ..core.transactions import transaction
 
 from ..contracts import MetricsPage, RequestMetricRecord, RequestShape
@@ -116,7 +117,8 @@ class RequestMetricsRepository:
             )
             self._db.execute("DELETE FROM llm_request_metrics WHERE created_at < ?", (time.time() - 30 * 86400,))
 
-    def dashboard_request_metrics(self, *, hours: int = 24, stage: str = "", model: str = "", before: int | None = None, limit: int = 50) -> MetricsPage:
+    def dashboard_request_metrics(self, *, hours: int = 24, stage: str = "", model: str = "", before: int | None = None, limit: int = 50,
+                                  estimate: Callable[..., float] | None = None) -> MetricsPage:
         where = "created_at >= ?"
         params = [time.time() - hours * 3600]
         for key, value in (("stage", stage), ("model", model)):
@@ -151,8 +153,19 @@ class RequestMetricsRepository:
             detail = json.loads(item.pop("data_json"))
             detail.pop("shape", None)
             item.update(detail)
+            usage = item.get("usage")
+            item["estimated_cost"] = None
+            if estimate is not None and isinstance(usage, dict) and usage.get("input") is not None:
+                item["estimated_cost"] = estimate(
+                    item["model"], item["created_at"],
+                    cache_read=usage.get("cache_read") or 0,
+                    uncached=usage.get("uncached") or 0,
+                    cache_write=usage.get("cache_write") or 0,
+                    output=usage.get("output") or 0,
+                )
             items.append(item)
         return dict(totals=totals, stages=stages, trend=trend, items=items,
+                    cost_available=estimate is not None,
                     next_cursor=items[-1]["id"] if len(rows) > limit else None,
                     filters={"stages": sorted({r["stage"] for r in choices}), "models": sorted({r["model"] for r in choices})},
                     retention_days=30, timing="turn_first_tool")

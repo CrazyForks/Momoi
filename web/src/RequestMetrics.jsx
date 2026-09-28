@@ -5,6 +5,7 @@ const number = (v) => v == null ? "—" : Number(v).toLocaleString();
 const percent = (v) => v == null ? "未报告" : `${(v * 100).toFixed(1)}%`;
 const seconds = (v) => v == null ? "—" : `${(v / 1000).toFixed(2)}s`;
 const date = (v) => new Date(v * 1000).toLocaleString();
+const yuan = (v) => v == null ? "—" : v === 0 ? "¥0.00" : `¥${Number(v).toFixed(Math.abs(v) < 0.01 ? 6 : 4)}`;
 
 export default function RequestMetrics({ token, refreshKey, api }) {
   const [hours, setHours] = useState("24");
@@ -54,12 +55,12 @@ export default function RequestMetrics({ token, refreshKey, api }) {
     <section className="metrics-panel"><h2>逐次请求 <small>最新在前</small></h2>
       <p className="metrics-note">异常线索：输入 ≥ 4096 token、估算共同前缀 ≥ 80%，但服务端缓存命中 &lt; 50%。前缀对比使用同路由 / 模型最近 64 次请求的分段指纹，按 tools → system → messages 的诊断顺序估算，工具按项比较；服务端实际排列未知。各部分相同不等于可独立命中缓存。</p>
       {!data?.items.length && <p>{busy ? "正在加载…" : "此范围暂无请求记录。部署后新请求会自动采集，历史 usage 不补造耗时。"}</p>}
-      <div className="metrics-scroll"><table><thead><tr><th>请求 / 阶段</th><th>输入 / 输出</th><th>缓存命中 / 未缓存</th><th>首次工具调用 / 请求耗时</th><th>结构前缀估算</th><th>结果</th></tr></thead><tbody>{data?.items.map(row => {
+      <div className="metrics-scroll"><table><thead><tr><th>请求 / 阶段</th><th>输入 / 输出</th><th>费用估算</th><th>缓存命中 / 未缓存</th><th>首次工具调用 / 请求耗时</th><th>结构前缀估算</th><th>结果</th></tr></thead><tbody>{data?.items.map(row => {
         const u = row.usage || {};
         const hit = u.cache_reported && u.input ? u.cache_read / u.input : null;
         return <tr key={row.id} className={row.cache_alert ? "metrics-warning" : ""}>
           <td><details><summary>{row.stage || "未标记"} · 第 {row.round || "—"} 轮<br/><small>{date(row.created_at)}</small></summary><div className="metrics-detail">{row.model}<br/>Turn: {row.turn_id || "—"}<br/>Call: {row.call_id || "—"}<br/>Request: {row.request_id}<br/>{row.first_tool_name && <>首次工具: {row.first_tool_name}<br/></>}尝试 #{row.attempt}<br/>对比记录 #{row.compared_request_id || "—"} ({row.compared_stage || "—"})<br/>HTTP {row.http_status || "—"} {row.error_type || ""}</div></details></td>
-          <td>{number(u.input)} / {number(u.output)}</td><td>{percent(hit)}<br/><small>{u.cache_reported ? `${number(u.cache_read)} / ${number(u.uncached)}` : "缓存用量未报告"}</small></td>
+          <td>{number(u.input)} / {number(u.output)}</td><td>{yuan(row.estimated_cost)}</td><td>{percent(hit)}<br/><small>{u.cache_reported ? `${number(u.cache_read)} / ${number(u.uncached)}` : "缓存用量未报告"}</small></td>
           <td>{seconds(row.first_tool_ms)} / {seconds(row.duration_ms)}</td><td>{row.reuse_ratio_est == null ? "无基线" : percent(row.reuse_ratio_est)}<br/><small>首个结构差异：{row.changed_at}</small><br/><small>System：{row.system_unchanged == null ? "未知（旧记录）" : row.system_unchanged ? "一致" : "变化"} · 消息前段：{row.common_message_prefix_count == null ? "未知" : `${row.common_message_prefix_count} 条一致`}</small>{row.tool_comparison_granularity === "whole" && <><br/><small>工具为旧整块指纹，无法估算块内前缀</small></>}<br/><small>参数：{row.settings_changed == null ? "未知（旧记录）" : row.settings_changed ? (row.changed_settings?.join(", ") || "有变化（旧指纹未分项）") : "一致"}</small></td><td>{row.status === "success" ? "成功" : row.status === "cancelled" ? "取消" : "失败"}{row.cache_alert && <strong className="metrics-alert">高复用 / 低命中</strong>}</td>
         </tr>;
       })}</tbody></table></div>
