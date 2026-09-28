@@ -66,20 +66,40 @@ def test_dashboard_replace_delete_and_restart_preserve_snapshot(store):
     other.close()
 
 
-def test_add_activation_expiry_and_recall_only_changes(store):
+def test_only_always_memory_changes_enter_transcript(store):
     first = store.transcript_memory_context(["a"])
     identifier = add(store, "仅检索记忆", activation="recall")
     added = store.transcript_memory_context(["a"])
     assert added["snapshot"] == first["snapshot"]
-    assert '<add' in added["events"][0]["content"]
+    assert not added["events"]
+    assert not added["observed"]
     with store._db:
         store._db.execute("UPDATE memories SET activation='always' WHERE id=?", (identifier,))
     promoted = store.transcript_memory_context(["a"])
-    assert '<replace' in promoted["events"][-1]["content"]
+    assert '<add' in promoted["events"][-1]["content"]
     with store._db:
         store._db.execute("UPDATE memories SET expires_at=1 WHERE id=?", (identifier,))
     expired = store.transcript_memory_context(["a"])
     assert '<delete' in expired["events"][-1]["content"]
+
+
+def test_old_recall_deltas_are_removed_from_replay_and_overrides(store):
+    identifier = add(store, "旧召回", activation="recall", key="old.recall")
+    stale = store.transcript_memory_context(["a"])
+    stale["snapshot"][str(identifier)] = dict(store.maintenance_memory_inventory()[0])
+    stale["observed"][str(identifier)] = stale["snapshot"][str(identifier)]
+    stale["snapshot_overrides"][str(identifier)] = f'<delete id="{identifier}">旧召回</delete>'
+    stale["overrides"][str(identifier)] = stale["snapshot_overrides"][str(identifier)]
+    stale["events"] = [{"anchor": "a", "revision": 1,
+                        "content": f'<memory_changes><delete id="{identifier}">旧召回</delete></memory_changes>'}]
+    stale["revision"] = 1
+    with store._db:
+        store._db.execute("UPDATE transcript_memory_state SET data_json=? WHERE id=1",
+                          (json.dumps(stale, ensure_ascii=False),))
+    clean = store.transcript_memory_context(["a"])
+    assert not clean["snapshot"] and not clean["observed"]
+    assert not clean["events"] and not clean["overrides"]
+    assert not clean["snapshot_overrides"]
 
 
 def test_running_turn_appends_changes_then_compaction_folds_them(store):

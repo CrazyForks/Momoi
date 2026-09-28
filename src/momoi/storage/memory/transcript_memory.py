@@ -1,6 +1,7 @@
 """Durable memory snapshot and append-only changes for the shared transcript."""
 import json
 import time
+from xml.etree import ElementTree
 from xml.sax.saxutils import quoteattr
 
 from ..core.transactions import transaction
@@ -8,6 +9,61 @@ from .memory_values import format_memory
 
 
 class TranscriptMemoryStore:
+    def _only_always_memory_changes(self, state):
+        """Discard legacy recall/scoped deltas without resetting revision history."""
+        tracked = {str(key) for key, row in state.get("snapshot", {}).items()
+                   if row.get("activation") == "always"}
+        state["snapshot"] = {key: row for key, row in state.get("snapshot", {}).items()
+                             if row.get("activation") == "always"}
+        retained = []
+        overrides = {}
+        for event in state.get("events", []):
+            try:
+                root = ElementTree.fromstring(event["content"])
+            except (KeyError, ElementTree.ParseError):
+                continue
+            changed = False
+            for node in list(root):
+                identifier = node.get("id")
+                memory = node.find("memory")
+                is_always = memory is not None and memory.get("activation") == "always"
+                if is_always:
+                    tracked.add(identifier)
+                elif node.tag == "delete" and identifier in tracked:
+                    tracked.remove(identifier)
+                elif identifier in tracked:
+                    tracked.remove(identifier)
+                    node.tag = "delete"
+                    node.clear()
+                    node.set("id", identifier)
+                    node.text = "此长期记忆已撤销，不再作为当前依据。"
+                    changed = True
+                else:
+                    root.remove(node)
+                    changed = True
+                    continue
+                if changed:
+                    overrides[identifier] = ElementTree.tostring(node, encoding="unicode")
+            if len(root):
+                retained.append({**event, "content": ElementTree.tostring(root, encoding="unicode") if changed else event["content"]})
+        state["events"] = retained
+        state["observed"] = {key: row for key, row in state.get("observed", {}).items()
+                             if row.get("activation") == "always"}
+        # Older states can have folded deltas that no longer appear in events.
+        override_ids = set(state.get("overrides", {})) | set(state.get("snapshot_overrides", {}))
+        historical_always = set()
+        if override_ids:
+            placeholders = ",".join("?" for _ in override_ids)
+            historical_always = {str(row["id"]) for row in self._db.execute(
+                f"SELECT id FROM memories WHERE id IN ({placeholders}) AND activation='always'",
+                tuple(override_ids),
+            )}
+        for field in ("overrides", "snapshot_overrides"):
+            state[field] = {key: value for key, value in state.get(field, {}).items()
+                            if key in state["snapshot"] or key in state["observed"]
+                            or key in historical_always}
+        state["overrides"].update(overrides)
+
     def transcript_memory_context(self, turn_ids, *, compact=False, track_boundary=True):
         """Observe committed effective memory, retaining the prefix until compaction.
 
@@ -18,12 +74,14 @@ class TranscriptMemoryStore:
             current = {
                 str(row["id"]): dict(row)
                 for row in self.maintenance_memory_inventory()
-                if row["activation"] != "scoped"
+                if row["activation"] == "always"
             }
             raw = self._db.execute(
                 "SELECT data_json FROM transcript_memory_state WHERE id=1"
             ).fetchone()
             state = json.loads(raw[0]) if raw else None
+            if state is not None:
+                self._only_always_memory_changes(state)
             boundary = turn_ids[0] if turn_ids else ""
             if track_boundary and state and state.pop("pending_compact", False):
                 compact = True
