@@ -2,6 +2,9 @@ import json
 from copy import deepcopy
 
 from momoi.runtime.transcript.native import render_exchanges
+from momoi.runtime.turn_support import tool_result_block
+from momoi.storage.episode.execution_evidence import eligible
+import pytest
 
 
 def exchange(identifier, name, result):
@@ -14,6 +17,25 @@ def exchange(identifier, name, result):
 def results(messages):
     return [json.loads(b['content']) for m in messages for b in m['content']
             if b.get('type') == 'tool_result']
+
+
+@pytest.mark.parametrize('name', ['write_file', 'recall', 'exec'])
+@pytest.mark.parametrize('ok', [True, False])
+def test_provenance_is_internal_for_live_history_and_recall(name, ok):
+    payload = {'ok': ok, 'provenance': {'source': 'builtin', 'tool': name},
+               'content': 'evidence', 'url': 'https://example.com/source'}
+    original = deepcopy(payload)
+    assert 'provenance' not in json.loads(tool_result_block('a', payload)['content'])
+    source = exchange('a', name, payload)
+    for version in (2, 3):
+        replay = results(render_exchanges([source], history_format=version))[0]
+        assert 'provenance' not in replay
+        assert replay['url'] == payload['url']
+    if name != 'recall':
+        evidence = eligible(source)['tools'][0]['result']
+        assert 'provenance' not in evidence
+        assert evidence['url'] == payload['url']
+    assert payload == original
 
 
 def test_history_preview_keeps_edges_reference_and_does_not_mutate_live_result():

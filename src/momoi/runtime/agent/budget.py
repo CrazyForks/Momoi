@@ -94,8 +94,8 @@ class ToolResultFitter:
         provenance = parsed.get("provenance")
         if (
             parsed.get("ok") is True
-            and isinstance(provenance, dict)
-            and provenance.get("tool") == "read_file"
+            and ((isinstance(provenance, dict) and provenance.get("tool") == "read_file")
+                 or ("path" in parsed and "total_lines" in parsed))
             and (isinstance(parsed.get("content"), str) or isinstance(parsed.get("lines"), list))
         ):
             return self._fit_read_file(parsed, value, limit)

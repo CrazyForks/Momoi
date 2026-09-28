@@ -218,7 +218,7 @@ def tool_result_block(call_id: str, result: dict[str, Any]) -> dict[str, Any]:
     return {
         "type": "tool_result",
         "tool_use_id": call_id,
-        "content": json.dumps(result, ensure_ascii=False),
+        "content": json.dumps({key: value for key, value in result.items() if key != "provenance"}, ensure_ascii=False),
         "is_error": not bool(result.get("ok")),
     }
 

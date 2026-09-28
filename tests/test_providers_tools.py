@@ -329,10 +329,6 @@ class ProvidersToolsTest(unittest.TestCase):
                     "ok": True,
                     "error": None,
                     "truncated": False,
-                    "provenance": {
-                        "source": "mcp",
-                        "tool": "mcp__demo__search",
-                    },
                     "items": raw["items"],
                 },
                 ensure_ascii=False,

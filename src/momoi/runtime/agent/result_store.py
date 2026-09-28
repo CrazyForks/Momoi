@@ -145,7 +145,6 @@ class ToolResultStore:
             or not _RESULT_REF.fullmatch(str(parsed.get("result_ref") or ""))
             or not isinstance(start, int)
             or isinstance(start, bool)
-            or not isinstance(parsed.get("provenance"), dict)
         ):
             return None
         result_ref = str(parsed["result_ref"])
@@ -157,7 +156,7 @@ class ToolResultStore:
             max_chars=max_chars,
             provenance={
                 str(key): str(item)
-                for key, item in parsed["provenance"].items()
+                for key, item in (parsed.get("provenance") or {}).items()
             },
             status={
                 key: parsed[key]

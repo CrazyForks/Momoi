@@ -272,7 +272,9 @@ class ToolExecutor:
             "provenance": provenance,
             **payload,
         }
-        serialized = json.dumps(envelope, ensure_ascii=False, default=str)
+        # Snapshots can be read back as text by the model. Keep routing metadata
+        # in the internal envelope, outside the model-visible snapshot.
+        serialized = json.dumps({key: value for key, value in envelope.items() if key != "provenance"}, ensure_ascii=False, default=str)
         result_ref = self.tool_results.save(serialized)
         budget = self.config.tool_result_max_chars - RESULT_REF_OVERHEAD
         if len(serialized) <= budget:
@@ -281,8 +283,10 @@ class ToolExecutor:
             isinstance(payload.get("content"), str)
             or isinstance(payload.get("lines"), list)
         ):
+            fitted_budget = budget - len(json.dumps({"provenance": provenance}, ensure_ascii=False))
             return {
-                **json.loads(truncate_tool_result_json(serialized, budget)),
+                **json.loads(truncate_tool_result_json(serialized, fitted_budget)),
+                "provenance": provenance,
                 "result_ref": result_ref,
             }
         status: dict[str, object] = {"ok": ok, "error": error}

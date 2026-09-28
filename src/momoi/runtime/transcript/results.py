@@ -106,6 +106,11 @@ def historical_results(exchanges: list[dict], *, history_format: int = 3) -> Non
                 payload = {}
             if not isinstance(payload, Mapping):
                 payload = {}
+            if "provenance" in payload:
+                payload = dict(payload)
+                payload.pop("provenance")
+                raw = json.dumps(payload, ensure_ascii=False)
+                block["content"] = raw
             name = calls.get(block.get("tool_use_id"), "")
             # Recall evidence is the basis for subsequent reuse. Preserve the
             # exact observation, including failures, regardless of its size.
@@ -138,7 +143,7 @@ def historical_results(exchanges: list[dict], *, history_format: int = 3) -> Non
             if len(raw) <= SMALL_RESULT_CHARS:
                 continue
             compact = {key: payload[key] for key in (
-                "ok", "error", "provenance", "result_ref", "original_chars",
+                "ok", "error", "result_ref", "original_chars",
                 "chunk_start", "chunk_end", "next_cursor", "has_more",
             ) if key in payload}
             body = payload.get("content", raw)

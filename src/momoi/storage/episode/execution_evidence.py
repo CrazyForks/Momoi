@@ -53,6 +53,8 @@ def eligible(exchange):
             result = json.loads(raw) if raw is not None else {'error': 'result_not_recorded', 'ambiguous': True}
         except (TypeError, ValueError):
             result = {'content': raw}
+        if isinstance(result, dict):
+            result = {key: value for key, value in result.items() if key != 'provenance'}
         tools.append({'call_id': call.get('id'), 'name': call.get('name'),
                       'arguments': call.get('input', {}), 'result': result})
     return {**({'assistant_text': text} if text else {}), **({'tools': tools} if tools else {})}
