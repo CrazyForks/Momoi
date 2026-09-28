@@ -218,6 +218,19 @@ class ConfigurationManagerTest(unittest.TestCase):
         self.assertFalse(self.manager.validate().reflection.enabled)
         self.assertEqual(self.manager.validate().reflection.at, "00:00")
 
+    def test_episode_relations_have_separate_switch(self):
+        saved = self.manager.save_runtime(
+            {"episode_annealing": {"enabled": True, "relations_enabled": False}},
+            self.manager.revision(),
+        )
+        config = self.manager.validate()
+        self.assertTrue(config.episode_annealing.enabled)
+        self.assertFalse(config.episode_annealing.relations_enabled)
+        self.manager.save_runtime(
+            {"episode_annealing": {"relations_enabled": True}}, saved["revision"],
+        )
+        self.assertTrue(self.manager.validate().episode_annealing.relations_enabled)
+
     def test_app_fields_expose_enum_types_defaults_and_are_isolated(self):
         snapshot = self.manager.snapshot()
         fields = snapshot["app_fields"]

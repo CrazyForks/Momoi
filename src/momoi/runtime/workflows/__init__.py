@@ -1,4 +1,4 @@
-from .episode import EpisodeAnnealingWorkflow, EpisodeConsolidationWorkflow
+from .episode import EpisodeAnnealingWorkflow, EpisodeConsolidationWorkflow, EpisodeRelationWorkflow
 from .crontab import GoalWorkflow
 from .heartbeat import HeartbeatWorkflow
 from .memory_maintenance import MemoryMaintenanceWorkflow
@@ -11,6 +11,7 @@ from .webhook import WebhookWorkflow
 __all__ = [
     "EpisodeAnnealingWorkflow",
     "EpisodeConsolidationWorkflow",
+    "EpisodeRelationWorkflow",
     "GoalWorkflow",
     "HeartbeatWorkflow",
     "MemoryMaintenanceWorkflow",

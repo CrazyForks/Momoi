@@ -14,8 +14,10 @@ __all__ = [
     "EPISODE_SUMMARY_FINISH_SPEC",
     "EpisodeAnnealingWorkflow",
     "EpisodeConsolidationWorkflow",
+    "EpisodeRelationWorkflow",
     "render_episode_annealing_request",
     "render_episode_consolidation_request",
 ]
 from .annealing import EpisodeAnnealingWorkflow
 from .consolidation import EpisodeConsolidationWorkflow
+from .relations import EpisodeRelationWorkflow

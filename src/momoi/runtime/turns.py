@@ -8,6 +8,7 @@ from .agent.loop import AgentLoop
 from .workflows import (
     EpisodeAnnealingWorkflow,
     EpisodeConsolidationWorkflow,
+    EpisodeRelationWorkflow,
     GoalWorkflow,
     HeartbeatWorkflow,
     MemoryMaintenanceWorkflow,
@@ -20,7 +21,6 @@ from .workflows import (
 
 
 from .workflows.plan import PlanWorkflow
-from .workflows.episode.relations import EpisodeRelationWorkflow
 
 
 class TurnRunner(
