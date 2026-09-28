@@ -677,24 +677,25 @@ def build_plan_retrieval(
             for item in goals
         ],
     )
-    log_event(
-        logger,
-        logging.DEBUG,
-        "context_recall_detail",
-        stage="context_recall",
-        selected=safe_preview(retrieval, 5000),
-        memory_rank=safe_preview(
-            [
-                {
-                    "source": row.get("source"),
-                    "key": row.get("key"),
-                    "score": round(float(row.get("search_score") or 0.0), 4),
-                    "floor": row.get("score_floor"),
-                    "queries": row.get("matched_queries"),
-                }
-                for row in ranked_memories
-            ],
-            3000,
-        ),
-    )
+    if emitted_queries or reused_units_by_turn:
+        log_event(
+            logger,
+            logging.DEBUG,
+            "context_recall_detail",
+            stage="context_recall",
+            selected=safe_preview(retrieval, 5000),
+            memory_rank=safe_preview(
+                [
+                    {
+                        "source": row.get("source"),
+                        "key": row.get("key"),
+                        "score": round(float(row.get("search_score") or 0.0), 4),
+                        "floor": row.get("score_floor"),
+                        "queries": row.get("matched_queries"),
+                    }
+                    for row in ranked_memories
+                ],
+                3000,
+            ),
+        )
     return retrieval
