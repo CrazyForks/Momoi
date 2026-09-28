@@ -52,8 +52,11 @@ class EpisodeRelationWorkflow:
 
     async def _build_episode_relations(self, episode, ordinal, turn_id):
         episode_id = str(episode["id"])
-        source_messages = self.store.episode_relation_messages(episode_id)
+        source_messages = self.store.episode_relation_messages(
+            episode_id, through_ordinal=ordinal
+        )
         request = [{"role": "user", "content": render_source(episode, source_messages)}]
+        existing = self.store.episode_relation_existing_targets(episode_id)
         recalled: dict[str, dict[str, object]] = {}
         search_count = 0
         completed = False
@@ -73,7 +76,7 @@ class EpisodeRelationWorkflow:
                     [query], 16, dense_evidence=dense, minimum_confidence=0,
                 )
                 targets = self.store.episode_relation_targets(
-                    episode, [str(item["id"]) for item in ranked],
+                    episode, [*existing, *(str(item["id"]) for item in ranked)],
                 )
                 results = []
                 for target in targets:
@@ -82,11 +85,11 @@ class EpisodeRelationWorkflow:
                     messages = self.store.episode_relation_messages(identifier)
                     results.append({
                         "id": identifier,
+                        "previous_relation": existing.get(identifier),
                         "title": target["title"],
                         "summary": target["narrative_summary"],
                         "conversation": [
                             {"role": message["role"], "content": str(message["content"])[:500],
-                             "delivery_state": message["delivery_state"],
                              "truncated": len(str(message["content"])) > 500,
                              "timestamp": message["timestamp"]}
                             for message in messages[-6:]

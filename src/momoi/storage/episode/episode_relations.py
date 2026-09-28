@@ -33,17 +33,28 @@ class EpisodeRelationStore:
             )
         return self._episode_dict(row)
 
-    def episode_relation_messages(self, episode_id: str) -> list[dict[str, object]]:
-        """All delivered dialogue belonging to one Episode, in original order."""
+    def episode_relation_messages(
+        self, episode_id: str, *, through_ordinal: int | None = None
+    ) -> list[dict[str, object]]:
+        """Dialogue in one Episode, optionally bounded by a summary watermark."""
         rows = self._db.execute(
-            """SELECT m.id, m.role, m.content, m.created_at, m.delivery_state
+            """SELECT m.id, m.role, m.content, m.created_at
                FROM episode_turns et JOIN messages m ON m.turn_id=et.turn_id
                WHERE et.episode_id=? AND (m.role='user' OR
                  (m.role='assistant' AND m.delivery_state IN ('delivered','uncertain')))
+                 AND (? IS NULL OR et.ordinal<=?)
                ORDER BY et.ordinal, m.id""",
-            (episode_id,),
+            (episode_id, through_ordinal, through_ordinal),
         ).fetchall()
         return [{**dict(row), "timestamp": self.context_timestamp(row["created_at"])} for row in rows]
+
+    def episode_relation_existing_targets(self, episode_id: str) -> dict[str, str]:
+        rows = self._db.execute(
+            """SELECT target_episode_id, relation FROM episode_relations
+               WHERE source_episode_id=? ORDER BY created_at""",
+            (episode_id,),
+        ).fetchall()
+        return {str(row["target_episode_id"]): str(row["relation"]) for row in rows}
 
     def episode_relation_targets(self, source: dict[str, object], ranked_ids: list[str],
                                  limit: int = 8) -> list[dict[str, object]]:
@@ -78,14 +89,18 @@ class EpisodeRelationStore:
             if any(not item[key].strip() or len(item[key]) > 300
                    for key in ("explanation", "source_evidence", "target_evidence")):
                 raise ValueError("relation requires short evidence on both sides")
-            source_text = str(source["narrative_summary"]) + " " + str(source["title"]) + " " + " ".join(
-                str(message["content"]) for message in self.episode_relation_messages(episode_id))
-            target_text = str(target["narrative_summary"]) + " " + str(target["title"]) + " " + " ".join(
-                str(message["content"])[:500] for message in self.episode_relation_messages(target_id)[-6:])
-            if item["source_evidence"] not in source_text:
-                raise ValueError("source evidence is not in the source summary")
-            if item["target_evidence"] not in target_text:
-                raise ValueError("target evidence is not in the target summary")
+            source_fields = [str(source["narrative_summary"]), str(source["title"]), *(
+                str(message["content"]) for message in self.episode_relation_messages(
+                    episode_id, through_ordinal=ordinal
+                )
+            )]
+            target_fields = [str(target["narrative_summary"]), str(target["title"]), *(
+                str(message["content"])[:500] for message in self.episode_relation_messages(target_id)[-6:]
+            )]
+            if not any(item["source_evidence"] in value for value in source_fields):
+                raise ValueError("source evidence is not in the supplied episode")
+            if not any(item["target_evidence"] in value for value in target_fields):
+                raise ValueError("target evidence is not in the recalled episode")
             seen.add(target_id)
         with self._db:
             self._db.execute("DELETE FROM episode_relations WHERE source_episode_id=?", (episode_id,))

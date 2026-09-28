@@ -21,6 +21,26 @@ def _summarize(store, identifier, title, summary, created_at):
         )
 
 
+def _append_dialogue(store, episode_id, ordinal, content):
+    turn_id = f"{episode_id}-turn-{ordinal}"
+    with store._db:
+        store._db.execute(
+            """INSERT INTO turns(id,kind,workflow_kind,source_ids_json,state,started_at,updated_at)
+               VALUES (?,'owner','owner','[]','completed',1,1)""",
+            (turn_id,),
+        )
+        store._db.execute(
+            """INSERT INTO episode_turns(episode_id,turn_id,ordinal,relation)
+               VALUES (?,?,?,'primary')""",
+            (episode_id, turn_id, ordinal),
+        )
+        store._db.execute(
+            """INSERT INTO messages(turn_id,role,content,created_at,source_event_ids_json)
+               VALUES (?,'user',?,1,'[]')""",
+            (turn_id, content),
+        )
+
+
 def test_new_episode_only_and_empty_review_is_durable():
     with tempfile.TemporaryDirectory() as directory:
         store = Store(Path(directory) / "db")
@@ -28,8 +48,8 @@ def test_new_episode_only_and_empty_review_is_durable():
             enabled_at = store._db.execute(
                 "SELECT enabled_at FROM episode_relation_settings WHERE id=1"
             ).fetchone()[0]
-            _summarize(store, "old", "此前分手", "老师此前说自己分手了", enabled_at - 10)
-            _summarize(store, "new", "发现戒指", "发现仍戴着前女友做的戒指", enabled_at + 10)
+            _summarize(store, "old", "项目启动", "团队确认项目启动", enabled_at - 10)
+            _summarize(store, "new", "项目进展", "团队完成首个阶段", enabled_at + 10)
             candidate = store.claim_episode_relation_candidate()
             assert candidate["id"] == "new"
             targets = store.episode_relation_targets(candidate, ["old"])
@@ -48,13 +68,13 @@ def test_relation_validation_and_updated_summary_rechecks():
             enabled_at = store._db.execute(
                 "SELECT enabled_at FROM episode_relation_settings WHERE id=1"
             ).fetchone()[0]
-            _summarize(store, "old", "此前分手", "老师此前说自己分手了", enabled_at - 10)
-            _summarize(store, "new", "发现戒指", "发现仍戴着前女友做的戒指", enabled_at + 10)
+            _summarize(store, "old", "项目启动", "团队确认项目启动", enabled_at - 10)
+            _summarize(store, "new", "项目进展", "团队完成首个阶段", enabled_at + 10)
             candidate = store.claim_episode_relation_candidate()
             decision = {
                 "target_episode_id": "old", "relation": "follows_up",
-                "explanation": "新经历谈到此前的分手", "source_evidence": "前女友做的戒指",
-                "target_evidence": "自己分手了",
+                "explanation": "项目推进到首个阶段", "source_evidence": "完成首个阶段",
+                "target_evidence": "确认项目启动",
             }
             with pytest.raises(ValueError):
                 store.finish_episode_relations("new", 1, [decision], set())
@@ -101,19 +121,23 @@ def test_workflow_model_chooses_query_then_finishes():
         store = Store(Path(directory) / "db")
         try:
             enabled_at = store._db.execute("SELECT enabled_at FROM episode_relation_settings").fetchone()[0]
-            _summarize(store, "old", "此前分手", "老师此前说自己分手了", enabled_at - 10)
-            _summarize(store, "new", "发现戒指", "发现仍戴着前女友做的戒指", enabled_at + 10)
+            _summarize(store, "old", "项目启动", "团队确认项目启动", enabled_at - 10)
+            _summarize(store, "new", "项目进展", "团队完成首个阶段", enabled_at + 10)
+            _append_dialogue(store, "new", 1, "已归档对话")
+            _append_dialogue(store, "new", 2, "尚未进入摘要的对话")
 
             class Runner(EpisodeRelationWorkflow):
                 async def _run_agent_workflow(self, system, messages, tools, turn_id, workflow):
-                    assert "发现仍戴着前女友做的戒指" in messages[0]["content"]
+                    assert "团队完成首个阶段" in messages[0]["content"]
+                    assert "已归档对话" in messages[0]["content"]
+                    assert "尚未进入摘要的对话" not in messages[0]["content"]
                     assert not semantic.prepare.called
-                    result = await workflow.execute_tool(ToolCall("recall", "recall", {"query": "分手"}))
+                    result = await workflow.execute_tool(ToolCall("recall", "recall", {"query": "项目启动"}))
                     assert result["results"][0]["id"] == "old"
                     result = await workflow.execute_tool(ToolCall("finish", "episode_relation_finish", {"relations": [{
                         "target_episode_id": "old", "relation": "follows_up",
-                        "explanation": "分手后的物件回忆", "source_evidence": "前女友做的戒指",
-                        "target_evidence": "自己分手了",
+                        "explanation": "项目推进到首个阶段", "source_evidence": "完成首个阶段",
+                        "target_evidence": "确认项目启动",
                     }]}))
                     assert result["ok"] and workflow.is_complete()
                     return workflow.completion_result()
@@ -123,7 +147,7 @@ def test_workflow_model_chooses_query_then_finishes():
             runner.store = store
             runner.semantic_recall = semantic
             asyncio.run(runner._build_episode_relations(store.episode("new"), 1, "test"))
-            assert semantic.prepare.call_args.args[0][0].expression == "分手"
+            assert semantic.prepare.call_args.args[0][0].expression == "项目启动"
             assert store._db.execute("SELECT count(*) FROM episode_relations").fetchone()[0] == 1
         finally:
             store.close()

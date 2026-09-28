@@ -9,7 +9,7 @@ SYSTEM = PROMPT_ROOT.joinpath("episode_relation.md").read_text(encoding="utf-8")
 
 RECALL_SPEC = {
     "name": "recall",
-    "description": "按模型选择的语义查询检索旧话题；可多次调用，返回标题、摘要和相关对话片段。",
+    "description": "按自行选择的查询检索旧话题；可多次调用，返回标题、摘要和对话片段。",
     "input_schema": {
         "type": "object",
         "properties": {
@@ -55,7 +55,6 @@ def render_source(episode, messages):
         item = SubElement(conversation, "message", {
             "id": str(message["id"]),
             "role": str(message["role"]),
-            "delivery": str(message.get("delivery_state") or "unknown"),
             "time": str(message["timestamp"]),
         })
         item.text = str(message["content"])
