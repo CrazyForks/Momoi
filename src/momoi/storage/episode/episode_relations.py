@@ -36,7 +36,7 @@ class EpisodeRelationStore:
     def episode_relation_messages(self, episode_id: str) -> list[dict[str, object]]:
         """All delivered dialogue belonging to one Episode, in original order."""
         rows = self._db.execute(
-            """SELECT m.id, m.role, m.content, m.created_at
+            """SELECT m.id, m.role, m.content, m.created_at, m.delivery_state
                FROM episode_turns et JOIN messages m ON m.turn_id=et.turn_id
                WHERE et.episode_id=? AND (m.role='user' OR
                  (m.role='assistant' AND m.delivery_state IN ('delivered','uncertain')))

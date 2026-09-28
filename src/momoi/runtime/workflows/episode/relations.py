@@ -86,10 +86,13 @@ class EpisodeRelationWorkflow:
                         "summary": target["narrative_summary"],
                         "conversation": [
                             {"role": message["role"], "content": str(message["content"])[:500],
+                             "delivery_state": message["delivery_state"],
+                             "truncated": len(str(message["content"])) > 500,
                              "timestamp": message["timestamp"]}
                             for message in messages[-6:]
                         ],
                     })
+                    results[-1]["omitted_messages"] = max(0, len(messages) - 6)
                 return {"ok": True, "query": query_text, "results": results}
 
             decisions = call.arguments.get("relations")
