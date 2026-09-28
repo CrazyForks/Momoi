@@ -1612,3 +1612,28 @@ def test_keyword_excerpt_keeps_sentence_boundaries_and_caps_long_sentence():
     start, end = keyword_sentence_excerpt(long_text, "早餐")
     assert end - start <= 100
     assert "早餐九点，9楼" in long_text[start:end]
+
+
+def test_recall_tool_context_keeps_memory_and_reflection_as_records(tmp_path):
+    store = Store(tmp_path / 'db')
+    retrieval = {
+        'episodes': [], 'recall_memories': [{
+            'id': 3, 'kind': 'profile', 'key': 'package.tracking',
+            'content': '查询快递状态', 'unit_ids': ['u1'],
+        }],
+        'reflection_memories': [{
+            'id': 7, 'kind': 'practice', 'key': 'package.codes',
+            'content': '区分单号和取件码', 'local_date': '2026-09-15',
+            'confidence': 0.7, 'evidence': '之前的消息', 'unit_ids': ['u1'],
+        }],
+        'recall_status': {'queries': [{'semantic': '快递', 'keywords': ['快递'],
+                                      'hits': ['memory', 'reflection']}],
+                          'skipped_units': [], 'reused_from_turn_ids': []},
+    }
+    context = assemble_main_context(store, retrieval, 1000)
+    assert context['memory_records'] == [{
+        'id': 3, 'kind': 'profile', 'key': 'package.tracking', 'content': '查询快递状态'}]
+    assert context['reflection_records'][0]['evidence'] == '之前的消息'
+    assert context['recall_status']['queries'][0]['hits'] == ['memory', 'reflection']
+    assert '<memory' in context['recall_memories']
+    store.close()

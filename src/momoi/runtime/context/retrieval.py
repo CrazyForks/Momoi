@@ -555,6 +555,20 @@ def build_plan_retrieval(
         "goals": goals,
         "uncertainty": plan.get("uncertainty", []),
         "query_recall": "\n".join(recall_index),
+        "recall_status": {
+            "queries": [
+                {"semantic": str(query["semantic_expression"]),
+                 "keywords": list(query["keywords"]),
+                 "hits": [kind for kind, matched in (
+                     ("memory", str(query["semantic_expression"]) in memory_hit_queries),
+                     ("reflection", str(query["semantic_expression"]) in reflection_hit_queries),
+                     ("episode", str(query["semantic_expression"]) in episode_hit_queries),
+                 ) if matched]}
+                for query in recall_queries
+            ],
+            "skipped_units": no_retrieval_units,
+            "reused_from_turn_ids": list(reused_units_by_turn),
+        },
         "effective_recall_queries": effective_recall_queries,
         "topic_selection": topic_selection or {},
         "semantic_recall": {

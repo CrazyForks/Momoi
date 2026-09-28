@@ -310,10 +310,11 @@ class ToolBatchExecutor:
                             context = prepared["context"]
                             result = {
                                 "ok": True, "state": "recalled",
-                                "memory": context["recall_memories"],
-                                "status": context["query_recall"],
-                                "reflection": context["reflection_memories"],
-                                "episodes": context.get("episode_records", context["episodes"]),
+                                "memory": context.get("memory_records", []),
+                                "status": context.get("recall_status", {"queries": [], "skipped_units": [], "reused_from_turn_ids": []}),
+                                "reflection": context.get("reflection_records", []),
+                                **({"reflection_note": "复盘记忆可能过时，仅作辅助；以当前证据为准。"} if context.get("reflection_records") else {}),
+                                "episodes": context.get("episode_records", []),
                             }
                         except (KeyError, TypeError, ValueError) as error:
                             result = {"ok": False, "error": "invalid_recall", "message": str(error)}

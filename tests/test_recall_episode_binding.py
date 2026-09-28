@@ -82,8 +82,8 @@ class RecallEpisodeBindingTest(unittest.IsolatedAsyncioTestCase):
                 submit_context=daemon.submit_owner_context,
             )
             self.assertTrue(result["ok"])
-            self.assertIn("主人偏好绿茶", result["memory"])
-            self.assertNotIn("泡茶用八十度水", result["memory"])
+            self.assertTrue(any("主人偏好绿茶" in row["content"] for row in result["memory"]))
+            self.assertFalse(any("泡茶用八十度水" in row["content"] for row in result["memory"]))
             self.assertEqual(
                 daemon.store.context_plan(turn_id)["plan"]["intent_units"][0]["kind"],
                 ["preference"],
@@ -224,7 +224,7 @@ class RecallEpisodeBindingTest(unittest.IsolatedAsyncioTestCase):
             )
             self.assertTrue(result["ok"])
             self.assertEqual(daemon.store.context_plan(turn_id)["revision"], 2)
-            self.assertIn("no_retrieval_units=u1", result["status"])
+            self.assertEqual(result["status"]["skipped_units"], ["u1"])
             record = daemon.store.context_plan(turn_id)
             self.assertEqual(record["state"], "recalled")
             self.assertEqual(record["plan"]["intent_units"][0]["intent"], "主人开始整理书房")
@@ -370,11 +370,12 @@ class RecallEpisodeBindingTest(unittest.IsolatedAsyncioTestCase):
                     self.assertTrue(result["ok"])
                     self.assertEqual(result["state"], "recalled")
                     self.assertNotIn("error", result)
-                    self.assertNotIn("semantic-only-memory", result["memory"])
+                    contents = [row["content"] for row in result["memory"]]
+                    self.assertNotIn("semantic-only-memory", contents)
                     if expected:
-                        self.assertIn(expected, result["memory"])
+                        self.assertIn(expected, contents)
                     else:
-                        self.assertEqual(result["memory"], "")
+                        self.assertEqual(result["memory"], [])
                     self.assertNotIn("disabled", json.dumps(result))
                     self.assertNotIn("fallback", json.dumps(result))
                     record = daemon.store.context_plan(turn_id)

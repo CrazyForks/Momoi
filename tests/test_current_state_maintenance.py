@@ -384,10 +384,11 @@ def test_current_state_can_recall_source_owner_habit(daemon):
     store.complete_background_turn("nap-source")
 
     daemon.submit_owner_context = AsyncMock(return_value={
-        "recall_memories": "午睡通常约一小时",
-        "query_recall": "found",
-        "reflection_memories": "",
-        "episodes": "",
+        "memory_records": [{"id": 1, "kind": "profile", "key": "nap.duration", "content": "午睡通常约一小时"}],
+        "recall_status": {"queries": [{"semantic": "午睡时长", "keywords": [], "hits": ["memory"]}],
+                          "skipped_units": [], "reused_from_turn_ids": []},
+        "reflection_records": [],
+        "episode_records": [],
     })
     calls = [
         response(ToolCall("lookup", "recall", {"units": [{

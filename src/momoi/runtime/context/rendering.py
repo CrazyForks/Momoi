@@ -307,6 +307,15 @@ def assemble_main_context(
     summary_token_budget: int,
 ) -> dict[str, object]:
     return {
+        "memory_records": [
+            {key: item[key] for key in ("id", "kind", "key", "content") if key in item}
+            for item in retrieval.get("recall_memories") or []
+        ],
+        "reflection_records": [
+            {key: item[key] for key in ("id", "kind", "key", "content", "local_date", "confidence", "evidence") if key in item}
+            for item in retrieval.get("reflection_memories") or []
+        ],
+        "recall_status": retrieval.get("recall_status") or {"queries": [], "skipped_units": [], "reused_from_turn_ids": []},
         "episode_records": episode_recall_records(store, retrieval.get("episodes"), summary_token_budget),
         "episodes": _episode_context(
             store,
