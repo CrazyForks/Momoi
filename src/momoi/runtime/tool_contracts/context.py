@@ -65,11 +65,9 @@ RECALL_TOOL_SPEC: dict[str, Any] = {
                     "properties": {
                         "intent": {
                             "type": "string",
-                            "minLength": 1,
-                            "pattern": r"\S",
                             "maxLength": 160,
                             "description": (
-                                '客观描述用户的当前请求或共享信息，并纳入修正内容。保留不确定性；不要添加未陈述的需求或您计划的响应策略。'
+                                '客观描述用户的当前请求或共享信息，并纳入修正内容。保留不确定性；不要添加未陈述的需求或您计划的响应策略。话题关联工作流不分析用户意图，此字段传空字符串。'
                             ),
                         },
                         "kind": {

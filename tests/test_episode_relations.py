@@ -146,7 +146,7 @@ def test_workflow_model_chooses_query_then_finishes():
                     assert "尚未进入摘要的对话" not in messages[0]["content"]
                     assert not semantic.prepare.called
                     assert tools[0] == RECALL_TOOL_SPEC
-                    args = {"units": [{"intent": "查找项目背景", "recall_mode": "search",
+                    args = {"units": [{"intent": "", "recall_mode": "search",
                         "recall_queries": [{"semantic": "项目启动", "keywords": ["项目"]},
                                            {"semantic": "项目最初的决定", "keywords": []}],
                         "recall_from_turn_id": "", "episode": {"action": "none"}}]}
@@ -156,6 +156,10 @@ def test_workflow_model_chooses_query_then_finishes():
                     invalid = await workflow.execute_tool(ToolCall("bad", "recall", args))
                     assert not invalid["ok"]
                     args["units"][0]["episode"] = {"action": "none"}
+                    from momoi.tools.validation import validate_tool_arguments
+                    _, error = validate_tool_arguments("recall", args, tools[0]["input_schema"])
+                    assert error is None
+                    assert 'intent` 固定传空字符串' in system
                     result = await workflow.execute_tool(ToolCall("recall", "recall", args))
                     assert result["ok"], result
                     assert "memory" in result and "reflection" in result
@@ -190,6 +194,7 @@ def test_workflow_model_chooses_query_then_finishes():
             assert len(semantic.prepare.call_args.args[0]) == 2
             assert runner._select_recall_topics.called
             assert store.context_plan("test")["plan"]["episode_actions"] == []
+            assert store.context_plan("test")["plan"]["intent_units"][0]["intent"] == ""
             assert store._db.execute("SELECT count(*) FROM episode_relations").fetchone()[0] == 1
         finally:
             store.close()
