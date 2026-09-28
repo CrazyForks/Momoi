@@ -614,6 +614,9 @@ def build_plan_retrieval(
         }
         for row in episode_rows
     ]
+    # Baseline assembly is not a recall operation.
+    if not plan.get("intent_units") and not plan.get("activity"):
+        return retrieval
     log_event(
         logger,
         logging.INFO,
@@ -648,20 +651,22 @@ def build_plan_retrieval(
         embedding_fallback=dense_evidence.fallback_reason if dense_evidence else "disabled",
 
     )
-    log_event(
-        logger,
-        logging.INFO,
-        "context_recall_memory_results",
-        stage="context_recall",
-        results=memory_log,
-    )
-    log_event(
-        logger,
-        logging.INFO,
-        "context_recall_episode_results",
-        stage="context_recall",
-        results=episode_log,
-    )
+    if memory_log:
+        log_event(
+            logger,
+            logging.INFO,
+            "context_recall_memory_results",
+            stage="context_recall",
+            results=memory_log,
+        )
+    if episode_log:
+        log_event(
+            logger,
+            logging.INFO,
+            "context_recall_episode_results",
+            stage="context_recall",
+            results=episode_log,
+        )
     log_event(
         logger,
         logging.INFO,

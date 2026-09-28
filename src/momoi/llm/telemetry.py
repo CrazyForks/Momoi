@@ -14,6 +14,7 @@ from ..storage import estimate_tokens
 from ..storage.ops.thinking import persist_thinking_failure
 
 logger = logging.getLogger(__name__)
+_tool_schema_hashes: dict[str, str] = {}
 
 
 def usage_metrics(data: dict[str, Any]) -> dict[str, float | int | bool] | None:
@@ -149,16 +150,19 @@ def log_tool_schema(protocol: str, tools: object) -> None:
         for tool in values
         if isinstance(tool, dict)
     ]
+    digest = hashlib.sha256(rendered.encode()).hexdigest()
+    changed = _tool_schema_hashes.get(protocol) != digest
+    _tool_schema_hashes[protocol] = digest
     log_event(
         logger,
         TRACE,
         "llm_tool_schema",
         protocol=protocol,
         tool_count=len(names),
-        tool_schema_chars=len(rendered),
-        tool_schema_tokens=estimate_tokens(rendered),
-        tool_schema_sha256=hashlib.sha256(rendered.encode()).hexdigest(),
-        tool_names=names,
+        tool_schema_chars=len(rendered) if changed else None,
+        tool_schema_tokens=estimate_tokens(rendered) if changed else None,
+        tool_schema_sha256=digest,
+        tool_names=names if changed else None,
     )
 
 

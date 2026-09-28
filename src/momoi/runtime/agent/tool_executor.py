@@ -218,7 +218,11 @@ class ToolExecutor:
             tool_name=call.name,
             ok=bool(result.get("ok")),
             error=result.get("error"),
-            result=compact_result,
+            result=(
+                {key: result[key] for key in ("ok", "state", "error", "result_ref") if key in result}
+                if call.name == "recall" else compact_result
+            ),
+            result_chars=len(json.dumps(result, ensure_ascii=False, default=str)) if call.name == "recall" else None,
             result_message=(
                 safe_preview(result_message, 500)
                 if result_message is not None
