@@ -10,6 +10,7 @@ from ....models import ToolCall
 from ....observability.events import log_event
 from ....storage.episode.episode_ranking import EpisodeRecallQuery
 from ...agent import AgentWorkflow
+from ...context.rendering import episode_recall_records
 from .relation_contracts import FINISH_SPEC, RECALL_SPEC, SYSTEM, render_source
 
 logger = logging.getLogger(__name__)
@@ -52,8 +53,8 @@ class EpisodeRelationWorkflow:
 
     async def _build_episode_relations(self, episode, ordinal, turn_id):
         episode_id = str(episode["id"])
-        source_messages = self.store.episode_relation_messages(
-            episode_id, through_ordinal=ordinal
+        source_messages = self.store.episode_messages(
+            episode_id, 30000, before_ordinal=ordinal + 1
         )
         request = [{"role": "user", "content": render_source(episode, source_messages)}]
         existing = self.store.episode_relation_existing_targets(episode_id)
@@ -78,25 +79,22 @@ class EpisodeRelationWorkflow:
                 targets = self.store.episode_relation_targets(
                     episode, [*existing, *(str(item["id"]) for item in ranked)],
                 )
-                results = []
-                for target in targets:
-                    identifier = str(target["id"])
-                    recalled[identifier] = target
-                    messages = self.store.episode_relation_messages(identifier)
-                    results.append({
-                        "id": identifier,
-                        "previous_relation": existing.get(identifier),
-                        "title": target["title"],
-                        "summary": target["narrative_summary"],
-                        "conversation": [
-                            {"role": message["role"], "content": str(message["content"])[:500],
-                             "truncated": len(str(message["content"])) > 500,
-                             "timestamp": message["timestamp"]}
-                            for message in messages[-6:]
-                        ],
-                    })
-                    results[-1]["omitted_messages"] = max(0, len(messages) - 6)
-                return {"ok": True, "query": query_text, "results": results}
+                records = episode_recall_records(
+                    self.store,
+                    [{
+                        "episode_id": target["id"],
+                        **self.store.episode_keyword_evidence(
+                            str(target["id"]), next((row.get("matched_keywords", [])
+                                for row in ranked if row["id"] == target["id"]), []),
+                        ),
+                        "matched_keywords": next((row.get("matched_keywords", [])
+                            for row in ranked if row["id"] == target["id"]), []),
+                    } for target in targets],
+                    self.config.summary_tokens,
+                )
+                for record in records:
+                    recalled[str(record["id"])] = record
+                return {"ok": True, "episodes": records}
 
             decisions = call.arguments.get("relations")
             if not isinstance(decisions, list) or len(decisions) > 4:
@@ -106,6 +104,10 @@ class EpisodeRelationWorkflow:
             try:
                 self.store.finish_episode_relations(
                     episode_id, ordinal, decisions, set(recalled),
+                    evidence_records={episode_id: {
+                        "title": episode["title"], "summary": episode["narrative_summary"],
+                        "conversation": [{"content": m["content"]} for m in source_messages],
+                    }, **recalled},
                 )
             except (TypeError, KeyError, ValueError) as error:
                 return {"ok": False, "error": "invalid_relations", "message": str(error)}

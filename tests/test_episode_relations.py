@@ -78,6 +78,13 @@ def test_relation_validation_and_updated_summary_rechecks():
             }
             with pytest.raises(ValueError):
                 store.finish_episode_relations("new", 1, [decision], set())
+            with pytest.raises(ValueError, match="target evidence"):
+                store.finish_episode_relations(
+                    "new", 1, [decision], {"old"}, evidence_records={
+                        "new": {"summary": "团队完成首个阶段"},
+                        "old": {"summary": "团队[…truncated…]"},
+                    },
+                )
             store.finish_episode_relations("new", 1, [decision], {"old"})
             assert store._db.execute("SELECT relation FROM episode_relations").fetchone()[0] == "follows_up"
             with store._db:
@@ -133,7 +140,11 @@ def test_workflow_model_chooses_query_then_finishes():
                     assert "尚未进入摘要的对话" not in messages[0]["content"]
                     assert not semantic.prepare.called
                     result = await workflow.execute_tool(ToolCall("recall", "recall", {"query": "项目启动"}))
-                    assert result["results"][0]["id"] == "old"
+                    assert result["episodes"][0]["id"] == "old"
+                    from momoi.runtime.context.rendering import episode_recall_records
+                    assert result["episodes"] == episode_recall_records(
+                        store, [{"episode_id": "old"}], 6000,
+                    )
                     result = await workflow.execute_tool(ToolCall("finish", "episode_relation_finish", {"relations": [{
                         "target_episode_id": "old", "relation": "follows_up",
                         "explanation": "项目推进到首个阶段", "source_evidence": "完成首个阶段",
@@ -144,6 +155,7 @@ def test_workflow_model_chooses_query_then_finishes():
 
             semantic = SimpleNamespace(prepare=AsyncMock(return_value=None))
             runner = Runner()
+            runner.config = SimpleNamespace(summary_tokens=6000)
             runner.store = store
             runner.semantic_recall = semantic
             asyncio.run(runner._build_episode_relations(store.episode("new"), 1, "test"))
