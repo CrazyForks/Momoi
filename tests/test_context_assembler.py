@@ -1325,7 +1325,7 @@ class ContextAssemblerTest(unittest.TestCase):
             self.assertNotIn("turn_hits=", retrieval["query_recall"])
             self.assertFalse(any(item["relation"] == "recalled" for item in retrieval["episodes"]))
             assembled = assemble_main_context(store, retrieval, 1000)
-            self.assertNotIn("蓝色保温杯藏在阁楼第三个纸箱里", "\n".join(assembled.values()))
+            self.assertNotIn("蓝色保温杯藏在阁楼第三个纸箱里", "\n".join(value for value in assembled.values() if isinstance(value, str)))
             self.assertIn(
                 "蓝色保温杯藏在阁楼第三个纸箱里",
                 store.conversation_episode("episode-old")["messages"][0]["content"],
@@ -1529,7 +1529,7 @@ class ContextAssemblerTest(unittest.TestCase):
                 [item["id"] for item in retrieval["goals"]],
                 ["goal-mail", "goal-social"],
             )
-            rendered = "\n".join(assembled.values())
+            rendered = "\n".join(value for value in assembled.values() if isinstance(value, str))
             self.assertNotIn("较早的项目邮件仍在等待", rendered)
             self.assertIn("项目邮件关系到当前合作", rendered)
             self.assertIn("goal-mail", rendered)

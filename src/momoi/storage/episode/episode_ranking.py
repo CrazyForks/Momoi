@@ -43,6 +43,7 @@ _CUE_RANK_WEIGHT = 2.0
 
 _FIELD_WEIGHTS = {
     # Historical replay: larger boosts did not consistently improve rank.
+    "execution": 2.2,
     "recall_cue": 3.3,
     "title": 3.0,
     "topic": 2.7,
@@ -53,7 +54,7 @@ _FIELD_WEIGHTS = {
     "working_summary": 1.7,
     "summary": 1.7,
 }
-_SELECTIVE_FIELDS = {"title", "topic", "entity", "open_loop"}
+_SELECTIVE_FIELDS = {"title", "topic", "entity", "open_loop", "execution"}
 
 
 @dataclass(frozen=True)

@@ -93,7 +93,7 @@ MEMORY_TOOL_SPECS: list[dict[str, Any]] = [
         "name": "episode_read",
         "description": (
             "Read paginated raw Episode messages with role, time, delivery state, "
-            "and evidence locations."
+            "and evidence locations, plus bounded execution evidence. Use turn_id and after_sequence to page historical tool calls; assistant_text is internal commentary, not proof of completion."
         ),
         "input_schema": {
             "type": "object",
@@ -104,6 +104,8 @@ MEMORY_TOOL_SPECS: list[dict[str, Any]] = [
                     "maxLength": 200,
                     "description": "Episode id from recall or episode_search.",
                 },
+                "turn_id": {"type": "string", "description": "Read execution evidence for this Turn within the Episode."},
+                "after_sequence": {"type": "integer", "minimum": 0, "description": "Execution cursor returned as next_after_sequence; requires turn_id."},
                 "before_ordinal": {
                     "type": "integer",
                     "minimum": 2,

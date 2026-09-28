@@ -105,7 +105,7 @@ async def recall_owner_context(
         "memory": recalled["recall_memories"],
         "status": recalled["query_recall"],
         "reflection": recalled["reflection_memories"],
-        "episodes": recalled["episodes"],
+        "episodes": recalled.get("episode_records", recalled["episodes"]),
     }
 
 

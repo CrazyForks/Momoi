@@ -313,7 +313,7 @@ class ToolBatchExecutor:
                                 "memory": context["recall_memories"],
                                 "status": context["query_recall"],
                                 "reflection": context["reflection_memories"],
-                                "episodes": context["episodes"],
+                                "episodes": context.get("episode_records", context["episodes"]),
                             }
                         except (KeyError, TypeError, ValueError) as error:
                             result = {"ok": False, "error": "invalid_recall", "message": str(error)}

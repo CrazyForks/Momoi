@@ -57,6 +57,7 @@ def render_topic_selection_request(payload: Mapping[str, object]) -> str:
         candidate = SubElement(candidates, "candidate", {"index": str(value["index"])})
         _text(candidate, "title", value.get("title"))
         _text(candidate, "summary", value.get("summary"))
+        _text(candidate, "execution_evidence", value.get("execution_evidence"))
         _text_list(candidate, "topics", "topic", value.get("topics"))
         _text_list(candidate, "cues", "cue", value.get("cues"))
         conversation_time = value.get("conversation_time")
@@ -111,6 +112,7 @@ async def select_topics(provider, store, request, queries, candidates, *, memory
         "candidates": [{
             "index": i, "title": row["title"],
             "summary": row.get("narrative_summary") or row.get("summary") or "",
+            "execution_evidence": str(row.get("execution_evidence") or ""),
             "topics": row.get("topics") or [],
             "cues": cue_texts(row.get("recall_cues")),
             "conversation_time": store.topic_conversation_time(str(row["id"])),

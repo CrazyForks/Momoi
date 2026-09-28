@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from .episode_cues import stored_cue_texts
+from .execution_evidence import execution_turns, journal_rows, search_fields
 
 import json
 import re
@@ -143,10 +144,11 @@ class EpisodeQueryStore:
                     scoped=bool(scoped_text),
                 )
             )
+        execution_fields = search_fields(journal_rows(self._db, after=after, before=before))
         documents: list[EpisodeSearchDocument] = []
         for episode_id, row in rows_by_id.items():
             messages = tuple(messages_by_episode.get(episode_id, []))
-            if time_filter and not messages:
+            if time_filter and not messages and episode_id not in execution_fields:
                 continue
             fields = (
                 ()
@@ -189,9 +191,9 @@ class EpisodeQueryStore:
             documents.append(
                 EpisodeSearchDocument(
                     episode_id=episode_id,
-                    fields=fields,
+                    fields=(*fields, EpisodeSearchField("execution", execution_fields.get(episode_id, ""))),
                     last_activity_at=(
-                        max(message.created_at for message in messages)
+                        max((message.created_at for message in messages), default=float(row["last_activity_at"]))
                         if time_filter
                         else float(row["last_activity_at"])
                     ),
@@ -202,11 +204,12 @@ class EpisodeQueryStore:
         return rows_by_id, documents
 
     def _episode_topic_documents(self):
-        """Topic retrieval never loads raw messages or context plans."""
+        """Search topic metadata and native execution evidence without expanding chat."""
         rows = self._db.execute("""SELECT e.*, COALESCE((
             SELECT MAX(t.updated_at) FROM episode_turns et JOIN turns t ON t.id=et.turn_id
             WHERE et.episode_id=e.id), e.updated_at) AS last_activity_at
             FROM conversation_episodes e""").fetchall()
+        execution_fields = search_fields(journal_rows(self._db))
         documents = []
         for row in rows:
             fields = [EpisodeSearchField("title", row["title"]),
@@ -215,6 +218,7 @@ class EpisodeQueryStore:
             for name, column in (("topic", "topics_json"), ("entity", "entities_json")):
                 fields.extend(EpisodeSearchField(name, str(value)) for value in json.loads(row[column] or "[]"))
             fields.extend(EpisodeSearchField("recall_cue", text) for text in stored_cue_texts(row["recall_cues_json"]))
+            fields.append(EpisodeSearchField("execution", execution_fields.get(str(row["id"]), "")))
             documents.append(EpisodeSearchDocument(str(row["id"]), tuple(fields),
                 float(row["last_activity_at"]), float(row["salience"]), ()))
         return {str(row["id"]): row for row in rows}, documents
@@ -280,6 +284,9 @@ class EpisodeQueryStore:
                 | {"content": truncate_tokens(match.content, 500)}
                 for match in hit.matches
             ]
+            episode["execution_evidence"] = execution_turns(
+                self, hit.episode_id, hit.matched_keywords, limit=1, tool_limit=1,
+                after=after, before=before)
             episode["matched_keywords"] = list(hit.matched_keywords)
             episode["keyword_match_count"] = len(hit.matched_keywords)
             episode["search_score"] = hit.score
@@ -515,6 +522,9 @@ class EpisodeQueryStore:
         return {
             **episode,
             "messages": messages,
+            **execution_turns(self, episode_id, limit=10, tool_limit=12,
+                              after=after, before=before, before_ordinal=before_ordinal,
+                              selected_messages=messages),
             "truncated": omitted_messages or content_truncated,
             "next_before_ordinal": next_before_ordinal,
             "window_first_timestamp": min(

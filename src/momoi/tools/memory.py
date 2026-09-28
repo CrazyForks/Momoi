@@ -92,6 +92,10 @@ def _episode_match_excerpt(episode: dict[str, object]) -> str:
 _MEMORY_ERROR_MESSAGES = {
     "tool_not_allowed": "This memory tool is not available in the current Turn.",
     "query_required": "Provide a non-empty search query.",
+    "turn_id_required": "after_sequence requires turn_id.",
+    "invalid_execution_cursor": "turn_id must be a string and after_sequence a non-negative integer.",
+    "conflicting_execution_cursor": "Execution cursors cannot be combined with message or time cursors.",
+    "episode_turn_not_found": "The requested Turn does not belong to this Episode.",
     "invalid_episode_id": "episode_id must be a non-empty string.",
     "invalid_before_ordinal": "before_ordinal must be an integer greater than one.",
     "invalid_message_cursor": (
@@ -354,6 +358,22 @@ class MemoryTools:
         episode_id = arguments.get("episode_id")
         if not isinstance(episode_id, str) or not episode_id.strip():
             return _memory_error("invalid_episode_id")
+        if "after_sequence" in arguments and not arguments.get("turn_id"):
+            return _memory_error("turn_id_required")
+        if arguments.get("turn_id") is not None:
+            if any(key in arguments for key in ("message_id", "content_offset", "before_ordinal", "time_range")):
+                return _memory_error("conflicting_execution_cursor")
+            from ..storage.episode.execution_evidence import execution_turns
+            turn_id = arguments["turn_id"]
+            cursor = arguments.get("after_sequence", 0)
+            if not isinstance(turn_id, str) or not isinstance(cursor, int) or isinstance(cursor, bool) or cursor < 0:
+                return _memory_error("invalid_execution_cursor")
+            if not self.store._db.execute("SELECT 1 FROM episode_turns WHERE episode_id=? AND turn_id=?",
+                                          (episode_id.strip(), turn_id)).fetchone():
+                return _memory_error("episode_turn_not_found")
+            return {"ok": True, "episode_id": episode_id.strip(),
+                    **execution_turns(self.store, episode_id.strip(), turn_id=turn_id,
+                                      after_sequence=cursor, limit=1, tool_limit=12)}
         before_ordinal = arguments.get("before_ordinal")
         if before_ordinal is not None and (
             isinstance(before_ordinal, bool)

@@ -1,3 +1,4 @@
+import json
 import logging
 import math
 from xml.etree import ElementTree
@@ -264,12 +265,49 @@ def _episode_context(
     return rendered
 
 
+def episode_recall_records(store, episodes, budget):
+    """Structured historical evidence; never inserted as live tool exchanges."""
+    from ...storage.episode.execution_evidence import execution_turns
+    records = []
+    selected = [e for e in episodes or [] if not e.get("is_new")]
+    per_episode = max(1, budget // max(1, len(selected)))
+    for item in selected:
+        episode = store.episode(str(item["episode_id"]))
+        if not episode:
+            continue
+        summary, _ = _episode_summary(episode)
+        record = {"id": episode["id"], "title": episode["title"],
+                  "summary": truncate_tokens(summary, max(1, per_episode // 3)),
+                  **execution_turns(store, episode["id"], item.get("matched_keywords", []),
+                                    selected_messages=item.get("matches", []))}
+        # Keep JSON valid and invocation/result pairs intact when fitting the budget.
+        while estimate_tokens(json.dumps(record, ensure_ascii=False)) > per_episode:
+            turns = record["turns"]
+            if not turns:
+                record["summary"] = truncate_tokens(record["summary"], max(1, per_episode // 8))
+                break
+            turn = turns[-1]
+            if turn.get("execution"):
+                removed = turn["execution"].pop()
+                count = len(removed.get("tools", []))
+                if count:
+                    turn["omitted_tool_calls"] = turn.get("omitted_tool_calls", 0) + count
+                if not turn["execution"]:
+                    del turn["execution"]
+            else:
+                turns.pop()
+                record["omitted_turns"] = record.get("omitted_turns", 0) + 1
+        records.append(record)
+    return records
+
+
 def assemble_main_context(
     store: Store,
     retrieval: dict[str, object],
     summary_token_budget: int,
-) -> dict[str, str]:
+) -> dict[str, object]:
     return {
+        "episode_records": episode_recall_records(store, retrieval.get("episodes"), summary_token_budget),
         "episodes": _episode_context(
             store,
             retrieval.get("episodes"),
