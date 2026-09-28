@@ -74,7 +74,7 @@ MEMORY_MAINTENANCE_FINISH_SPEC: dict[str, object] = {
                                 },
                                 "activation": {
                                     "type": "string",
-                                    "enum": ["always", "recall"],
+                                    "enum": ["always", "recall", "scoped"],
                                     "description": (
                                         '最终激活。'
                                     ),

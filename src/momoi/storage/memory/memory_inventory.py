@@ -88,6 +88,16 @@ class MemoryInventoryRepository:
     def always_memory_context(self) -> str:
         return self._memory_context(self._memory_rows("always"))
 
+    def scoped_memory_context(self, scope: str) -> str:
+        if not (scope == "heartbeat" or scope == "webhook" or
+                (scope.startswith("goal.") and len(scope) == 37 and
+                 all(char in "0123456789abcdef" for char in scope[5:]))):
+            raise ValueError("invalid memory scope")
+        return self._memory_context([
+            row for row in self._memory_rows("scoped")
+            if str(row["key"]).startswith(scope + ".")
+        ])
+
     def has_memory(self, kind: str, key: str) -> bool:
         return (
             self._db.execute(

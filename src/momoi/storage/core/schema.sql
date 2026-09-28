@@ -83,7 +83,7 @@ CREATE TABLE IF NOT EXISTS memories (
     key TEXT NOT NULL,
     content TEXT NOT NULL,
     activation TEXT NOT NULL DEFAULT 'recall' CHECK (
-        activation IN ('always', 'recent', 'recall')
+        activation IN ('always', 'recent', 'recall', 'scoped')
     ),
     authority TEXT NOT NULL CHECK (authority = 'owner'),
     source_event_id TEXT NOT NULL,

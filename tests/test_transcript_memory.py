@@ -26,6 +26,22 @@ def add(store, text, activation="always", key="test"):
         ).lastrowid
 
 
+def test_scoped_memory_only_appears_in_matching_workflow(store):
+    goal_id = "a" * 32
+    add(store, "只在喝水任务显示", activation="scoped", key=f"goal.{goal_id}.water")
+    add(store, "只在心跳显示", activation="scoped", key="heartbeat.contact")
+    add(store, "只在 webhook 显示", activation="scoped", key="webhook.arrival")
+    assert "喝水" in store.scoped_memory_context(f"goal.{goal_id}")
+    assert "心跳" not in store.scoped_memory_context(f"goal.{goal_id}")
+    assert "心跳" in store.scoped_memory_context("heartbeat")
+    assert "webhook" in store.scoped_memory_context("webhook")
+    assert not store.always_memory_context()
+    assert not store.search_memories("喝水|心跳|webhook", 10)
+    assert store.search_memories("喝水", 10, include_scoped=True)
+    state = store.transcript_memory_context(["turn"])
+    assert not state["observed"]
+
+
 def test_dashboard_replace_delete_and_restart_preserve_snapshot(store):
     identifier = add(store, "旧偏好")
     first = store.transcript_memory_context(["a"])

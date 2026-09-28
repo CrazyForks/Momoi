@@ -401,6 +401,7 @@ class MemoryRecallStore:
         *,
         include_core: bool = False,
         activation: str | None = None,
+        include_scoped: bool = False,
     ) -> list[dict[str, object]]:
         if max_results <= 0:
             return []
@@ -415,12 +416,13 @@ class MemoryRecallStore:
                FROM memories
                WHERE superseded_by IS NULL
                  AND (expires_at IS NULL OR expires_at > ?)
+                 AND (? OR activation!='scoped')
                  AND (? IS NULL OR activation=?)
                  AND NOT EXISTS (
                      SELECT 1 FROM memory_tombstones AS t
                      WHERE t.kind=memories.kind AND t.key=memories.key
                  )""",
-            (time.time(), activation, activation),
+            (time.time(), include_scoped, activation, activation),
         ).fetchall()
         core_kinds = {"profile", "relationship", "shared"}
         ranked: list[tuple[float, sqlite3.Row]] = []

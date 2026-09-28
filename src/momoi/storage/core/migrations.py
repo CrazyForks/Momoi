@@ -594,6 +594,28 @@ def _add_plan_review(database: sqlite3.Connection) -> None:
     database.execute("UPDATE task_plans SET status='draft' WHERE status='ready'")
 
 
+def _add_scoped_memory_activation(database: sqlite3.Connection) -> None:
+    sql = str(database.execute(
+        "SELECT sql FROM sqlite_master WHERE type='table' AND name='memories'"
+    ).fetchone()[0])
+    if "'scoped'" in sql:
+        return
+    objects = [row[0] for row in database.execute(
+        "SELECT sql FROM sqlite_master WHERE tbl_name='memories' "
+        "AND type IN ('index','trigger') AND sql IS NOT NULL"
+    )]
+    replacement = re.sub(r'CREATE TABLE ["`\[]?memories["`\]]?',
+                         'CREATE TABLE memories_new', sql, count=1)
+    replacement = replacement.replace("'recent', 'recall'", "'recent', 'recall', 'scoped'")
+    columns = ','.join(f'"{row[1]}"' for row in database.execute('PRAGMA table_info(memories)'))
+    database.execute(replacement)
+    database.execute(f'INSERT INTO memories_new ({columns}) SELECT {columns} FROM memories')
+    database.execute('DROP TABLE memories')
+    database.execute('ALTER TABLE memories_new RENAME TO memories')
+    for statement in objects:
+        database.execute(statement)
+
+
 MIGRATIONS: tuple[Migration, ...] = (
     _add_runtime_archive_metadata,
     _add_turn_workflow_kind,
@@ -620,6 +642,7 @@ MIGRATIONS: tuple[Migration, ...] = (
     _add_current_state_evidence,
     _add_transcript_window_observed_total,
     _add_plan_review,
+    _add_scoped_memory_activation,
 )
 SCHEMA_VERSION = len(MIGRATIONS)
 

@@ -91,6 +91,7 @@ USER_CONTEXT_SECTION_ORDER = (
     "long_term_memories",
     "memory_overrides",
     "goal_directory",
+    "scoped_memories",
     "current_state",
     "active_goals",
     "recent_episodes",
@@ -128,7 +129,7 @@ def pack_user_context(*items: tuple[str, str]) -> str:
     structured = {
         "long_term_memories", "recall_memories", "goal_directory",
         "recent_episodes", "recent_recall_context", "self_state", "episode_directory",
-        "current_state", "due_goal",
+        "current_state", "due_goal", "scoped_memories",
     }
     return "\n\n".join(
         by_name[name].strip() if name == "followup" else

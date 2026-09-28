@@ -28,7 +28,16 @@ MEMORY_KINDS = {
     "cross_event_state", # a durable state that outlives the event that produced it
 }
 
-MEMORY_ACTIVATIONS = {"always", "recall"}
+MEMORY_ACTIVATIONS = {"always", "recall", "scoped"}
+
+
+def valid_scoped_memory_key(key: str) -> bool:
+    """A scoped memory belongs to one stable workflow identity."""
+    import re
+    return bool(re.fullmatch(
+        r"(?:goal\.[0-9a-f]{32}|heartbeat|webhook)\.[a-z0-9][a-z0-9_.-]*",
+        key,
+    ))
 
 ALWAYS_MEMORY_KINDS = {"profile", "preference", "relationship"}
 

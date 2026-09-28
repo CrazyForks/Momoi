@@ -4,7 +4,8 @@ from ..memory_rendering import memory_element, owner_evidence_element, xml_secti
 
 
 def render_memory_operation_request(*, now, timestamp,
-                                    operations, visible, snapshots, evidence):
+                                    operations, visible, snapshots, evidence,
+                                    goals=()):
     clock = Element("current_time", {"at": timestamp, "unix": str(now)})
     requests = Element("operation_requests")
     for operation in operations:
@@ -19,4 +20,9 @@ def render_memory_operation_request(*, now, timestamp,
     for memory_id, memory in visible.items():
         if snapshots.get(memory_id) != memory:
             outdated.append(memory_element(memory))
-    return xml_sections(clock, requests, memories, outdated, owner_evidence_element(evidence))
+    goal_directory = Element("goal_directory")
+    for goal in goals:
+        SubElement(goal_directory, "goal", {"id": str(goal["id"]),
+                                             "status": str(goal["status"])}).text = str(goal["title"])
+    return xml_sections(clock, requests, goal_directory, memories, outdated,
+                        owner_evidence_element(evidence))

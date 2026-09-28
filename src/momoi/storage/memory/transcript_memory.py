@@ -18,6 +18,7 @@ class TranscriptMemoryStore:
             current = {
                 str(row["id"]): dict(row)
                 for row in self.maintenance_memory_inventory()
+                if row["activation"] != "scoped"
             }
             raw = self._db.execute(
                 "SELECT data_json FROM transcript_memory_state WHERE id=1"

@@ -45,6 +45,7 @@ class WebhookWorkflow:
         )
         current_input = pack_current_turn_context(
             self.store, "webhook",
+            ("scoped_memories", self.store.scoped_memory_context("webhook")),
             (
                 "workflow_contract",
                 _live_prompt(WEBHOOK_PROMPT_PATH, WEBHOOK_SYSTEM_PROMPT),

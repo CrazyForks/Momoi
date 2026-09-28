@@ -169,6 +169,7 @@ class HeartbeatWorkflow:
         )
         current_input = pack_current_turn_context(
             self.store, "heartbeat",
+            ("scoped_memories", self.store.scoped_memory_context("heartbeat")),
             ("workflow_contract", self._heartbeat_system_prompt()),
             ("autonomous_heartbeat", heartbeat_event),
             (

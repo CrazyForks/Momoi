@@ -57,6 +57,11 @@ _MEMORY = {
                 "kind": {"enum": sorted(ALWAYS_MEMORY_KINDS)},
             }
         },
+        {
+            "properties": {
+                "activation": {"enum": ["scoped"]},
+            }
+        },
     ],
     "additionalProperties": False,
 }

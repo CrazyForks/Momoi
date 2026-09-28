@@ -68,6 +68,9 @@ class RepositoryFacade:
     def always_memory_context(self) -> str:
         return self.memory_inventory.always_memory_context()
 
+    def scoped_memory_context(self, scope: str) -> str:
+        return self.memory_inventory.scoped_memory_context(scope)
+
     def has_memory(self, kind: str, key: str) -> bool:
         return self.memory_inventory.has_memory(kind, key)
 

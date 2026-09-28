@@ -105,6 +105,7 @@ class MemoryOperationWorkflow:
             now=now, timestamp=self.store.context_timestamp(now),
             operations=batch["operations"], visible=visible, snapshots=snapshots,
             evidence=evidence_records,
+            goals=self.store.list_goals(),
         )
         complete = False
         completion: dict[str, Any] | None = None
@@ -123,7 +124,7 @@ class MemoryOperationWorkflow:
                 dense = await self.semantic_recall.prepare(
                     [MemoryRecallQuery(query)], include_episode=False, output_limit=12
                 )
-                matches = self.store.search_memories(query, 12)
+                matches = self.store.search_memories(query, 12, include_scoped=True)
                 matches += [
                     item
                     for item in self.store.rank_recalled_memories(

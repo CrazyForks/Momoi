@@ -309,6 +309,8 @@ def parse_memory_maintenance_result(
                     )
         if action == "replace":
             memory_id = int(item["memory_id"])
+            if (item["activation"] == "scoped") != (mutable_memories[memory_id].get("activation") == "scoped"):
+                return None, f"{path}.activation: scoped memories cannot change activation during maintenance"
             if item.get("activation") == "always":
                 current_activation = mutable_memories[memory_id].get("activation")
                 if current_activation != "always":
@@ -328,6 +330,17 @@ def parse_memory_maintenance_result(
             source_ids = item.get("source_ids")
             evidence_event_ids = item.get("evidence_event_ids")
             assert isinstance(source_ids, list)
+            if any((item["activation"] == "scoped") !=
+                   (mutable_memories[memory_id].get("activation") == "scoped")
+                   for memory_id in target_ids):
+                return None, f"{path}.activation: scoped memories cannot merge with global memories"
+            if item["activation"] == "scoped" and len({
+                (".".join(str(mutable_memories[memory_id]["key"]).split(".")[:2])
+                 if str(mutable_memories[memory_id]["key"]).startswith("goal.")
+                 else str(mutable_memories[memory_id]["key"]).split(".")[0])
+                for memory_id in target_ids
+            }) > 1:
+                return None, f"{path}: scoped memories from different scopes cannot merge"
             if item.get("activation") == "always":
                 for memory_id in sorted(target_ids):
                     current_activation = mutable_memories[memory_id].get("activation")

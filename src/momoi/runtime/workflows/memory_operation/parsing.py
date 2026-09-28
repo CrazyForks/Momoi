@@ -6,6 +6,7 @@ from ....storage.memory.memory_values import (
     ALWAYS_MEMORY_KINDS,
     MEMORY_ACTIVATIONS,
     MEMORY_KINDS,
+    valid_scoped_memory_key,
 )
 
 
@@ -122,6 +123,12 @@ def parse_decisions(
             r"[a-z0-9][a-z0-9_.-]{0,199}", memory["key"]
         ):
             raise ValueError("invalid memory key")
+        if memory["activation"] == "scoped" and not valid_scoped_memory_key(memory["key"]):
+            raise ValueError("scoped memory requires goal.<id>.*, heartbeat.*, or webhook.* key")
+        if memory["activation"] != "scoped" and (
+            memory["key"].startswith(("goal.", "heartbeat.", "webhook."))
+        ):
+            raise ValueError("workflow namespace requires scoped activation")
         key = (memory["kind"], memory["key"])
         if key in keys - target_keys:
             raise ValueError("combine writes to the same kind/key")
