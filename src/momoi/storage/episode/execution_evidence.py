@@ -1,5 +1,6 @@
-"""Bounded historical execution evidence, read from the existing native journal."""
+"""Bounded historical execution evidence from native and legacy journals."""
 import json
+from itertools import groupby
 
 EXCLUDED = {'recall', 'end_turn', 'heartbeat_end_turn', 'send_bubbles', 'send_voice'}
 
@@ -58,13 +59,52 @@ def eligible(exchange):
 
 
 def journal_rows(db, episode_id=None, after=None, before=None, before_ordinal=None):
-    return db.execute('''SELECT et.episode_id, et.turn_id, et.ordinal, t.started_at,
-        j.sequence, j.payload_json FROM episode_turns et JOIN turns t ON t.id=et.turn_id
-        LEFT JOIN turn_journal j ON j.turn_id=et.turn_id AND j.item_type='assistant_exchange'
+    rows = db.execute('''SELECT et.episode_id, et.turn_id, et.ordinal, t.started_at,
+        j.sequence, j.payload_json, j.item_type FROM episode_turns et JOIN turns t ON t.id=et.turn_id
+        LEFT JOIN turn_journal j ON j.turn_id=et.turn_id AND (
+            j.item_type='assistant_exchange' OR (
+                j.item_type IN ('tool_call', 'tool_result') AND NOT EXISTS (
+                    SELECT 1 FROM turn_journal native WHERE native.turn_id=et.turn_id
+                    AND native.item_type='assistant_exchange')))
         WHERE (? IS NULL OR et.episode_id=?) AND (? IS NULL OR et.ordinal<?)
         AND (? IS NULL OR t.started_at>=?) AND (? IS NULL OR t.started_at<?)
         ORDER BY et.episode_id, et.ordinal, j.sequence''',
         (episode_id, episode_id, before_ordinal, before_ordinal, after, after, before, before)).fetchall()
+    output = []
+    for _, records in groupby(rows, key=lambda row: (row['episode_id'], row['turn_id'])):
+        records = list(records)
+        if records[0]['item_type'] in (None, 'assistant_exchange'):
+            output.extend(records)
+            continue
+        # Pair by ID, never adjacency: concurrent calls may finish out of order.
+        results = {}
+        for row in records:
+            if row['item_type'] == 'tool_result':
+                payload = json.loads(row['payload_json'])
+                if payload.get('tool_call_id'):
+                    results[payload['tool_call_id']] = payload
+        for row in records:
+            if row['item_type'] != 'tool_call':
+                continue
+            call = json.loads(row['payload_json'])
+            identifier = call.get('tool_call_id')
+            result = results.get(identifier)
+            exchange = {'content': [{'type': 'tool_use', 'id': identifier,
+                         'name': call.get('name'), 'input': call.get('arguments', {})}],
+                        'results': []}
+            if result is not None:
+                value = result.get('result')
+                if not isinstance(value, dict):
+                    value = {'content': value}
+                value = {**value}
+                for key in ('ok', 'error'):
+                    if key in result:
+                        value.setdefault(key, result[key])
+                exchange['results'].append({'type': 'tool_result', 'tool_use_id': identifier,
+                                            'content': json.dumps(value, ensure_ascii=False)})
+            # Keep the original call sequence for stable deep-read cursors.
+            output.append({**dict(row), 'payload_json': json.dumps(exchange, ensure_ascii=False)})
+    return output
 
 
 def search_fields(rows):

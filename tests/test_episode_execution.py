@@ -114,3 +114,60 @@ def test_episode_read_tool_execution_cursor_validation(tmp_path):
                         ({'turn_id': 't', 'message_id': 1}, 'conflicting_execution_cursor')]:
         assert tool._episode_read({'episode_id': 'e', **args})['error'] == error
     store.close()
+
+
+def legacy(store, kind, payload, turn='t'):
+    store.append_turn_journal(turn, kind, payload, visibility='internal', trust='runtime')
+
+
+def test_legacy_evidence_search_pairing_filtering_and_pagination(tmp_path):
+    store = Store(tmp_path / 'db'); setup(store)
+    for identifier, name in [('a', 'mcp__wms__record_issue'), ('b', 'exec'), ('c', 'recall')]:
+        legacy(store, 'tool_call', {'tool_call_id': identifier, 'name': name,
+                                  'arguments': {'quantity': 0.3333} if identifier == 'a' else {}})
+    # Results intentionally arrive in reverse order.
+    for identifier, result in [('c', {'content': '排除的检索内容'}),
+                               ('b', {'ok': False, 'error': 'command_failed'}),
+                               ('a', {'ok': True, 'content': '玉米库存扣减', 'result_ref': 'tr_old'})]:
+        legacy(store, 'tool_result', {'tool_call_id': identifier, 'result': result})
+    first = execution_turns(store, 'e', turn_id='t', tool_limit=1)['turns'][0]
+    assert 'journal_available' not in first
+    call = first['execution'][0]['tools'][0]
+    assert call['arguments']['quantity'] == 0.3333
+    assert call['result']['result_ref'] == 'tr_old'
+    assert first['omitted_tool_calls'] == 1
+    second = execution_turns(store, 'e', turn_id='t', after_sequence=first['next_after_sequence'])['turns'][0]
+    assert second['execution'][0]['tools'][0]['result']['error'] == 'command_failed'
+    assert 'next_after_sequence' not in second
+    assert store.search_topic_queries([EpisodeRecallQuery('玉米库存扣减')], 5, minimum_confidence=0)
+    assert not store.search_topic_queries([EpisodeRecallQuery('排除的检索内容')], 5, minimum_confidence=0)
+    recalled = episode_recall_records(store, [{'episode_id': 'e', 'matched_keywords': ['玉米']}], 3000)
+    assert recalled[0]['turns'][0]['execution'][0]['tools'][0]['call_id'] == 'a'
+    assert not store.turn_exchanges(['t'])
+    store.close()
+
+
+def test_native_journal_takes_precedence_over_legacy_without_duplicates(tmp_path):
+    store = Store(tmp_path / 'db'); setup(store)
+    legacy(store, 'tool_call', {'tool_call_id': 'c', 'name': 'exec',
+                              'arguments': {'command': '旧记录独有文本'}})
+    record(store, 'exec', '原生说明', {'command': 'native'})
+    entries = execution_turns(store, 'e')['turns'][0]['execution']
+    assert len(entries) == 1
+    assert entries[0]['assistant_text'] == '原生说明'
+    assert entries[0]['tools'][0]['arguments'] == {'command': 'native'}
+    assert not store.search_topic_queries([EpisodeRecallQuery('旧记录独有文本')], 5, minimum_confidence=0)
+    store.close()
+
+
+def test_legacy_missing_result_and_cross_turn_ids(tmp_path):
+    store = Store(tmp_path / 'db'); setup(store)
+    legacy(store, 'tool_call', {'tool_call_id': 'same', 'name': 'write_file'})
+    setup(store, turn='other', ordinal=2)
+    legacy(store, 'tool_call', {'tool_call_id': 'same', 'name': 'write_file'}, turn='other')
+    legacy(store, 'tool_result', {'tool_call_id': 'same', 'ok': False,
+                                'error': 'permission_denied', 'result': 'denied'}, turn='other')
+    turns = execution_turns(store, 'e')['turns']
+    assert turns[0]['execution'][0]['tools'][0]['result'] == {'error': 'result_not_recorded', 'ambiguous': True}
+    assert turns[1]['execution'][0]['tools'][0]['result'] == {'ok': False, 'error': 'permission_denied', 'content': 'denied'}
+    store.close()
