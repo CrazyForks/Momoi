@@ -3,6 +3,7 @@
   "thinking": {
     "stages": {
       "episode_anneal": "low",
+      "episode_relation": "low",
       "memory_maintenance": "low",
       "reply_followup": "low"
     }
@@ -73,6 +74,7 @@
   },
   "episode_annealing": {
     "enabled": true,
+    "relations_enabled": true,
     "idle_seconds": 60,
     "max_seconds": 650
   },

@@ -1143,7 +1143,7 @@ const runtimeDescriptions = {
   heartbeat: "心跳是 Momoi 的自主时间。她可以探索、创作、延续自己的活动，也可以休息或主动与你分享。",
   logging: "控制运行日志的详细程度，用于查看服务状态与排查问题。",
   reflection: "每天在设定时间回顾对话与活动，记录感受、关系变化和可复用的经验。",
-  episode_annealing: "将值得记住的对话按话题整理、生成摘要，并保留原始记录，便于日后回忆与延续。",
+  episode_annealing: "整理对话、生成话题摘要，并可独立启用话题关联建设。",
   thinking: "为不同运行阶段设置思考强度；默认跟随模型，单独设置后不随模型切换而改变。",
 };
 
@@ -1220,7 +1220,7 @@ function RuntimeSection({ module, data, save, saving, previous, next }) {
                 if (spec.properties) return <RuntimePropertyFields key={key} spec={spec} value={draft[name][key]} onChange={onChange} />;
                 if (spec.type === "boolean") return (
                   <Toggle key={key} checked={draft[name][key]} disabled={saving} onChange={onChange} hideLabel>
-                    {name === "episode_annealing" ? "启用归档" : spec.label}
+                    {name === "episode_annealing" && key === "enabled" ? "启用归档" : spec.label}
                   </Toggle>
                 );
                 return spec.format === "time"

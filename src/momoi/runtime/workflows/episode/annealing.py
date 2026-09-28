@@ -49,6 +49,8 @@ class EpisodeAnnealingWorkflow:
             self.config.episode_unsummarized_tail_turns, self._episode_raw_token_budget()
         )
         if candidate is None:
+            if self.config.episode_annealing.relations_enabled:
+                return await self._run_episode_relation_once()
             log_event(
                 logger,
                 logging.DEBUG,

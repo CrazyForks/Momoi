@@ -20,12 +20,14 @@ from .workflows import (
 
 
 from .workflows.plan import PlanWorkflow
+from .workflows.episode.relations import EpisodeRelationWorkflow
 
 
 class TurnRunner(
     PlanWorkflow,
     CurrentStateWorkflow,
     EpisodeAnnealingWorkflow,
+    EpisodeRelationWorkflow,
     EpisodeConsolidationWorkflow,
     WebhookWorkflow,
     MemoryMaintenanceWorkflow,

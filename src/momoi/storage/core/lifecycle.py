@@ -51,6 +51,7 @@ class LifecycleStore:
         self._db.execute(
             "UPDATE conversation_episodes SET summary_claimed_at=NULL"
         )
+        self._db.execute("UPDATE episode_relation_jobs SET claimed_at=NULL")
         episode_workflow = turn_workflow_kind_sql("turns")
         self._db.execute(
             f"""UPDATE turns SET state='cancelled', stage='cancelled',
@@ -58,7 +59,7 @@ class LifecycleStore:
                WHERE kind='autonomous' AND state='running'
                  AND external_effect_started=0
                  AND {episode_workflow} IN (
-                   'episode_consolidate', 'episode_anneal'
+                   'episode_consolidate', 'episode_anneal', 'episode_relation'
                  )""",
             (EPISODE_MAINTENANCE_RESTART_REASON, now),
         )

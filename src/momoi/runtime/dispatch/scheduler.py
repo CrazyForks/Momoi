@@ -71,6 +71,11 @@ class Scheduler:
             return False
         retry_at = self.store.next_episode_annealing_retry_at()
         retry_due = retry_at is not None and retry_at <= time()
+        relation_retry_at = (
+            self.store.next_episode_relation_retry_at()
+            if self.config.episode_annealing.relations_enabled else None
+        )
+        retry_due = retry_due or (relation_retry_at is not None and relation_retry_at <= time())
         if not self._episode_annealing_dirty and not retry_due:
             return False
         idle_seconds = self._batch_idle_seconds(
@@ -242,6 +247,8 @@ class Scheduler:
                     self.store.next_goal_due_at(),
                     self.store.next_memory_operation_due_at(),
                     self.store.next_episode_annealing_retry_at(),
+                    self.store.next_episode_relation_retry_at()
+                    if self.config.episode_annealing.relations_enabled else None,
                     self.store.next_reflection_due_at(
                         self.config.reflection,
                     ),

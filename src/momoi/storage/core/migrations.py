@@ -22,6 +22,14 @@ def _add_plan_version(database):
     if "version" not in _columns(database, "task_plans"):
         database.execute("ALTER TABLE task_plans ADD COLUMN version INTEGER NOT NULL DEFAULT 1")
 
+
+def _enable_episode_relations(database: sqlite3.Connection) -> None:
+    _add_turn_workflow(database, "episode_relation")
+    database.execute(
+        "INSERT OR IGNORE INTO episode_relation_settings(id, enabled_at) VALUES (1, ?)",
+        (time.time(),),
+    )
+
 def _add_turn_parent(database):
     if "parent_turn_id" not in _columns(database, "turns"):
         database.execute("ALTER TABLE turns ADD COLUMN parent_turn_id TEXT REFERENCES turns(id) ON DELETE SET NULL")
@@ -653,6 +661,7 @@ MIGRATIONS: tuple[Migration, ...] = (
     _add_transcript_window_observed_total,
     _add_plan_review,
     _add_scoped_memory_activation,
+    _enable_episode_relations,
 )
 SCHEMA_VERSION = len(MIGRATIONS)
 

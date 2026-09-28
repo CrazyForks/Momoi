@@ -50,6 +50,7 @@ class ReflectionConfig:
 @dataclass(frozen=True)
 class EpisodeAnnealingConfig:
     enabled: bool = True
+    relations_enabled: bool = True
     idle_seconds: float = 60
     max_seconds: float = 650
 

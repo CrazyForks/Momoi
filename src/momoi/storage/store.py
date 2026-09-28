@@ -47,6 +47,7 @@ from .reflection.reflection_source import ReflectionSourceStore
 from .ops.dashboard import DashboardStore
 from .episode.episode_lifecycle import EpisodeLifecycleStore
 from .episode.episode_links import EpisodeLinkStore
+from .episode.episode_relations import EpisodeRelationStore
 from .episode.episode_plans import EpisodePlanStore
 from .episode.episode_records import EpisodeRecordStore
 from .conversation.conversation_views import ConversationViewStore
@@ -91,6 +92,7 @@ class Store(
     EpisodeAnnealingStore,
     EpisodeRecordStore,
     EpisodeLinkStore,
+    EpisodeRelationStore,
     EpisodeLifecycleStore,
     EpisodePlanStore,
     RuntimeArchiveStore,

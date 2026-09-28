@@ -19,7 +19,7 @@ class TurnHarnessTest(unittest.TestCase):
                     with self.subTest(stage=stage, started=started, external_effect=external_effect):
                         workflow = stage in {
                             "plan_step", "reflection", "memory_maintenance", "memory_operation",
-                            "episode_consolidate", "episode_anneal",
+                            "episode_consolidate", "episode_anneal", "episode_relation",
                             "current_state_maintenance",
                         }
                         messages = []
@@ -92,6 +92,7 @@ class TurnHarnessTest(unittest.TestCase):
                 "memory_maintenance", "memory_operation",
                 "episode_consolidate",
                 "episode_anneal",
+                "episode_relation",
                 "current_state_maintenance", "plan_step",
             },
         )

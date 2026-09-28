@@ -221,7 +221,7 @@ CREATE TABLE IF NOT EXISTS turns (
     workflow_kind TEXT CHECK (workflow_kind IN (
         'owner', 'webhook', 'goal', 'heartbeat', 'reply_followup',
         'reflection', 'memory_maintenance', 'memory_operation', 'episode_consolidate',
-        'episode_anneal', 'current_state_maintenance', 'plan_step'
+        'episode_anneal', 'episode_relation', 'current_state_maintenance', 'plan_step'
     )),
     source_ids_json TEXT NOT NULL,
     state TEXT NOT NULL CHECK (
@@ -321,6 +321,31 @@ CREATE TABLE IF NOT EXISTS episode_links (
         ON DELETE CASCADE,
     FOREIGN KEY (to_episode_id) REFERENCES conversation_episodes(id)
         ON DELETE CASCADE
+);
+CREATE TABLE IF NOT EXISTS episode_relation_settings (
+    id INTEGER PRIMARY KEY CHECK (id=1),
+    enabled_at REAL NOT NULL
+);
+CREATE TABLE IF NOT EXISTS episode_relations (
+    source_episode_id TEXT NOT NULL REFERENCES conversation_episodes(id) ON DELETE CASCADE,
+    target_episode_id TEXT NOT NULL REFERENCES conversation_episodes(id) ON DELETE CASCADE,
+    relation TEXT NOT NULL CHECK (relation IN ('follows_up', 'revises', 'context')),
+    explanation TEXT NOT NULL,
+    evidence_json TEXT NOT NULL,
+    source_summary_ordinal INTEGER NOT NULL,
+    created_at REAL NOT NULL,
+    updated_at REAL NOT NULL,
+    PRIMARY KEY (source_episode_id, target_episode_id),
+    CHECK (source_episode_id <> target_episode_id)
+);
+CREATE INDEX IF NOT EXISTS episode_relations_target ON episode_relations(target_episode_id);
+CREATE TABLE IF NOT EXISTS episode_relation_jobs (
+    episode_id TEXT PRIMARY KEY REFERENCES conversation_episodes(id) ON DELETE CASCADE,
+    processed_ordinal INTEGER NOT NULL DEFAULT 0,
+    claimed_at REAL,
+    retry_at REAL NOT NULL DEFAULT 0,
+    failure_count INTEGER NOT NULL DEFAULT 0,
+    updated_at REAL NOT NULL DEFAULT 0
 );
 CREATE TABLE IF NOT EXISTS episode_consolidation_decisions (
     turn_id TEXT PRIMARY KEY,

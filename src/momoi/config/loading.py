@@ -156,7 +156,7 @@ def parse_config(raw, config_path: Path, *, providers=None) -> AppConfig:
         ("logging", logging_raw, {"level"}),
         ("heartbeat", heartbeat_raw, {"enabled", "initial_delay_seconds", "min_interval_seconds", "max_interval_seconds"}),
         ("reflection", reflection_raw, {"enabled", "at"}),
-        ("episode_annealing", annealing_raw, {"enabled", "idle_seconds", "max_seconds"}),
+        ("episode_annealing", annealing_raw, {"enabled", "relations_enabled", "idle_seconds", "max_seconds"}),
         ("current_state", current_state_raw, {"max_seconds"}),
     ):
         if unknown := section.keys() - allowed:
@@ -318,6 +318,10 @@ def parse_config(raw, config_path: Path, *, providers=None) -> AppConfig:
             enabled=boolean(
                 annealing_raw.get("enabled", True),
                 "episode_annealing.enabled",
+            ),
+            relations_enabled=boolean(
+                annealing_raw.get("relations_enabled", True),
+                "episode_annealing.relations_enabled",
             ),
             idle_seconds=nonnegative(
                 annealing_raw.get("idle_seconds", 60),

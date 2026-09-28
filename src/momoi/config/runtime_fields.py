@@ -17,6 +17,7 @@ THINKING_STAGES = {
     "memory_operation": "记忆操作",
     "episode_consolidate": "话题整理",
     "episode_anneal": "话题归档",
+    "episode_relation": "话题关联",
     "current_state_maintenance": "当前状态维护",
 }
 
@@ -81,9 +82,10 @@ _FIELDS = {
         },
     },
     "episode_annealing": {
-        "label": "Episode 退火",
+        "label": "话题维护",
         "fields": {
             "enabled": {"type": "boolean", "label": "启用 Episode 退火", "default": True},
+            "relations_enabled": {"type": "boolean", "label": "启用话题关联", "default": True},
         },
     },
 }
