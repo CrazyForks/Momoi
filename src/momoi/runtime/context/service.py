@@ -170,7 +170,7 @@ class ContextService:
                 self.config.transcript_turns_max,
             ),
             self._context_compaction_tokens(),
-            min(event.received_at for event in events),
+            min((event.received_at for event in events), default=None),
         )
         candidate_ids = {
             str(item["id"])
@@ -257,6 +257,8 @@ class ContextService:
             )
             if action not in {"none", "continue", "new"}:
                 raise ValueError("episode action must be none, continue, or new")
+            if not events and action != "none":
+                raise ValueError("recall without owner events requires episode.action=none")
             if action == "none":
                 continue
             binding: dict[str, object] = {"action": action, "unit_ids": [unit_id]}
@@ -408,7 +410,9 @@ class ContextService:
             )
         topic_selection = {}
         selection = await self._select_recall_topics(
-            "\n".join(event.text for event in events), selected, dense_evidence, topic_selection
+            ("\n".join(event.text for event in events) or
+             "\n".join(str(unit["intent"]) for unit in plan["intent_units"])),
+            selected, dense_evidence, topic_selection
         )
         retrieval = build_plan_retrieval(
             self.store, plan, self.config, dense_evidence=dense_evidence,

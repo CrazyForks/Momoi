@@ -33,26 +33,6 @@ class EpisodeRelationStore:
             )
         return self._episode_dict(row)
 
-    def episode_relation_existing_targets(self, episode_id: str) -> dict[str, str]:
-        rows = self._db.execute(
-            """SELECT target_episode_id, relation FROM episode_relations
-               WHERE source_episode_id=? ORDER BY created_at""",
-            (episode_id,),
-        ).fetchall()
-        return {str(row["target_episode_id"]): str(row["relation"]) for row in rows}
-
-    def episode_relation_targets(self, source: dict[str, object], ranked_ids: list[str],
-                                 limit: int = 8) -> list[dict[str, object]]:
-        result = []
-        for identifier in dict.fromkeys(ranked_ids):
-            target = self.episode(identifier)
-            if (target and target["created_at"] < source["created_at"]
-                    and self._runtime_archive_kind(identifier) not in {"webhook", "heartbeat"}):
-                result.append(target)
-            if len(result) >= limit:
-                break
-        return result
-
     def finish_episode_relations(self, episode_id: str, ordinal: int,
                                  decisions: list[dict[str, str]], candidate_ids: set[str],
                                  *, evidence_records: dict[str, dict] | None = None) -> None:
@@ -68,7 +48,8 @@ class EpisodeRelationStore:
             if target_id not in candidate_ids or target_id in seen:
                 raise ValueError("unknown or duplicate relation target")
             target = self.episode(target_id)
-            if target is None or float(target["created_at"]) >= float(source["created_at"]):
+            if (target is None or float(target["created_at"]) >= float(source["created_at"])
+                    or self._runtime_archive_kind(target_id) in {"heartbeat", "webhook"}):
                 raise ValueError("relation must point to an older episode")
             if item["relation"] not in {"follows_up", "revises", "context"}:
                 raise ValueError("invalid relation")

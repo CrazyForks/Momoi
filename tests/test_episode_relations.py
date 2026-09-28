@@ -6,6 +6,10 @@ from pathlib import Path
 
 import pytest
 
+from momoi.config.models import AppConfig
+from momoi.runtime.context.service import ContextService
+from momoi.runtime.tool_contracts.context import RECALL_TOOL_SPEC
+from momoi.semantic.topic_selector import RecallSelection
 from momoi.storage import Store
 from momoi.models import ToolCall
 from momoi.runtime.workflows.episode.relations import EpisodeRelationWorkflow
@@ -52,8 +56,6 @@ def test_new_episode_only_and_empty_review_is_durable():
             _summarize(store, "new", "项目进展", "团队完成首个阶段", enabled_at + 10)
             candidate = store.claim_episode_relation_candidate()
             assert candidate["id"] == "new"
-            targets = store.episode_relation_targets(candidate, ["old"])
-            assert [item["id"] for item in targets] == ["old"]
             store.finish_episode_relations("new", 1, [], {"old"})
             assert store.claim_episode_relation_candidate() is None
             assert store._db.execute("SELECT count(*) FROM episode_relations").fetchone()[0] == 0
@@ -93,7 +95,6 @@ def test_relation_validation_and_updated_summary_rechecks():
                 )
             candidate = store.claim_episode_relation_candidate()
             assert candidate["id"] == "new"
-            assert store.episode_relation_targets(candidate, ["old"])[-1]["id"] == "old"
             store.finish_episode_relations("new", 2, [], {"old"})
             assert store._db.execute("SELECT count(*) FROM episode_relations").fetchone()[0] == 0
         finally:
@@ -116,8 +117,13 @@ def test_heartbeat_and_webhook_archives_are_not_summarized_or_linked():
                     )
             _summarize(store, "owner", "用户话题", "用户话题摘要", enabled_at + 2)
             assert store.claim_episode_relation_candidate()["id"] == "owner"
-            owner = store.episode("owner")
-            assert store.episode_relation_targets(owner, ["heartbeat", "webhook"]) == []
+            for kind in ("heartbeat", "webhook"):
+                with pytest.raises(ValueError, match="older episode"):
+                    store.finish_episode_relations("owner", 1, [{
+                        "target_episode_id": kind, "relation": "context",
+                        "explanation": "归档背景", "source_evidence": "用户话题摘要",
+                        "target_evidence": "归档摘要",
+                    }], {kind})
             assert store.claim_episode_annealing_candidate(1, 1000) is None
         finally:
             store.close()
@@ -133,13 +139,26 @@ def test_workflow_model_chooses_query_then_finishes():
             _append_dialogue(store, "new", 1, "已归档对话")
             _append_dialogue(store, "new", 2, "尚未进入摘要的对话")
 
-            class Runner(EpisodeRelationWorkflow):
+            class Runner(EpisodeRelationWorkflow, ContextService):
                 async def _run_agent_workflow(self, system, messages, tools, turn_id, workflow):
                     assert "团队完成首个阶段" in messages[0]["content"]
                     assert "已归档对话" in messages[0]["content"]
                     assert "尚未进入摘要的对话" not in messages[0]["content"]
                     assert not semantic.prepare.called
-                    result = await workflow.execute_tool(ToolCall("recall", "recall", {"query": "项目启动"}))
+                    assert tools[0] == RECALL_TOOL_SPEC
+                    args = {"units": [{"intent": "查找项目背景", "recall_mode": "search",
+                        "recall_queries": [{"semantic": "项目启动", "keywords": ["项目"]},
+                                           {"semantic": "项目最初的决定", "keywords": []}],
+                        "recall_from_turn_id": "", "episode": {"action": "none"}}]}
+                    invalid = await workflow.execute_tool(ToolCall("bad", "recall", {"query": "项目启动"}))
+                    assert not invalid["ok"]
+                    args["units"][0]["episode"] = {"action": "new"}
+                    invalid = await workflow.execute_tool(ToolCall("bad", "recall", args))
+                    assert not invalid["ok"]
+                    args["units"][0]["episode"] = {"action": "none"}
+                    result = await workflow.execute_tool(ToolCall("recall", "recall", args))
+                    assert result["ok"], result
+                    assert "memory" in result and "reflection" in result
                     assert result["episodes"][0]["id"] == "old"
                     from momoi.runtime.context.rendering import episode_recall_records
                     assert result["episodes"] == episode_recall_records(
@@ -155,11 +174,22 @@ def test_workflow_model_chooses_query_then_finishes():
 
             semantic = SimpleNamespace(prepare=AsyncMock(return_value=None))
             runner = Runner()
-            runner.config = SimpleNamespace(summary_tokens=6000)
+            runner.config = AppConfig(
+                providers=None, channel=None, system_prompt="", transcript_turns_min=1,
+                transcript_turns_max=32, episode_unsummarized_tail_turns=2,
+                memory_results=8, database=Path(directory) / "db", log_level="INFO",
+            )
+            runner._select_recall_topics = AsyncMock(return_value=RecallSelection(
+                [dict(store.episode("old"), matched_queries=[{"unit_ids": ["u1"]}],
+                      relevance_confidence=1.0)], [], [],
+            ))
+            store.begin_turn("test", "episode_relation", [])
             runner.store = store
             runner.semantic_recall = semantic
             asyncio.run(runner._build_episode_relations(store.episode("new"), 1, "test"))
-            assert semantic.prepare.call_args.args[0][0].expression == "项目启动"
+            assert len(semantic.prepare.call_args.args[0]) == 2
+            assert runner._select_recall_topics.called
+            assert store.context_plan("test")["plan"]["episode_actions"] == []
             assert store._db.execute("SELECT count(*) FROM episode_relations").fetchone()[0] == 1
         finally:
             store.close()

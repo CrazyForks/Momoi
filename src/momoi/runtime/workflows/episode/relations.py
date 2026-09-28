@@ -8,10 +8,10 @@ import uuid
 
 from ....models import ToolCall
 from ....observability.events import log_event
-from ....storage.episode.episode_ranking import EpisodeRecallQuery
 from ...agent import AgentWorkflow
-from ...context.rendering import episode_recall_records
-from .relation_contracts import FINISH_SPEC, RECALL_SPEC, SYSTEM, render_source
+from ...agent.runtime_tools import recall_owner_context
+from ...tool_contracts.context import RECALL_TOOL_SPEC
+from .relation_contracts import FINISH_SPEC, SYSTEM, render_source
 
 logger = logging.getLogger(__name__)
 
@@ -57,7 +57,6 @@ class EpisodeRelationWorkflow:
             episode_id, 30000, before_ordinal=ordinal + 1
         )
         request = [{"role": "user", "content": render_source(episode, source_messages)}]
-        existing = self.store.episode_relation_existing_targets(episode_id)
         recalled: dict[str, dict[str, object]] = {}
         search_count = 0
         completed = False
@@ -65,36 +64,17 @@ class EpisodeRelationWorkflow:
         async def execute_tool(call: ToolCall):
             nonlocal completed, search_count
             if call.name == "recall":
-                query_text = str(call.arguments.get("query") or "").strip()
-                if not query_text or len(query_text) > 240:
-                    return {"ok": False, "error": "invalid_query"}
-                search_count += 1
-                query = EpisodeRecallQuery(query_text)
-                dense = await self.semantic_recall.prepare(
-                    [query], include_memory=False, output_limit=12,
+                result = await recall_owner_context(
+                    call, current_events=[], turn_id=turn_id,
+                    submit_context=self.submit_owner_context,
                 )
-                ranked = self.store.search_topic_queries(
-                    [query], 16, dense_evidence=dense, minimum_confidence=0,
-                )
-                targets = self.store.episode_relation_targets(
-                    episode, [*existing, *(str(item["id"]) for item in ranked)],
-                )
-                records = episode_recall_records(
-                    self.store,
-                    [{
-                        "episode_id": target["id"],
-                        **self.store.episode_keyword_evidence(
-                            str(target["id"]), next((row.get("matched_keywords", [])
-                                for row in ranked if row["id"] == target["id"]), []),
-                        ),
-                        "matched_keywords": next((row.get("matched_keywords", [])
-                            for row in ranked if row["id"] == target["id"]), []),
-                    } for target in targets],
-                    self.config.summary_tokens,
-                )
-                for record in records:
-                    recalled[str(record["id"])] = record
-                return {"ok": True, "episodes": records}
+                if result.get("ok"):
+                    if any(unit.get("recall_mode") == "search"
+                           for unit in call.arguments.get("units", [])):
+                        search_count += 1
+                    for record in result.get("episodes", []):
+                        recalled[str(record["id"])] = record
+                return result
 
             decisions = call.arguments.get("relations")
             if not isinstance(decisions, list) or len(decisions) > 4:
@@ -130,7 +110,7 @@ class EpisodeRelationWorkflow:
             ),
         )
         await self._run_agent_workflow(
-            SYSTEM, request, [RECALL_SPEC, FINISH_SPEC], turn_id=turn_id, workflow=workflow,
+            SYSTEM, request, [RECALL_TOOL_SPEC, FINISH_SPEC], turn_id=turn_id, workflow=workflow,
         )
         if not completed:
             raise RuntimeError("episode relation workflow ended without completion")

@@ -7,19 +7,6 @@ from ...turn_support import PROMPT_ROOT
 
 SYSTEM = PROMPT_ROOT.joinpath("episode_relation.md").read_text(encoding="utf-8").strip()
 
-RECALL_SPEC = {
-    "name": "recall",
-    "description": "按自行选择的查询检索旧话题；可多次调用，返回标题、摘要和对话片段。",
-    "input_schema": {
-        "type": "object",
-        "properties": {
-            "query": {"type": "string", "minLength": 1, "maxLength": 240},
-        },
-        "required": ["query"],
-        "additionalProperties": False,
-    },
-}
-
 FINISH_SPEC = {
     "name": "episode_relation_finish",
     "description": "提交有具体逻辑依据的话题关系；无关联则提交空数组并结束。",
