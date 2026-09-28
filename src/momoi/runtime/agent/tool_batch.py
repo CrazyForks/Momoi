@@ -311,7 +311,6 @@ class ToolBatchExecutor:
                             result = {
                                 "ok": True, "state": "recalled",
                                 "memory": context.get("memory_records", []),
-                                "status": context.get("recall_status", {"queries": [], "skipped_units": [], "reused_from_turn_ids": []}),
                                 "reflection": context.get("reflection_records", []),
                                 **({"reflection_note": "复盘记忆可能过时，仅作辅助；以当前证据为准。"} if context.get("reflection_records") else {}),
                                 "episodes": context.get("episode_records", []),

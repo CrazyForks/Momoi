@@ -224,7 +224,6 @@ class RecallEpisodeBindingTest(unittest.IsolatedAsyncioTestCase):
             )
             self.assertTrue(result["ok"])
             self.assertEqual(daemon.store.context_plan(turn_id)["revision"], 2)
-            self.assertEqual(result["status"]["skipped_units"], ["u1"])
             record = daemon.store.context_plan(turn_id)
             self.assertEqual(record["state"], "recalled")
             self.assertEqual(record["plan"]["intent_units"][0]["intent"], "主人开始整理书房")

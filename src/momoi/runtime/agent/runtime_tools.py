@@ -103,7 +103,6 @@ async def recall_owner_context(
         "ok": True,
         "state": "recalled",
         "memory": recalled.get("memory_records", []),
-        "status": recalled.get("recall_status", {"queries": [], "skipped_units": [], "reused_from_turn_ids": []}),
         "reflection": recalled.get("reflection_records", []),
         **({"reflection_note": "复盘记忆可能过时，仅作辅助；以当前证据为准。"} if recalled.get("reflection_records") else {}),
         "episodes": recalled.get("episode_records", []),
