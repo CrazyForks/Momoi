@@ -8,6 +8,7 @@ from ...observability.events import log_event
 from .episode_cues import normalize_cues
 from .episode_claims import render_verified_claims
 from ..memory.memory_values import estimate_tokens
+from .episode_sql import runtime_archive_kind_sql
 
 EPISODE_ANNEAL_MAX_FAILURES = 3
 logger = logging.getLogger(__name__)
@@ -37,8 +38,9 @@ class EpisodeAnnealingStore:
         now = time.time()
         with self._db:
             episodes = self._db.execute(
-                """SELECT * FROM conversation_episodes
+                f"""SELECT * FROM conversation_episodes
                    WHERE summary_claimed_at IS NULL
+                     AND COALESCE({runtime_archive_kind_sql('conversation_episodes')}, '') NOT IN ('webhook', 'heartbeat')
                      AND summary_abandoned_at IS NULL
                      AND COALESCE(summary_retry_at, 0)<=?
                      AND NOT EXISTS (
