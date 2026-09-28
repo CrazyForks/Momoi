@@ -115,15 +115,44 @@ class DashboardStore:
                  )
                ORDER BY CASE m.activation
                           WHEN 'always' THEN 0
-                          ELSE 1
+                          WHEN 'recent' THEN 1
+                          WHEN 'recall' THEN 2
+                          WHEN 'scoped' THEN 3
+                          ELSE 4
                         END,
                         m.updated_at DESC, m.id DESC
                LIMIT ?""",
             (now, limit),
         ).fetchall()
         results: list[dict[str, object]] = []
+        scoped_goal_ids = {
+            str(row["key"]).split(".", 2)[1]
+            for row in rows
+            if row["activation"] == "scoped" and str(row["key"]).startswith("goal.")
+            and len(str(row["key"]).split(".", 2)) == 3
+        }
+        goal_titles = {}
+        if scoped_goal_ids:
+            placeholders = ",".join("?" for _ in scoped_goal_ids)
+            goal_titles = {
+                str(goal["id"]): str(goal["title"])
+                for goal in self._db.execute(
+                    f"SELECT id, title FROM goals WHERE id IN ({placeholders})",
+                    tuple(scoped_goal_ids),
+                )
+            }
         for row in rows:
-            results.append(self._memory_public_dict(row))
+            item = self._memory_public_dict(row)
+            if item["activation"] == "scoped":
+                parts = str(item["key"]).split(".", 2)
+                scope = f"goal.{parts[1]}" if parts[0] == "goal" and len(parts) == 3 else parts[0]
+                item["scope"] = scope
+                item["scope_label"] = (
+                    f"Goal · {goal_titles.get(parts[1], parts[1])}"
+                    if parts[0] == "goal" and len(parts) == 3
+                    else {"heartbeat": "心跳", "webhook": "Webhook"}.get(scope, scope)
+                )
+            results.append(item)
         return results
 
     def _memory_public_dict(self, row: sqlite3.Row) -> dict[str, object]:

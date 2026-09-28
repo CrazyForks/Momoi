@@ -56,10 +56,11 @@ function thinkingStageLabel(stage) {
   return thinkingStageLabels[key] || key;
 }
 
-const activationOrder = ["always", "recall"];
+const activationOrder = ["always", "recall", "scoped"];
 const activationLabels = {
   always: "长期",
   recall: "召回",
+  scoped: "领域",
 };
 
 const goalStatuses = [
@@ -1397,6 +1398,9 @@ function MemoryInventory({ items, token, onMutated, activation, setActivation })
                         : labels[item.activation] || item.activation}
                     </span>
                   </div>
+                  {item.activation === "scoped" && (
+                    <p className="memory-scope">{item.scope_label || item.scope || "领域记忆"}</p>
+                  )}
                   {editingId === item.identity ? (
                     <textarea
                       aria-label="记忆内容"

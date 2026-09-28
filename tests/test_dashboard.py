@@ -831,6 +831,24 @@ class DashboardTest(unittest.IsolatedAsyncioTestCase):
         remaining = await (await self.client.get("/api/memories", headers=auth)).json()
         self.assertEqual(len(remaining["items"]), 2)
 
+    async def test_scoped_memory_has_dashboard_scope_label(self) -> None:
+        now = time.time()
+        with self.store._db:
+            self.store._db.execute(
+                """INSERT INTO memories
+                   (kind,key,content,activation,authority,source_event_id,
+                    evidence_quote,created_at,updated_at)
+                   VALUES ('practice','goal.goal-one.water','先看是否喝过水',
+                           'scoped','owner','event-one','记住',?,?)""",
+                (now, now),
+            )
+        response = await self.client.get("/api/memories", headers=self._auth())
+        self.assertEqual(response.status, 200)
+        items = (await response.json())["items"]
+        scoped = next(item for item in items if item["activation"] == "scoped")
+        self.assertEqual(scoped["scope"], "goal.goal-one")
+        self.assertEqual(scoped["scope_label"], "Goal · 整理桌面")
+
     async def test_reflection_memory_management_and_diary_link(self) -> None:
         now = time.time()
         with self.store._db:

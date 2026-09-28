@@ -1227,6 +1227,13 @@ a.tag:hover {
 .memory-section .card-list {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
+.memory-scope {
+  margin: 10px 0 0;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
 .reflection-card .secondary { margin: 12px 0 0; }
 .reflection-card .stamp-meta { margin-top: 12px; }
 .memory-source-link {
