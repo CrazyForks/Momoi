@@ -23,6 +23,7 @@ from momoi.runtime.agent.harness import TurnHarness
 from momoi.runtime.workflows.memory_operation.parsing import parse_decisions
 from momoi.storage import Store
 from momoi.storage.memory.memory_operations import MEMORY_OPERATION_MAX_ATTEMPTS
+from momoi.storage.core.migrations import SCHEMA_VERSION
 from momoi.tools.memory import MemoryTools
 from tests.support import provider_catalog, seed_memory
 
@@ -709,6 +710,42 @@ def test_existing_database_migration_preserves_foreign_keys_and_reopens(tmp_path
             ).fetchone()[0]
         )
         upgraded.close()
+
+
+def test_scoped_migration_preserves_memory_and_cross_table_triggers(tmp_path):
+    import momoi.storage
+
+    path = tmp_path / "pre-scoped.sqlite3"
+    schema_path = Path(momoi.storage.__file__).parent / "core" / "schema.sql"
+    old_schema = schema_path.read_text().replace(
+        "'always', 'recent', 'recall', 'scoped'", "'always', 'recent', 'recall'"
+    )
+    db = sqlite3.connect(path)
+    db.executescript(old_schema)
+    db.execute(
+        """INSERT INTO memories(kind,key,content,activation,authority,
+           source_event_id,evidence_quote,created_at,updated_at)
+           VALUES ('preference','old.key','旧记忆','recall','owner','event','引用',1,1)"""
+    )
+    db.execute(f"PRAGMA user_version={SCHEMA_VERSION - 1}")
+    db.commit()
+    db.close()
+    store = Store(path)
+    try:
+        assert store.active_memory("preference", "old.key")["content"] == "旧记忆"
+        assert "'scoped'" in store._db.execute(
+            "SELECT sql FROM sqlite_master WHERE name='memories'"
+        ).fetchone()[0]
+        assert store._db.execute("PRAGMA foreign_key_check").fetchall() == []
+        store._db.execute(
+            "INSERT INTO memory_tombstones(kind,key,source_event_id,evidence_quote,created_at) "
+            "VALUES ('preference','old.key','event','引用',2)"
+        )
+        assert store._db.execute(
+            "SELECT 1 FROM semantic_dirty_sources WHERE source_type='confirmed_memory'"
+        ).fetchone()
+    finally:
+        store.close()
 
 
 def test_forget_only_request_cannot_create_memory(store):

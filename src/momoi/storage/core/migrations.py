@@ -602,8 +602,16 @@ def _add_scoped_memory_activation(database: sqlite3.Connection) -> None:
         return
     objects = [row[0] for row in database.execute(
         "SELECT sql FROM sqlite_master WHERE tbl_name='memories' "
-        "AND type IN ('index','trigger') AND sql IS NOT NULL"
+        "AND type='index' AND sql IS NOT NULL"
     )]
+    # Triggers on other tables also read memories. SQLite validates their SQL
+    # during RENAME, so remove them before the old table is dropped.
+    triggers = [(str(row[0]), str(row[1])) for row in database.execute(
+        "SELECT name, sql FROM sqlite_master WHERE type='trigger' "
+        "AND sql IS NOT NULL AND lower(sql) LIKE '%memories%'"
+    )]
+    for name, _ in triggers:
+        database.execute(f'DROP TRIGGER "{name.replace(chr(34), chr(34) * 2)}"')
     replacement = re.sub(r'CREATE TABLE ["`\[]?memories["`\]]?',
                          'CREATE TABLE memories_new', sql, count=1)
     replacement = replacement.replace("'recent', 'recall'", "'recent', 'recall', 'scoped'")
@@ -613,6 +621,8 @@ def _add_scoped_memory_activation(database: sqlite3.Connection) -> None:
     database.execute('DROP TABLE memories')
     database.execute('ALTER TABLE memories_new RENAME TO memories')
     for statement in objects:
+        database.execute(statement)
+    for _, statement in triggers:
         database.execute(statement)
 
 
