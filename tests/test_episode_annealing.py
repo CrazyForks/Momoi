@@ -363,6 +363,22 @@ class EpisodeAnnealingTest(unittest.IsolatedAsyncioTestCase):
             self.assertIsNone(revived["failure_reason"])
             recovered.store.close()
 
+    async def test_busy_owner_skips_consolidation_count(self) -> None:
+        from unittest.mock import patch
+        with tempfile.TemporaryDirectory() as directory:
+            daemon = MomoiDaemon(config(directory))
+            daemon._episode_annealing_dirty = True
+            active = asyncio.create_task(asyncio.sleep(60))
+            daemon._active_turn = active
+            try:
+                with patch.object(daemon.store, "episode_consolidation_pending_count") as count:
+                    self.assertFalse(daemon._episode_annealing_ready())
+                    count.assert_not_called()
+            finally:
+                active.cancel()
+                await asyncio.gather(active, return_exceptions=True)
+                daemon.store.close()
+
     async def test_episode_maintenance_uses_owner_idle_timeout(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             daemon = MomoiDaemon(

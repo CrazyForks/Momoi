@@ -52,6 +52,8 @@ class Scheduler:
         return partial_idle_seconds if partial else full_idle_seconds
 
     def _current_state_batch_ready(self) -> bool:
+        if not self._maintenance_is_idle():
+            return False
         status = self.store.current_state_batch_status()
         if status is None or status["retry_at"] > time():
             return False
@@ -68,6 +70,13 @@ class Scheduler:
             return False
         active = self._active_annealing
         if active is not None and not active.done():
+            return False
+        if not self._maintenance_is_idle(autonomous_queue_empty=True):
+            return False
+        if self._idle_quiet_seconds() < min(
+            self.config.episode_annealing.idle_seconds,
+            EPISODE_CONSOLIDATION_PARTIAL_IDLE_SECONDS,
+        ):
             return False
         retry_at = self.store.next_episode_annealing_retry_at()
         retry_due = retry_at is not None and retry_at <= time()
@@ -269,6 +278,11 @@ class Scheduler:
                 AGENDA_POLL_SECONDS,
                 max(0.0, due_at - time()),
             )
+            # A due task may be blocked by an active Turn or its persisted
+            # eligibility rules. Re-check on an agenda change or the normal
+            # poll, rather than spinning on an unchanged past deadline.
+            if timeout <= 0:
+                timeout = AGENDA_POLL_SECONDS
             try:
                 await asyncio.wait_for(self.agenda_changed.wait(), timeout=timeout)
             except TimeoutError:
