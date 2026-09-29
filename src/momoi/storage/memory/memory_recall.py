@@ -292,7 +292,6 @@ class MemoryRecallStore:
                 * age
                 / _MEMORY_RECENCY_HALF_LIFE_SECONDS
             )
-            confidence = float(candidate["confidence"])
             search_score = (
                 semantic_score * recency_factor
                 + float(candidate["reliability_bonus"])
@@ -350,7 +349,6 @@ class MemoryRecallStore:
                     "eligibility_score": hybrid_eligibility,
                     "score_floor": score_floor,
                     "last_activity_at": updated_at,
-                    "salience": confidence,
                     "matched_queries": list(
                         dict.fromkeys(str(value) for value in state["matched_queries"])
                     ),

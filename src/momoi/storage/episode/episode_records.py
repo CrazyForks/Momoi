@@ -113,21 +113,18 @@ class EpisodeRecordStore:
         topics: list[object] | None = None,
         entities: list[object] | None = None,
         open_loops: list[object] | None = None,
-        salience: float = 0.5,
     ) -> dict[str, object]:
         title = title.strip()
         if not title:
             raise ValueError("episode title is required")
-        if not 0 <= salience <= 1:
-            raise ValueError("episode salience must be between 0 and 1")
         episode_id = episode_id or uuid.uuid4().hex
         now = time.time()
         with self._db:
             self._db.execute(
                 """INSERT INTO conversation_episodes
                    (id, title, topics_json, entities_json, open_loops_json,
-                    salience, created_at, updated_at)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+                    created_at, updated_at)
+                   VALUES (?, ?, ?, ?, ?, ?, ?)""",
                 (
                     episode_id,
                     title[:200],
@@ -138,7 +135,6 @@ class EpisodeRecordStore:
                     json.dumps(
                         open_loops or [], ensure_ascii=False, separators=(",", ":")
                     ),
-                    salience,
                     now,
                     now,
                 ),

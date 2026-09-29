@@ -326,7 +326,6 @@ class EpisodeConsolidationStore:
                         "topics",
                         "entities",
                         "open_loops",
-                        "salience",
                     },
                     "new": {
                         "action",
@@ -336,7 +335,6 @@ class EpisodeConsolidationStore:
                         "topics",
                         "entities",
                         "open_loops",
-                        "salience",
                     },
                 }.get(action)
                 if expected_keys is None or set(decision) != expected_keys:
@@ -378,7 +376,7 @@ class EpisodeConsolidationStore:
                         )
                     continue
                 topics = self._consolidation_strings(
-                    decision["topics"], "topics", 12, 200
+                    decision["topics"], "topics", 6, 24
                 )
                 entities = self._consolidation_strings(
                     decision["entities"], "entities", 20, 200
@@ -386,13 +384,6 @@ class EpisodeConsolidationStore:
                 loops = self._consolidation_strings(
                     decision["open_loops"], "open loops", 8, 500
                 )
-                salience = decision["salience"]
-                if (
-                    isinstance(salience, bool)
-                    or not isinstance(salience, (int, float))
-                    or not 0 <= float(salience) <= 1
-                ):
-                    raise ValueError("invalid consolidation salience")
                 if action == "continue":
                     episode_id = str(decision["episode_id"])
                     if (
@@ -440,8 +431,8 @@ class EpisodeConsolidationStore:
                     self._db.execute(
                         """INSERT INTO conversation_episodes
                            (id, status, title, topics_json, entities_json,
-                            open_loops_json, salience, created_at, updated_at)
-                           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                            open_loops_json, created_at, updated_at)
+                           VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
                         (
                             episode_id,
                             status,
@@ -449,7 +440,6 @@ class EpisodeConsolidationStore:
                             json.dumps(topics, ensure_ascii=False),
                             json.dumps(entities, ensure_ascii=False),
                             json.dumps(loops, ensure_ascii=False),
-                            float(salience),
                             now,
                             now,
                         ),
@@ -464,14 +454,13 @@ class EpisodeConsolidationStore:
                     self._db.execute(
                         """UPDATE conversation_episodes
                            SET topics_json=?, entities_json=?,
-                               open_loops_json=?, salience=MAX(salience, ?),
+                               open_loops_json=?,
                                status=?, closed_at=NULL, updated_at=?
                            WHERE id=?""",
                         (
                             json.dumps(merged_topics, ensure_ascii=False),
                             json.dumps(merged_entities, ensure_ascii=False),
                             json.dumps(loops, ensure_ascii=False),
-                            float(salience),
                             status,
                             now,
                             episode_id,

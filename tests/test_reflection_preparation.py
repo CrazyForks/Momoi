@@ -55,7 +55,7 @@ def test_reflection_reads_material_after_small_batch_and_summary(daemon):
             assert ids == ["T-1", "T-2"]
             result = await workflow.execute_tool(ToolCall("classify", "episode_classify_turns", {
                 "decisions": [{"action": "new", "key": "project", "title": "我和老师完成项目",
-                               "turn_ids": ids, "topics": [], "entities": [], "open_loops": [], "salience": 0.5}],
+                               "turn_ids": ids, "topics": [], "entities": [], "open_loops": []}],
             }))
             assert result["ok"]
             result = await workflow.execute_tool(ToolCall("done", "episode_consolidation_finish", {}))

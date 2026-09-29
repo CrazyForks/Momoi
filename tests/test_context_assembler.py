@@ -169,7 +169,6 @@ def plan(query: str, episode_id: str = "episode-mail") -> dict[str, object]:
                 "topics": ["项目邮件"],
                 "entities": [],
                 "open_loops": [],
-                "salience": 0.8,
             }
         ],
         "episode_links": [],
@@ -381,7 +380,6 @@ class ContextAssemblerTest(unittest.TestCase):
                             "matches": [],
                             "unit_ids": ["prior"],
                             "last_activity_at": time.time(),
-                            "salience": 0.7,
                             "matched_keywords": ["晚间玩闹"],
                             "keyword_match_count": 1,
                             "search_score": 1.0,
@@ -1233,7 +1231,6 @@ class ContextAssemblerTest(unittest.TestCase):
                         "topics": ["SMTP", "邮件"],
                         "entities": [],
                         "open_loops": [],
-                        "salience": 0.5,
                     },
                     {
                         "action": "continue",
@@ -1245,7 +1242,6 @@ class ContextAssemblerTest(unittest.TestCase):
                         "topics": ["微博", "猫"],
                         "entities": [],
                         "open_loops": [],
-                        "salience": 0.5,
                     },
                 ],
                 "episode_links": [],

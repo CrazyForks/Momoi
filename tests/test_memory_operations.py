@@ -728,7 +728,7 @@ def test_scoped_migration_preserves_memory_and_cross_table_triggers(tmp_path):
            VALUES ('preference','old.key','旧记忆','recall','owner','event','引用',1,1)"""
     )
     # The fixture predates scoped activation, not every newer migration.
-    db.execute(f"PRAGMA user_version={SCHEMA_VERSION - 2}")
+    db.execute(f"PRAGMA user_version={SCHEMA_VERSION - 3}")
     db.commit()
     db.close()
     store = Store(path)

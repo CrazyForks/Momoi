@@ -85,8 +85,8 @@ class EpisodePlanStore:
                 self._db.execute(
                     """INSERT INTO conversation_episodes
                        (id, status, title, topics_json, entities_json,
-                        open_loops_json, salience, created_at, updated_at)
-                       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                        open_loops_json, created_at, updated_at)
+                       VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
                     (
                         episode_id,
                         status,
@@ -94,7 +94,6 @@ class EpisodePlanStore:
                         json.dumps(topics, ensure_ascii=False),
                         json.dumps(entities, ensure_ascii=False),
                         json.dumps(loops, ensure_ascii=False),
-                        float(action.get("salience", 0.5)),
                         now,
                         now,
                     ),
@@ -107,13 +106,12 @@ class EpisodePlanStore:
                 self._db.execute(
                     """UPDATE conversation_episodes
                        SET topics_json=?, entities_json=?, open_loops_json=?,
-                           salience=MAX(salience, ?), status=?, closed_at=NULL,
+                           status=?, closed_at=NULL,
                            updated_at=? WHERE id=?""",
                     (
                         json.dumps(merged_topics, ensure_ascii=False),
                         json.dumps(merged_entities, ensure_ascii=False),
                         json.dumps(loops, ensure_ascii=False),
-                        float(action.get("salience", 0.5)),
                         status,
                         now,
                         episode_id,

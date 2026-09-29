@@ -416,8 +416,8 @@ class SemanticRecallTest(unittest.TestCase):
 
     def test_episode_summary_and_turn_corroborate_once(self) -> None:
         documents = [
-            EpisodeSearchDocument("long", (), 100.0, 0.5, ()),
-            EpisodeSearchDocument("short", (), 100.0, 0.5, ()),
+            EpisodeSearchDocument("long", (), 100.0, ()),
+            EpisodeSearchDocument("short", (), 100.0, ()),
         ]
         query = EpisodeRecallQuery("paraphrase")
         matches = EpisodeQueryService(

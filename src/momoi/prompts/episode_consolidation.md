@@ -33,4 +33,4 @@ Webhook 和 Heartbeat 的每日 Episode 由运行时归档，其中的轮次只�
 
 Episode 记录具体经历，不是“门口事件”“陪伴”“软件开发”之类的永久分类；分类信息放在 topics/entities。
 
-`open_loops` 只记这批对话结束后仍未完成的具体事项。Goal 仍然是独立的长期对象。topics、entities 和 salience 只保留必要内容，不添加消息中没有的事实或情绪含义。
+`topics` 只填少量简短的主题或检索关键词，例如“食堂午餐”“热量记录”；不要写带主谓宾的句子、数字计算、时间经过或逐条摘要。具体经过留给后续的 `narrative_summary`。`entities` 记录必要的具体实体；`open_loops` 只记这批对话结束后仍未完成的具体事项。Goal 仍然是独立的长期对象。topics 和 entities 不添加消息中没有的事实或情绪含义。

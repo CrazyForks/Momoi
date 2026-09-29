@@ -30,7 +30,6 @@ class EpisodeSearchDocument:
     episode_id: str
     fields: tuple[EpisodeSearchField, ...]
     last_activity_at: float
-    salience: float
     messages: tuple[EpisodeSearchMessage, ...]
 
 
@@ -41,7 +40,6 @@ class EpisodeSearchHit:
     episode_id: str
     alternative: str
     last_activity_at: float
-    salience: float
     field_matches: tuple[str, ...]
     matches: tuple[EpisodeSearchMessage, ...]
     message_match_count: int
@@ -112,7 +110,6 @@ class StringEpisodeSearchBackend:
                     episode_id=document.episode_id,
                     alternative=alternative,
                     last_activity_at=document.last_activity_at,
-                    salience=document.salience,
                     field_matches=field_matches,
                     matches=ordered_matches,
                     message_match_count=len(all_message_matches),

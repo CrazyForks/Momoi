@@ -90,7 +90,6 @@ class RankedEpisodeHit:
     semantic_score: float
     relevance_confidence: float
     last_activity_at: float
-    salience: float
     matches: tuple[EpisodeSearchMessage, ...]
     matched_keywords: tuple[str, ...]
     matched_queries: tuple[EpisodeRankedQuery, ...]
@@ -350,7 +349,6 @@ def rank_episode_matches(
                     "matches": {},
                     "keywords": set(),
                     "last_activity_at": 0.0,
-                    "salience": 0.0,
                     "eligibility": [],
                     "channels": set(),
                     "dense_cosines": [],
@@ -405,10 +403,6 @@ def rank_episode_matches(
             state["last_activity_at"] = max(
                 float(state["last_activity_at"]),
                 max((hit.last_activity_at for hit in hits), default=document.last_activity_at),
-            )
-            state["salience"] = max(
-                float(state["salience"]),
-                max((hit.salience for hit in hits), default=document.salience),
             )
             query_confidence = _query_relevance_confidence(query_evidence)
             raw_cosine = max(
@@ -478,8 +472,7 @@ def rank_episode_matches(
         recency_factor = _RECENCY_FLOOR + (1.0 - _RECENCY_FLOOR) * math.exp(
             -math.log(2.0) * age / _RECENCY_HALF_LIFE_SECONDS
         )
-        salience = min(1.0, max(0.0, float(state["salience"])))
-        score = semantic_score * recency_factor + 0.05 * salience
+        score = semantic_score * recency_factor
         all_matches = state["matches"]
         assert isinstance(all_matches, dict)
         ordered_matches = tuple(
@@ -525,7 +518,6 @@ def rank_episode_matches(
                 relevance_confidence=relevance_confidence,
                 admission_routes=admission_routes,
                 last_activity_at=last_activity_at,
-                salience=salience,
                 matches=ordered_matches,
                 matched_keywords=tuple(sorted(str(value) for value in keywords)),
                 matched_queries=ranked_queries,
@@ -570,8 +562,7 @@ def recall_item_score(item: dict[str, object], *, now: float | None = None) -> f
     last_activity = float(item.get("last_activity_at") or 0.0)
     age = max(0.0, now - last_activity) if last_activity else 365 * 86400
     recency = 0.08 * math.exp(-age / (30 * 86400))
-    salience = min(1.0, max(0.0, float(item.get("salience") or 0.0)))
-    return recency + 0.05 * salience
+    return recency
 
 
 def rank_recall_items(

@@ -34,7 +34,7 @@ class ConversationViewStore:
                             SELECT MAX(t.updated_at) FROM episode_turns AS et
                             JOIN turns AS t ON t.id=et.turn_id
                             WHERE et.episode_id=e.id
-                        ), e.updated_at) DESC, salience DESC LIMIT ?""",
+                        ), e.updated_at) DESC LIMIT ?""",
             (after, after, int(exclude_runtime_archives), limit),
         ).fetchall()
         results = []

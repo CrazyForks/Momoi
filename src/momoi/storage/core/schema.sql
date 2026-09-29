@@ -256,7 +256,6 @@ CREATE TABLE IF NOT EXISTS conversation_episodes (
     topics_json TEXT NOT NULL DEFAULT '[]',
     entities_json TEXT NOT NULL DEFAULT '[]',
     open_loops_json TEXT NOT NULL DEFAULT '[]',
-    salience REAL NOT NULL DEFAULT 0.5 CHECK (salience BETWEEN 0 AND 1),
     summary_claimed_at REAL,
     summary_retry_at REAL,
     summary_failure_count INTEGER NOT NULL DEFAULT 0,
@@ -268,7 +267,7 @@ CREATE TABLE IF NOT EXISTS conversation_episodes (
     archive_day TEXT
 );
 CREATE INDEX IF NOT EXISTS conversation_episodes_candidates
-    ON conversation_episodes(status, salience DESC, updated_at DESC);
+    ON conversation_episodes(status, updated_at DESC);
 CREATE TABLE IF NOT EXISTS recall_episode_ids (
     id INTEGER PRIMARY KEY,
     episode_id TEXT NOT NULL UNIQUE,

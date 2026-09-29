@@ -37,8 +37,8 @@ class RuntimeArchiveStore:
         )
         self._db.execute(
             """INSERT OR IGNORE INTO conversation_episodes
-               (id, title, salience, created_at, updated_at, archive_kind, archive_day)
-               VALUES (?, ?, 0.4, ?, ?, ?, ?)""",
+               (id, title, created_at, updated_at, archive_kind, archive_day)
+               VALUES (?, ?, ?, ?, ?, ?)""",
             (episode_id, title[:200], now, now, archive_kind, archive_day),
         )
         visited_successors: set[str] = set()
@@ -76,8 +76,8 @@ class RuntimeArchiveStore:
             ).hex
             self._db.execute(
                 """INSERT OR IGNORE INTO conversation_episodes
-                   (id, title, salience, created_at, updated_at, archive_kind, archive_day)
-                   VALUES (?, ?, 0.4, ?, ?, ?, ?)""",
+                   (id, title, created_at, updated_at, archive_kind, archive_day)
+                   VALUES (?, ?, ?, ?, ?, ?)""",
                 (episode_id, title[:200], now, now, archive_kind, archive_day),
             )
             self._db.execute(
@@ -126,4 +126,3 @@ class RuntimeArchiveStore:
             (episode_id,),
         ).fetchone()
         return str(row["kind"]) if row is not None and row["kind"] else None
-

@@ -14,6 +14,12 @@ _TAGS_SCHEMA: dict[str, Any] = {
     "type": "array",
     "items": {"type": "string", "minLength": 1},
 }
+_TOPICS_SCHEMA: dict[str, Any] = {
+    "type": "array",
+    "maxItems": 6,
+    "description": "简短的主题或检索关键词，不写事件经过、句子或摘要。",
+    "items": {"type": "string", "minLength": 1, "maxLength": 24},
+}
 _DEFER_SCHEMA: dict[str, Any] = {
     "type": "object",
     "properties": {
@@ -40,10 +46,9 @@ _CONTINUE_SCHEMA: dict[str, Any] = {
         "action": {"type": "string", "enum": ["continue"]},
         "episode_id": {"type": "string", "minLength": 1},
         "turn_ids": _TURN_IDS_SCHEMA,
-        "topics": _TAGS_SCHEMA,
+        "topics": _TOPICS_SCHEMA,
         "entities": _TAGS_SCHEMA,
         "open_loops": _TAGS_SCHEMA,
-        "salience": {"type": "number", "minimum": 0, "maximum": 1},
     },
     "required": [
         "action",
@@ -52,7 +57,6 @@ _CONTINUE_SCHEMA: dict[str, Any] = {
         "topics",
         "entities",
         "open_loops",
-        "salience",
     ],
     "additionalProperties": False,
 }
@@ -66,10 +70,9 @@ _NEW_SCHEMA: dict[str, Any] = {
         },
         "title": {"type": "string", "minLength": 1, "maxLength": 200},
         "turn_ids": _TURN_IDS_SCHEMA,
-        "topics": _TAGS_SCHEMA,
+        "topics": _TOPICS_SCHEMA,
         "entities": _TAGS_SCHEMA,
         "open_loops": _TAGS_SCHEMA,
-        "salience": {"type": "number", "minimum": 0, "maximum": 1},
     },
     "required": [
         "action",
@@ -79,7 +82,6 @@ _NEW_SCHEMA: dict[str, Any] = {
         "topics",
         "entities",
         "open_loops",
-        "salience",
     ],
     "additionalProperties": False,
 }

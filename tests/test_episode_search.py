@@ -48,7 +48,6 @@ def document(
         episode_id=episode_id,
         fields=tuple(fields),
         last_activity_at=last_activity,
-        salience=0.5,
         messages=messages,
     )
 
@@ -141,7 +140,6 @@ class EpisodeSearchTest(unittest.TestCase):
                     ),
                 ),
                 last_activity_at=0,
-                salience=0.5,
                 messages=tuple(
                     EpisodeSearchMessage(
                         id=index,
@@ -303,7 +301,6 @@ class EpisodeSearchTest(unittest.TestCase):
                     EpisodeSearchField("working_summary", "整体方向不变"),
                 ),
                 last_activity_at=0,
-                salience=0.5,
                 messages=tuple(
                     EpisodeSearchMessage(
                         id=index,
@@ -391,7 +388,6 @@ class EpisodeSearchTest(unittest.TestCase):
                 episode_id="work-record",
                 fields=(EpisodeSearchField("narrative_summary", "地平线6认景功课"),),
                 last_activity_at=99,
-                salience=0.5,
                 messages=(
                     EpisodeSearchMessage(
                         id=1,
@@ -455,7 +451,7 @@ class EpisodeSearchTest(unittest.TestCase):
             ["recent", "half-life", "ancient"],
         )
         factors = [
-            (item.score - 0.05 * item.salience) / item.semantic_score
+            item.score / item.semantic_score
             for item in ranked
         ]
         self.assertAlmostEqual(factors[0], 1.0)

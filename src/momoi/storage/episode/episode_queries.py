@@ -197,7 +197,6 @@ class EpisodeQueryStore:
                         if time_filter
                         else float(row["last_activity_at"])
                     ),
-                    salience=float(row["salience"]),
                     messages=messages,
                 ),
             )
@@ -220,7 +219,7 @@ class EpisodeQueryStore:
             fields.extend(EpisodeSearchField("recall_cue", text) for text in stored_cue_texts(row["recall_cues_json"]))
             fields.append(EpisodeSearchField("execution", execution_fields.get(str(row["id"]), "")))
             documents.append(EpisodeSearchDocument(str(row["id"]), tuple(fields),
-                float(row["last_activity_at"]), float(row["salience"]), ()))
+                float(row["last_activity_at"]), ()))
         return {str(row["id"]): row for row in rows}, documents
 
     def _ranked_episode_results(

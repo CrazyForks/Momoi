@@ -109,15 +109,14 @@ class EpisodeLifecycleStore:
         self._db.execute(
             """INSERT OR IGNORE INTO conversation_episodes
                (id, status, title, topics_json, entities_json, open_loops_json,
-                salience, created_at, updated_at, archive_kind, archive_day)
-               VALUES (?, 'closing', ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                created_at, updated_at, archive_kind, archive_day)
+               VALUES (?, 'closing', ?, ?, ?, ?, ?, ?, ?, ?)""",
             (
                 successor,
                 row["title"],
                 row["topics_json"],
                 row["entities_json"],
                 row["open_loops_json"],
-                row["salience"],
                 now,
                 now,
                 row["archive_kind"],

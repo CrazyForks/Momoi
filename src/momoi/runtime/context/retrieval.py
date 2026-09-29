@@ -425,7 +425,6 @@ def build_plan_retrieval(
             **evidence,
             "unit_ids": unit_ids,
             "last_activity_at": float(row.get("last_activity_at") or 0),
-            "salience": float(row.get("salience") or 0),
             "matched_keywords": list(row.get("matched_keywords") or []),
             "keyword_match_count": int(row.get("keyword_match_count") or 0),
             "search_score": float(row.get("search_score") or 0),

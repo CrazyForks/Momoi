@@ -30,6 +30,17 @@ def _enable_episode_relations(database: sqlite3.Connection) -> None:
         (time.time(),),
     )
 
+
+def _remove_episode_salience(database: sqlite3.Connection) -> None:
+    database.execute("DROP INDEX IF EXISTS conversation_episodes_candidates")
+    if "salience" in _columns(database, "conversation_episodes"):
+        database.execute("ALTER TABLE conversation_episodes DROP COLUMN salience")
+    database.execute(
+        "CREATE INDEX conversation_episodes_candidates "
+        "ON conversation_episodes(status, updated_at DESC)"
+    )
+
+
 def _add_turn_parent(database):
     if "parent_turn_id" not in _columns(database, "turns"):
         database.execute("ALTER TABLE turns ADD COLUMN parent_turn_id TEXT REFERENCES turns(id) ON DELETE SET NULL")
@@ -662,6 +673,7 @@ MIGRATIONS: tuple[Migration, ...] = (
     _add_plan_review,
     _add_scoped_memory_activation,
     _enable_episode_relations,
+    _remove_episode_salience,
 )
 SCHEMA_VERSION = len(MIGRATIONS)
 

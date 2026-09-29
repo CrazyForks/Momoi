@@ -11,7 +11,7 @@ from unittest.mock import patch
 from zoneinfo import ZoneInfo
 from xml.etree import ElementTree
 
-from momoi.storage.core.migrations import MIGRATIONS, _normalize_owner_message_received_at
+from momoi.storage.core.migrations import MIGRATIONS, SCHEMA_VERSION, _normalize_owner_message_received_at
 from momoi.tools.agenda import AgendaTools
 from momoi.tools.builtin import BuiltinTools
 from momoi.channel.napcat import NapCatConfig
@@ -639,7 +639,6 @@ class StorageMemoryTest(unittest.TestCase):
                         "topics": ["湖之仆从"],
                         "entities": ["湖之仆从"],
                         "open_loops": [],
-                        "salience": 0.7,
                     },
                 ],
                 [],
@@ -700,7 +699,6 @@ class StorageMemoryTest(unittest.TestCase):
                 "topics": [],
                 "entities": [],
                 "open_loops": [],
-                "salience": 0.5,
             }
             with self.assertRaisesRegex(ValueError, "unknown consolidation episode"):
                 store.apply_episode_consolidation(["turn-1"], [decision], [])
@@ -710,6 +708,60 @@ class StorageMemoryTest(unittest.TestCase):
                 (1, 0),
             )
             store.close()
+
+    def test_episode_consolidation_topics_remain_short_labels(self) -> None:
+        from jsonschema import Draft202012Validator
+        from momoi.runtime.workflows.episode.contracts import EPISODE_CLASSIFY_TURNS_SPEC
+
+        schema = EPISODE_CLASSIFY_TURNS_SPEC["input_schema"]
+        topic_schema = schema["properties"]["decisions"]["items"]["oneOf"][2]["properties"]["topics"]
+        self.assertEqual(topic_schema["maxItems"], 6)
+        self.assertEqual(topic_schema["items"]["maxLength"], 24)
+
+        with tempfile.TemporaryDirectory() as directory:
+            store = Store(Path(directory) / "momoi.sqlite3")
+            self.addCleanup(store.close)
+            store.create_episode("午餐记录", episode_id="lunch")
+            store.commit_turn([], "食堂午餐", AgentReply([]), turn_id="lunch-turn")
+            decision = {
+                "action": "continue", "episode_id": "lunch",
+                "turn_ids": ["lunch-turn"], "topics": ["食堂午餐"],
+                "entities": [], "open_loops": [],
+            }
+            self.assertTrue(Draft202012Validator(schema).is_valid(
+                {"decisions": [{**decision, "turn_ids": ["T-1"]}]}
+            ))
+            long_topic = "我把午餐的每一道菜逐项估重并重新计算了全天剩余热量"
+            decision["topics"] = [long_topic]
+            self.assertFalse(Draft202012Validator(schema).is_valid(
+                {"decisions": [{**decision, "turn_ids": ["T-1"]}]}
+            ))
+            with self.assertRaisesRegex(ValueError, "invalid consolidation topics"):
+                store.apply_episode_consolidation(["lunch-turn"], [decision], ["lunch"])
+
+    def test_episode_salience_migration_preserves_existing_topics(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "momoi.sqlite3"
+            store = Store(path)
+            store.create_episode("旧话题", episode_id="old-topic", topics=["测试"])
+            store.close()
+            db = sqlite3.connect(path)
+            db.execute("DROP INDEX conversation_episodes_candidates")
+            db.execute("ALTER TABLE conversation_episodes ADD COLUMN salience REAL DEFAULT 0.5")
+            db.execute("UPDATE conversation_episodes SET salience=0.8 WHERE id='old-topic'")
+            db.execute("CREATE INDEX conversation_episodes_candidates ON conversation_episodes(status, salience DESC, updated_at DESC)")
+            db.execute(f"PRAGMA user_version={SCHEMA_VERSION - 1}")
+            db.commit()
+            db.close()
+
+            reopened = Store(path)
+            try:
+                columns = {row[1] for row in reopened._db.execute("PRAGMA table_info(conversation_episodes)")}
+                self.assertNotIn("salience", columns)
+                self.assertEqual(reopened.episode("old-topic")["topics"], ["测试"])
+                self.assertEqual(reopened._db.execute("PRAGMA foreign_key_check").fetchall(), [])
+            finally:
+                reopened.close()
 
     def test_runtime_archives_are_visible_but_not_owner_writable(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -859,7 +911,6 @@ class StorageMemoryTest(unittest.TestCase):
                             "topics": ["错误话题"],
                             "entities": [],
                             "open_loops": [],
-                            "salience": 0.5,
                         }
                     ],
                     "episode_links": [],
@@ -932,7 +983,6 @@ class StorageMemoryTest(unittest.TestCase):
                     "topics": [],
                     "entities": [],
                     "open_loops": [],
-                    "salience": 0.5,
                 }
                 with self.assertRaisesRegex(
                     ValueError,
@@ -1074,7 +1124,6 @@ class StorageMemoryTest(unittest.TestCase):
                             "topics": ["游戏", "塞尔达"],
                             "entities": ["塞尔达"],
                             "open_loops": [],
-                            "salience": 0.5,
                         }
                     ],
                     [],
@@ -1147,7 +1196,6 @@ class StorageMemoryTest(unittest.TestCase):
                             "topics": ["游戏"],
                             "entities": ["塞尔达"],
                             "open_loops": [],
-                            "salience": 0.5,
                         }
                     ],
                     ["playing-game"],
@@ -1297,7 +1345,6 @@ class StorageMemoryTest(unittest.TestCase):
                             "topics": ["游戏"],
                             "entities": ["塞尔达"],
                             "open_loops": [],
-                            "salience": 0.5,
                         }
                     ],
                     ["playing-game"],
@@ -1366,7 +1413,6 @@ class StorageMemoryTest(unittest.TestCase):
                             "topics": ["新阶段"],
                             "entities": [],
                             "open_loops": [],
-                            "salience": 0.6,
                         }
                     ],
                     "episode_links": [],
@@ -1422,7 +1468,6 @@ class StorageMemoryTest(unittest.TestCase):
                             "topics": [topic],
                             "entities": [],
                             "open_loops": [],
-                            "salience": 0.5,
                         }
                     ],
                     "episode_links": [],
@@ -1487,7 +1532,7 @@ class StorageMemoryTest(unittest.TestCase):
             self.assertEqual(store.context_plan("turn-1")["revision"], 2)
 
             mail = store.create_episode(
-                "邮件跟进", episode_id="episode-mail", topics=["邮件"], salience=0.8
+                "邮件跟进", episode_id="episode-mail", topics=["邮件"]
             )
             store.create_episode(
                 "微博浏览", episode_id="episode-social", topics=["微博"]
