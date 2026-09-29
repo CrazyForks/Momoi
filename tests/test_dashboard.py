@@ -111,14 +111,6 @@ class DashboardTest(unittest.IsolatedAsyncioTestCase):
                         "recall_from_turn_id": "",
                     }
                 ],
-                "episode_actions": [
-                    {
-                        "action": "continue",
-                        "episode_id": "episode-one",
-                        "episode_ref": "episode-one",
-                        "unit_ids": ["u1"],
-                    }
-                ],
                 "episode_links": [],
                 "uncertainty": [],
             },
@@ -636,16 +628,6 @@ class DashboardTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(
             detail["recall"]["episodes"][0]["title"],
             "一次测试聊天",
-        )
-        self.assertEqual(
-            detail["recall"]["episode_actions"],
-            [
-                {
-                    "action": "continue",
-                    "episode_id": "episode-one",
-                    "title": "一次测试聊天",
-                }
-            ],
         )
         call = await (
             await self.client.get(

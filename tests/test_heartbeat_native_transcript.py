@@ -32,7 +32,6 @@ class HeartbeatNativeTranscriptTest(unittest.IsolatedAsyncioTestCase):
                 "recall_mode": "search",
                 "recall_queries": [{"semantic": "Prior discussion of this show", "keywords": []}],
                 "recall_from_turn_id": "",
-                "episode": {"action": "none"},
             }]}
             calls = [
                 ToolCall("begin", "heartbeat_begin", {

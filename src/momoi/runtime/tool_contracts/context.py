@@ -8,40 +8,35 @@ CUE_QUERY_TOOL_DESCRIPTION = (
 from ...storage import MEMORY_KINDS
 
 
-NEW_EPISODE_REF = "new:<slug>"
-
 RECALL_SKIP_EXAMPLE = {"units": [{
     "intent": "主人道晚安", "recall_mode": "skip", "recall_queries": [],
-    "recall_from_turn_id": "", "episode": {"action": "none"},
+    "recall_from_turn_id": "",
 }]}
 RECALL_EXAMPLES = [
     RECALL_SKIP_EXAMPLE,
     {"units": [{"intent": "查询此前约定的见面时间", "recall_mode": "search",
                 "recall_queries": [{"semantic": "此前约定的见面时间", "keywords": []}],
-                "recall_from_turn_id": "", "episode": {"action": "none"}}]},
+                "recall_from_turn_id": ""}]},
     {"units": [{"intent": "继续讨论已检索的约定", "recall_mode": "reuse",
                 "recall_queries": [], "recall_from_turn_id": "<displayed-recalled-turn-id>",
-                "episode": {"action": "none"}}]},
+                }]},
 ]
 
 RECALL_SCOPE_CONTRACT = (
-    '检索范围：评估所供上下文是否遗留可能改变理解或行动的历史问题。若无此类问题则使用 skip。对于搜索，使用范围最小的 kind 列表（空/省略表示所有标准记忆类型）。根据历史信息可能采用的不同表述，从当前提法、相关称谓、事件或其他已知线索构造互补查询；即使查询指向同一需求，也可以从不同角度搜索。无需凑满查询数；避免只换词重复、依赖单个新细节或把未知答案写成事实。关键词仅用可靠、可区分的锚点，不用独立动词或通用词。仅在已显示的 recent_recall_context 查询集覆盖全部需求时使用 reuse；邻近性、情绪或话题归属不构成覆盖。保持话题动作与检索独立：仅对同一具体体验使用 continue，仅对值得保留的独立体验使用 new，否则使用 none。对于 continue 或 new，需给出具体理由，对比当前主题与候选话题或近期对话：这是否确为同一体验，还是主题已变？切勿仅因候选者较新或是唯一候选者就使用 continue。将独立结果拆分为不同单元；更正操作替换被撤销的意图。保留已知主体、字面标识符及不确定性；切勿臆造未解决的实体身份。若身份未解决，先进行搜索，若证据无法识别则询问。从上下文中解析代词，切勿臆造答案或新增检索需求；当上下文无法解析指代时寻求澄清。reuse 无需新的历史依赖。话题归属不能通过邻近性、情绪、时间或场景建立。切勿编写运行时拥有的归档。在评估证据后决定如何响应。已检索话题的置信度是受限的查询相关性信号，而非校准后的概率或事实真相。缺失值表示无可用的查询特定分数。从源证据中确立发生的事件，并考虑说话者、时间、模态及不确定性。'
+    '检索范围：评估所供上下文是否遗留可能改变理解或行动的历史问题。若无此类问题则使用 skip。对于搜索，使用范围最小的 kind 列表（空/省略表示所有标准记忆类型）。根据历史信息可能采用的不同表述，从当前提法、相关称谓、事件或其他已知线索构造互补查询；即使查询指向同一需求，也可以从不同角度搜索。无需凑满查询数；避免只换词重复、依赖单个新细节或把未知答案写成事实。关键词仅用可靠、可区分的锚点，不用独立动词或通用词。仅在已显示的 recent_recall_context 查询集覆盖全部需求时使用 reuse；邻近性与情绪不构成覆盖。将独立结果拆分为不同单元；更正操作替换被撤销的意图。保留已知主体、字面标识符及不确定性；切勿臆造未解决的实体身份。若身份未解决，先进行搜索，若证据无法识别则询问。从上下文中解析代词，切勿臆造答案或新增检索需求；当上下文无法解析指代时寻求澄清。reuse 无需新的历史依赖。在评估证据后决定如何响应。已检索话题的置信度是受限的查询相关性信号，而非校准后的概率或事实真相。缺失值表示无可用的查询特定分数。从源证据中确立发生的事件，并考虑说话者、时间、模态及不确定性。'
 )
 
 
 def recall_correction(message: str) -> dict[str, Any]:
     return {
-        "message": message + " Retry recall as a native tool call; it has not succeeded yet.",
+        "message": message + " 请重新以原生 recall 工具调用；本次检索尚未成功。",
         "hint": (
-            "Put intent fields inside units (1-4 objects), not at the top level. "
-            "Use JSON arrays/objects, never JSON-encoded strings. search requires 1-3 queries "
-            "and an empty recall_from_turn_id; reuse requires [] and a displayed recalled Turn id; "
-            "skip requires [] and an empty id. episode is an object: none, continue with a "
-            "candidate ref and reason, or new with new:<slug>, title, and reason. "
-            "The reason must explain topic continuity or a distinct new experience. Choose from actual evidence; "
-            "the example only illustrates skip when supplied context is sufficient. "
-            "Each unit may optionally set kind to [] (all canonical memory kinds) or a "
-            "list such as [\"profile\", \"preference\"]; Episodes are separate."
+            "intent 等字段必须放在 units 内（1 到 4 个对象），不能放在顶层。"
+            "使用 JSON 数组和对象，不能把 JSON 编码成字符串。search 需要 1 到 3 个查询，"
+            "且 recall_from_turn_id 为空；reuse 需要空查询数组，并填写已显示的 recalled Turn ID；"
+            "skip 需要空查询数组和空 ID。只根据实际证据填写；示例仅表示上下文充分时可以 skip。"
+            "每个单元可以将 kind 设为空数组（所有规范记忆类型），或填写例如"
+            "[\"profile\", \"preference\"] 的类型列表。话题摘要单独检索。"
         ),
         "example_arguments": copy.deepcopy(RECALL_SKIP_EXAMPLE),
     }
@@ -50,7 +45,7 @@ def recall_correction(message: str) -> dict[str, Any]:
 RECALL_TOOL_SPEC: dict[str, Any] = {
     "name": "recall",
     "description": (
-        ('检索已确认的记忆、带日期的反思和话题摘要。在用户回合中，在首批工具调用中调用一次，并确定其归档话题归属；独立工具可伴随其运行。在心跳周期中，于发现特定内容后且每次向用户可见发送前进行搜索；使用一个搜索单元，设置 episode.action=none，并等待结果后再发送。心跳周期的检索不会归档话题。重试直至成功；在依赖调用前等待其结果。同一回合中的后续调用可检索额外证据。每次调用均增加证据，且不替换相同用户输入的原有意图或话题路由。后续单元可描述新的搜索角度；跳过操作不清除早期结果。新的用户消息可修订意图。skip/reuse 返回状态时不会重复返回 transcript 中已有的证据；搜索返回本次调用的证据而非累积的早期结果。每次调用及结果均保留在回合转录中。参数必须包含 units（意图对象数组）；切勿扁平化其字段或将嵌套 JSON 字符串化。' + RECALL_SCOPE_CONTRACT + '最小示例（上下文充足时）：' + json.dumps(RECALL_SKIP_EXAMPLE, ensure_ascii=False))
+        ('检索已确认的记忆、带日期的反思和话题摘要。在用户回合中，在首批工具调用中调用一次；独立工具可伴随其运行。在心跳周期中，于发现特定内容后且每次向用户可见发送前进行搜索；使用一个搜索单元，并等待结果后再发送。心跳周期的检索不会归档话题。重试直至成功；在依赖调用前等待其结果。同一回合中的后续调用可检索额外证据。每次调用均增加证据。后续单元可描述新的搜索角度；跳过操作不清除早期结果。新的用户消息可修订意图。skip/reuse 返回状态时不会重复返回 transcript 中已有的证据；搜索返回本次调用的证据而非累积的早期结果。每次调用及结果均保留在回合转录中。参数必须包含 units（意图对象数组）；切勿扁平化其字段或将嵌套 JSON 字符串化。' + RECALL_SCOPE_CONTRACT + '最小示例（上下文充足时）：' + json.dumps(RECALL_SKIP_EXAMPLE, ensure_ascii=False))
     ),
     "input_schema": {
         "type": "object",
@@ -123,61 +118,12 @@ RECALL_TOOL_SPEC: dict[str, Any] = {
                             "type": "string",
                             "description": ('recent_recall_context 中的来源轮次。'),
                         },
-                        "episode": {
-                            "type": "object",
-                            "description": (
-                                '独立的归档决策；不影响 recall_mode。'
-                            ),
-                            "properties": {
-                                "action": {
-                                    "type": "string",
-                                    "enum": ["none", "continue", "new"],
-                                },
-                                "ref": {
-                                    "type": "string",
-                                    "description": (
-                                        "continue 时填写候选话题 ID；"
-                                        f"{NEW_EPISODE_REF} 用于 new；none 时留空。"
-                                    ),
-                                },
-                                "title": {
-                                    "type": "string",
-                                    "maxLength": 80,
-                                    "description": 'new 的具体标题；否则为空。',
-                                },
-                                "reason": {
-                                    "type": "string",
-                                    "minLength": 1,
-                                    "maxLength": 300,
-                                    "pattern": r"\S",
-                                    "description": (
-                                        '对于 continue，解释与候选话题的具体连续性以及为何这不是主题切换。对于 new，解释为何这是一个值得归档而非延续的独立体验。'
-                                    ),
-                                },
-                            },
-                            "required": ["action"],
-                            "oneOf": [
-                                {"properties": {"action": {"const": "none"},
-                                                "ref": {"const": ""}, "title": {"const": ""},
-                                                "reason": {"const": ""}}},
-                                {"required": ["ref", "reason"], "properties": {
-                                    "action": {"const": "continue"},
-                                    "ref": {"minLength": 1, "description": '复制实际的候选话题 ID。'},
-                                    "title": {"const": ""}}},
-                                {"required": ["ref", "title", "reason"], "properties": {
-                                    "action": {"const": "new"},
-                                    "ref": {"pattern": "^new:[a-z0-9][a-z0-9_-]{0,39}$"},
-                                    "title": {"minLength": 1, "pattern": r"\S"}}},
-                            ],
-                            "additionalProperties": False,
-                        },
                     },
                     "required": [
                         "intent",
                         "recall_mode",
                         "recall_queries",
                         "recall_from_turn_id",
-                        "episode",
                     ],
                     "oneOf": [
                         {
@@ -222,7 +168,7 @@ def heartbeat_begin_spec(group_descriptions: dict[str, str]) -> dict[str, Any]:
     return {
         "name": "heartbeat_begin",
         "description": (
-            '开始所选自主活动并启用选定的 MCP 组。对于用户可见的消息，在发现具体内容后使用 recall。'
+            '开始所选自主活动，并启用本轮需要使用的 MCP 工具组。'
         ),
         "input_schema": {
             "type": "object",

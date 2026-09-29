@@ -164,28 +164,12 @@ class ContextService:
         raw_units = arguments.get("units")
         if not isinstance(raw_units, list) or not raw_units:
             raise ValueError("units: required nonempty JSON array of intent objects; wrap fields as {\"units\":[{...}]}")
-        candidate_rows = self.store.recent_conversation_messages(
-            self.store.transcript_window_turn_limit(
-                self.config.transcript_turns_min,
-                self.config.transcript_turns_max,
-            ),
-            self._context_compaction_tokens(),
-            min((event.received_at for event in events), default=None),
-        )
-        candidate_ids = {
-            str(item["id"])
-            for item in self._recent_episode_candidates(
-                [str(row["turn_id"]) for row in candidate_rows]
-            )
-        }
         for index, raw in enumerate(raw_units if isinstance(raw_units, list) else [], 1):
             if not isinstance(raw, dict):
                 raise ValueError("each recall unit must be an object")
             path = f"units[{index - 1}]"
             if not isinstance(raw.get("recall_queries"), list):
                 raise ValueError(f"{path}.recall_queries: expected a JSON array, not a string; use [] for skip/reuse")
-            if not isinstance(raw.get("episode"), dict):
-                raise ValueError(f'{path}.episode: expected a JSON object, e.g. {{"action":"none"}}, not a string')
             unit_id = f"u{index}"
             raw_kinds = raw.get("kind", [])
             if raw_kinds is None:
@@ -249,43 +233,9 @@ class ContextService:
                     },
                 }
             )
-            episode = raw.get("episode")
-            action = (
-                str(episode.get("action") or "none")
-                if isinstance(episode, dict)
-                else "none"
-            )
-            if action not in {"none", "continue", "new"}:
-                raise ValueError("episode action must be none, continue, or new")
-            if not events and action != "none":
-                raise ValueError("recall without owner events requires episode.action=none")
-            if action == "none":
-                continue
-            binding: dict[str, object] = {"action": action, "unit_ids": [unit_id]}
-            reference = str(episode.get("ref") or "") if isinstance(episode, dict) else ""
-            title = str(episode.get("title") or "") if isinstance(episode, dict) else ""
-            raw_reason = episode.get("reason") if isinstance(episode, dict) else None
-            reason = raw_reason.strip() if isinstance(raw_reason, str) else ""
-            if not reason or len(reason) > 300:
-                raise ValueError(f"{path}.episode.reason: new and continue require a concise nonempty reason for topic continuity or change")
-            binding["reason"] = reason
-            if action == "continue" and reference in candidate_ids:
-                binding["episode_id"] = reference
-                binding["episode_ref"] = reference
-            elif action == "new" and title and _NEW_EPISODE_SLUG.fullmatch(reference):
-                binding["episode_id"] = uuid.uuid5(
-                    uuid.NAMESPACE_URL,
-                    f"momoi:episode:{turn_id}:{revision}:{reference}",
-                ).hex
-                binding["title"] = title[:80]
-                binding["episode_ref"] = reference
-            else:
-                raise ValueError(f"{path}.episode: episode reference does not match its action; continue requires ref copied from a candidate Episode; new requires ref matching new:[a-z0-9][a-z0-9_-]{{0,39}} and a nonempty title")
-            episodes.append(binding)
         return {
             "version": 7,
             "intent_units": units,
-            "episode_actions": episodes,
             "episode_links": [],
             "uncertainty": [],
         }
@@ -301,7 +251,7 @@ class ContextService:
 
         retrieval = build_plan_retrieval(
             self.store,
-            {"version": 7, "intent_units": [], "episode_actions": []},
+            {"version": 7, "intent_units": []},
             self.config,
         )
         return assemble_main_context(

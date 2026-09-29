@@ -22,7 +22,6 @@ def recall_response(units: int = 1) -> ProviderResponse:
                         }
                     ],
                     "recall_from_turn_id": "",
-                    "episode": {"action": "none", "ref": "", "title": ""},
                 }
                 for _index in range(max(1, units))
             ]

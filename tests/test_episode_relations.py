@@ -149,13 +149,9 @@ def test_workflow_model_chooses_query_then_finishes():
                     args = {"units": [{"intent": "寻找项目此前的决定和进展", "recall_mode": "search",
                         "recall_queries": [{"semantic": "项目启动", "keywords": ["项目"]},
                                            {"semantic": "项目最初的决定", "keywords": []}],
-                        "recall_from_turn_id": "", "episode": {"action": "none"}}]}
+                        "recall_from_turn_id": ""}]}
                     invalid = await workflow.execute_tool(ToolCall("bad", "recall", {"query": "项目启动"}))
                     assert not invalid["ok"]
-                    args["units"][0]["episode"] = {"action": "new"}
-                    invalid = await workflow.execute_tool(ToolCall("bad", "recall", args))
-                    assert not invalid["ok"]
-                    args["units"][0]["episode"] = {"action": "none"}
                     from momoi.tools.validation import validate_tool_arguments
                     _, error = validate_tool_arguments("recall", args, tools[0]["input_schema"])
                     assert error is None
@@ -196,7 +192,7 @@ def test_workflow_model_chooses_query_then_finishes():
             asyncio.run(runner._build_episode_relations(store.episode("new"), 1, "test"))
             assert len(semantic.prepare.call_args.args[0]) == 2
             assert runner._select_recall_topics.called
-            assert store.context_plan("test")["plan"]["episode_actions"] == []
+            assert "episode_actions" not in store.context_plan("test")["plan"]
             assert store.context_plan("test")["plan"]["intent_units"][0]["intent"] == "寻找项目此前的决定和进展"
             assert store._db.execute("SELECT count(*) FROM episode_relations").fetchone()[0] == 1
         finally:

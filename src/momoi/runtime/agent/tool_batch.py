@@ -295,10 +295,9 @@ class ToolBatchExecutor:
                             unit = units[0]
                             if (
                                 unit.get("recall_mode") != "search"
-                                or unit.get("episode", {}).get("action") != "none"
                                 or not 1 <= len(unit.get("recall_queries", [])) <= 2
                             ):
-                                raise ValueError("heartbeat recall requires one search unit, 1-2 queries, and episode.action=none")
+                                raise ValueError("heartbeat recall requires one search unit and 1-2 queries")
                             prepared = await request.prepare_heartbeat_context({
                                 "activity": str(unit["intent"]),
                                 "mode": "work",

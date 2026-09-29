@@ -1067,7 +1067,7 @@ def test_owner_tool_loop_routes_temporary_state_immediately(daemon):
     daemon.store.begin_turn("state-turn", "owner", [source.event_id])
     calls = [response(ToolCall("recall", "recall", {"units": [{
         "intent": source.text, "recall_mode": "skip", "recall_queries": [],
-        "recall_from_turn_id": "", "episode": {"action": "none"},
+        "recall_from_turn_id": "",
     }]})), response(state_call()), response(ToolCall("end", "end_turn", {
         "mood": {"decision": "unchanged"}, "reply_wait": {"wait": False},
     }))]

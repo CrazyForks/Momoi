@@ -66,7 +66,6 @@ class EpisodeConfidenceTest(unittest.TestCase):
                             {"semantic": "模拟面试", "keywords": ["模拟面试"]}
                         ],
                         "recall_from_turn_id": "",
-                        "episode": {"action": "none"},
                     }
                 ]
             }

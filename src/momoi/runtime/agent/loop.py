@@ -417,7 +417,7 @@ class AgentLoop:
                     detail = {}
                     if harness_error == "recall_required_once_in_opening_batch":
                         detail = recall_correction(
-                            "Include exactly one recall in the opening batch; independent tools may accompany it."
+                            "开场批次必须包含且只包含一个 recall；可以同时调用独立工具。"
                         )
                     elif call.name == "end_turn" and end_schema is not None:
                         detail = end_turn_correction(

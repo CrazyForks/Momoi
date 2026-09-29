@@ -1590,7 +1590,6 @@ class DaemonAsyncTest(unittest.IsolatedAsyncioTestCase):
                             "recall_mode": "search",
                             "recall_queries": [{"semantic": "此前聊过的这个关卡点子", "keywords": ["关卡"]}],
                             "recall_from_turn_id": "",
-                            "episode": {"action": "none"},
                         }]})
                     elif self.calls == 8:
                         call = ToolCall(
