@@ -329,6 +329,14 @@ class ToolBatchExecutor:
                     request.draft.memory_context.update(self.store.memory_snapshots(
                         [item["id"] for item in recalled if isinstance(item.get("id"), int)]
                     ))
+            elif call.name == "episode_relations":
+                try:
+                    result = {"ok": True, **self.store.episode_relation_graph(
+                        str(call.arguments["episode_id"]),
+                        call.arguments.get("depth", 1),
+                    )}
+                except (KeyError, TypeError, ValueError) as error:
+                    result = {"ok": False, "error": "invalid_episode_relations", "message": str(error)}
             elif call.name == "end_turn" and (
                 missing_images := self.store.missing_image_summaries(request.current_events)
             ):

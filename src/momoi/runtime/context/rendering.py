@@ -22,6 +22,7 @@ from .retrieval import _merge_matches
 logger = logging.getLogger(__name__)
 
 
+
 def _memory_lines(items: object) -> str:
     if not isinstance(items, list):
         return ""
@@ -270,6 +271,9 @@ def episode_recall_records(store, episodes, budget):
     from ...storage.episode.execution_evidence import execution_turns
     records = []
     selected = [e for e in episodes or [] if not e.get("is_new")]
+    neighbors = store.episode_relation_neighbors(
+        [str(item["episode_id"]) for item in selected], per_episode=5
+    )
     per_episode = max(1, budget // max(1, len(selected)))
     for item in selected:
         episode = store.episode(str(item["episode_id"]))
@@ -280,8 +284,12 @@ def episode_recall_records(store, episodes, budget):
                   "summary": truncate_tokens(summary, max(1, per_episode // 3)),
                   **execution_turns(store, episode["id"], item.get("matched_keywords", []),
                                     selected_messages=item.get("matches", []))}
+        record["relations"] = neighbors.get(episode["id"], [])
         # Keep JSON valid and invocation/result pairs intact when fitting the budget.
         while estimate_tokens(json.dumps(record, ensure_ascii=False)) > per_episode:
+            if record.get("relations"):
+                record["relations"].pop()
+                continue
             turns = record["turns"]
             if not turns:
                 record["summary"] = truncate_tokens(record["summary"], max(1, per_episode // 8))

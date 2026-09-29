@@ -11,6 +11,7 @@ from ...tools.contracts.thinking import THINKING_TOOL_SPECS
 from ...tools.contracts.images import IMAGE_TOOL_SPECS
 from ...storage import estimate_tokens
 from ..tool_contracts.context import RECALL_TOOL_SPEC, heartbeat_begin_spec
+from ..tool_contracts.episode_relations import EPISODE_RELATIONS_TOOL_SPEC
 from ..tool_contracts.current_state import current_state_finish_spec
 from ..tool_contracts.conversation import (
     END_TURN_TOOL_SPEC, HEARTBEAT_ACTIVITY_TOOL_SPEC, GOAL_REVIEW_TOOL_SPEC, send_bubbles_tool_spec,
@@ -101,6 +102,7 @@ class ToolSurface:
         }
         tools = [
             copy.deepcopy(RECALL_TOOL_SPEC),
+            copy.deepcopy(EPISODE_RELATIONS_TOOL_SPEC),
             heartbeat_begin_spec(catalog),
             copy.deepcopy(HEARTBEAT_ACTIVITY_TOOL_SPEC),
             copy.deepcopy(GOAL_REVIEW_TOOL_SPEC),
@@ -134,6 +136,7 @@ class ToolSurface:
         shared.update(voice)
         general_chat = {
             "recall",
+            "episode_relations",
             "tool_enable",
             "end_turn",
             *shared,
@@ -149,6 +152,7 @@ class ToolSurface:
                 {
                     "heartbeat_begin",
                     "recall",
+                    "episode_relations",
                     "heartbeat_activity",
                     "end_turn",
                     *shared,

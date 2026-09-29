@@ -84,6 +84,8 @@ class ToolExecutor:
             return "agenda"
         if name == "recall":
             return "memory"
+        if name == "episode_relations":
+            return "episode"
         if name in self.memory_tool_names:
             return "memory"
         if name in {spec["name"] for spec in IMAGE_TOOL_SPECS}:
@@ -137,6 +139,7 @@ class ToolExecutor:
             "builtin",
             "agenda",
             "memory",
+            "episode",
             "thinking",
             "workflow",
         }

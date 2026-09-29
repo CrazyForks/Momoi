@@ -9,6 +9,94 @@ from .episode_sql import runtime_archive_kind_sql
 
 
 class EpisodeRelationStore:
+    def episode_relation_neighbors(
+        self, episode_ids: list[str], *, per_episode: int = 5,
+    ) -> dict[str, list[dict[str, str]]]:
+        """Read current, positive neighbors for recalled Episodes in one query."""
+        ids = list(dict.fromkeys(value for value in episode_ids if value))
+        if not ids or per_episode <= 0:
+            return {}
+        placeholders = ",".join("?" for _ in ids)
+        rows = self._db.execute(
+            f"""SELECT r.source_episode_id, r.target_episode_id, r.relation,
+                       r.explanation, r.source_summary_ordinal,
+                       source.summarized_through_ordinal AS current_source_ordinal,
+                       target.id AS target_id, target.title AS target_title,
+                       target.narrative_summary AS target_summary,
+                       source.id AS source_id, source.title AS source_title,
+                       source.narrative_summary AS source_summary,
+                       r.updated_at
+                FROM episode_relations r
+                JOIN conversation_episodes source ON source.id=r.source_episode_id
+                JOIN conversation_episodes target ON target.id=r.target_episode_id
+                WHERE r.source_episode_id IN ({placeholders})
+                   OR r.target_episode_id IN ({placeholders})
+                ORDER BY r.updated_at DESC, r.source_episode_id, r.target_episode_id""",
+            (*ids, *ids),
+        ).fetchall()
+        result: dict[str, list[dict[str, str]]] = {value: [] for value in ids}
+        for row in rows:
+            if int(row["source_summary_ordinal"]) != int(row["current_source_ordinal"]):
+                continue
+            for selected_id, direction, prefix in (
+                (row["source_episode_id"], "outgoing", "target"),
+                (row["target_episode_id"], "incoming", "source"),
+            ):
+                if selected_id not in result or len(result[selected_id]) >= per_episode:
+                    continue
+                result[selected_id].append({
+                    "direction": direction,
+                    "type": str(row["relation"]),
+                    "episode_id": str(row[f"{prefix}_id"]),
+                    "title": str(row[f"{prefix}_title"]),
+                    "summary": str(row[f"{prefix}_summary"] or "")[:240],
+                    "explanation": str(row["explanation"]),
+                })
+        return result
+
+    def episode_relation_graph(self, episode_id: str, depth: int = 1) -> dict[str, object]:
+        """Expand both incoming and outgoing links without truncating the graph."""
+        if depth not in (1, 2):
+            raise ValueError("depth must be 1 or 2")
+        root = self.episode(episode_id)
+        if root is None:
+            raise ValueError("episode not found")
+        nodes = {episode_id: {
+            "id": episode_id, "title": root["title"],
+            "summary": root["narrative_summary"], "depth": 0,
+        }}
+        edges: dict[tuple[str, str], dict[str, str]] = {}
+        frontier = [episode_id]
+        for level in range(1, depth + 1):
+            neighbors = self.episode_relation_neighbors(frontier, per_episode=1_000_000)
+            next_frontier = []
+            for current_id, related in neighbors.items():
+                for item in related:
+                    other_id = item["episode_id"]
+                    source_id, target_id = (
+                        (current_id, other_id) if item["direction"] == "outgoing"
+                        else (other_id, current_id)
+                    )
+                    edges[source_id, target_id] = {
+                        "source_episode_id": source_id,
+                        "target_episode_id": target_id,
+                        "type": item["type"],
+                        "explanation": item["explanation"],
+                    }
+                    if other_id not in nodes:
+                        other = self.episode(other_id)
+                        nodes[other_id] = {
+                            "id": other_id, "title": item["title"],
+                            "summary": other["narrative_summary"] if other else item["summary"],
+                            "depth": level,
+                        }
+                        next_frontier.append(other_id)
+            frontier = next_frontier
+            if not frontier:
+                break
+        return {"root_episode_id": episode_id, "depth": depth,
+                "nodes": list(nodes.values()), "edges": list(edges.values())}
+
     def claim_episode_relation_candidate(self) -> dict[str, object] | None:
         now = time.time()
         with self._db:

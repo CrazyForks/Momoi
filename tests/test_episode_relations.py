@@ -67,6 +67,71 @@ def test_new_episode_only_and_empty_review_is_durable():
             store.close()
 
 
+def test_relation_recall_shape_includes_both_directions():
+    from momoi.runtime.context import rendering
+
+    with tempfile.TemporaryDirectory() as directory:
+        store = Store(Path(directory) / "db")
+        try:
+            _summarize(store, "old", "项目启动", "团队确认项目启动", 1)
+            _summarize(store, "new", "项目进展", "团队完成首个阶段", 2)
+            store._db.execute("UPDATE conversation_episodes SET summarized_through_ordinal=1 WHERE id='new'")
+            with store._db:
+                store._db.execute(
+                    """INSERT INTO episode_relations
+                       (source_episode_id,target_episode_id,relation,explanation,
+                        evidence_json,source_summary_ordinal,created_at,updated_at)
+                       VALUES ('new','old','follows_up','同一项目继续推进','{}',1,1,1)"""
+                )
+            selected = [{"episode_id": "new", "matched_keywords": []}]
+            records = rendering.episode_recall_records(store, selected, 6000)
+            assert records[0]["relations"][0]["episode_id"] == "old"
+            assert store.episode_relation_neighbors(["new"])["new"] == [{
+                "direction": "outgoing", "type": "follows_up", "episode_id": "old",
+                "title": "项目启动", "summary": "团队确认项目启动", "explanation": "同一项目继续推进",
+            }]
+            assert store.episode_relation_neighbors(["old"])["old"][0]["direction"] == "incoming"
+            incoming = rendering.episode_recall_records(
+                store, [{"episode_id": "old", "matched_keywords": []}], 6000
+            )
+            assert incoming[0]["relations"][0]["direction"] == "incoming"
+            assert "turns" in records[0]
+        finally:
+            store.close()
+
+
+def test_relation_graph_follows_incoming_and_outgoing_links_to_depth_two():
+    with tempfile.TemporaryDirectory() as directory:
+        store = Store(Path(directory) / "db")
+        try:
+            for index, episode_id in enumerate(("old", "middle", "new"), 1):
+                _summarize(store, episode_id, episode_id, f"{episode_id} summary", index)
+            with store._db:
+                for source, target in (("middle", "old"), ("new", "middle")):
+                    store._db.execute(
+                        """INSERT INTO episode_relations
+                           (source_episode_id,target_episode_id,relation,explanation,
+                            evidence_json,source_summary_ordinal,created_at,updated_at)
+                           VALUES (?,?,'follows_up','承接','{}',1,1,1)""",
+                        (source, target),
+                    )
+            one = store.episode_relation_graph("old")
+            assert [(node["id"], node["depth"]) for node in one["nodes"]] == [
+                ("old", 0), ("middle", 1),
+            ]
+            assert one["edges"][0]["source_episode_id"] == "middle"
+            two = store.episode_relation_graph("old", 2)
+            assert {(node["id"], node["depth"]) for node in two["nodes"]} == {
+                ("old", 0), ("middle", 1), ("new", 2),
+            }
+            assert len(two["edges"]) == 2
+            assert store.episode_relation_graph("middle", 1)["depth"] == 1
+            with pytest.raises(ValueError, match="depth"):
+                store.episode_relation_graph("old", 3)
+        finally:
+            store.close()
+
+
 def test_relation_validation_and_updated_summary_rechecks():
     with tempfile.TemporaryDirectory() as directory:
         store = Store(Path(directory) / "db")
