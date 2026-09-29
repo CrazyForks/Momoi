@@ -100,6 +100,33 @@ def test_relation_recall_shape_includes_both_directions():
             store.close()
 
 
+def test_relation_priority_applies_before_neighbor_limit():
+    with tempfile.TemporaryDirectory() as directory:
+        store = Store(Path(directory) / "db")
+        try:
+            for index, episode_id in enumerate(("root", "background", "follow", "revision", "revision_new"), 1):
+                _summarize(store, episode_id, episode_id, "项目进展", index)
+            with store._db:
+                for target, relation, updated in (
+                    ("background", "context", 100),
+                    ("follow", "follows_up", 90),
+                    ("revision", "revises", 1),
+                    ("revision_new", "revises", 2),
+                ):
+                    store._db.execute(
+                        """INSERT INTO episode_relations
+                           (source_episode_id,target_episode_id,relation,explanation,
+                            evidence_json,source_summary_ordinal,created_at,updated_at)
+                           VALUES (?, 'root', ?, '项目关联', '{}', 1, 1, ?)""",
+                        (target, relation, updated),
+                    )
+            neighbors = store.episode_relation_neighbors(["root"], per_episode=3)["root"]
+            assert [item["episode_id"] for item in neighbors] == ["revision_new", "revision", "follow"]
+            assert all(item["direction"] == "incoming" for item in neighbors)
+        finally:
+            store.close()
+
+
 def test_relation_graph_follows_incoming_and_outgoing_links_to_depth_two():
     with tempfile.TemporaryDirectory() as directory:
         store = Store(Path(directory) / "db")

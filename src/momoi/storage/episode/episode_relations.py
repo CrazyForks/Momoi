@@ -31,7 +31,12 @@ class EpisodeRelationStore:
                 JOIN conversation_episodes target ON target.id=r.target_episode_id
                 WHERE r.source_episode_id IN ({placeholders})
                    OR r.target_episode_id IN ({placeholders})
-                ORDER BY r.updated_at DESC, r.source_episode_id, r.target_episode_id""",
+                ORDER BY CASE r.relation
+                             WHEN 'revises' THEN 0
+                             WHEN 'follows_up' THEN 1
+                             WHEN 'context' THEN 2
+                             ELSE 3 END,
+                         r.updated_at DESC, r.source_episode_id, r.target_episode_id""",
             (*ids, *ids),
         ).fetchall()
         result: dict[str, list[dict[str, str]]] = {value: [] for value in ids}
