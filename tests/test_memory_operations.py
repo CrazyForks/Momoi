@@ -23,7 +23,7 @@ from momoi.runtime.agent.harness import TurnHarness
 from momoi.runtime.workflows.memory_operation.parsing import parse_decisions
 from momoi.storage import Store
 from momoi.storage.memory.memory_operations import MEMORY_OPERATION_MAX_ATTEMPTS
-from momoi.storage.core.migrations import SCHEMA_VERSION
+from momoi.storage.core.migrations import SCHEMA_VERSION, MIGRATIONS
 from momoi.tools.memory import MemoryTools
 from tests.support import provider_catalog, seed_memory
 
@@ -728,7 +728,8 @@ def test_scoped_migration_preserves_memory_and_cross_table_triggers(tmp_path):
            VALUES ('preference','old.key','旧记忆','recall','owner','event','引用',1,1)"""
     )
     # The fixture predates scoped activation, not every newer migration.
-    db.execute(f"PRAGMA user_version={SCHEMA_VERSION - 3}")
+    version = next(i for i, migration in enumerate(MIGRATIONS) if migration.__name__ == "_add_scoped_memory_activation")
+    db.execute(f"PRAGMA user_version={version}")
     db.commit()
     db.close()
     store = Store(path)

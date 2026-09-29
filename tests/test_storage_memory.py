@@ -750,7 +750,8 @@ class StorageMemoryTest(unittest.TestCase):
             db.execute("ALTER TABLE conversation_episodes ADD COLUMN salience REAL DEFAULT 0.5")
             db.execute("UPDATE conversation_episodes SET salience=0.8 WHERE id='old-topic'")
             db.execute("CREATE INDEX conversation_episodes_candidates ON conversation_episodes(status, salience DESC, updated_at DESC)")
-            db.execute(f"PRAGMA user_version={SCHEMA_VERSION - 1}")
+            version = next(i for i, migration in enumerate(MIGRATIONS) if migration.__name__ == "_remove_episode_salience")
+            db.execute(f"PRAGMA user_version={version}")
             db.commit()
             db.close()
 

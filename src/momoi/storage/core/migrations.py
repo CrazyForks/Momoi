@@ -41,6 +41,25 @@ def _remove_episode_salience(database: sqlite3.Connection) -> None:
     )
 
 
+def _add_episode_relation_reviews(database: sqlite3.Connection) -> None:
+    database.execute(
+        """CREATE TABLE IF NOT EXISTS episode_relation_reviews (
+            source_episode_id TEXT NOT NULL REFERENCES conversation_episodes(id) ON DELETE CASCADE,
+            target_episode_id TEXT NOT NULL REFERENCES conversation_episodes(id) ON DELETE CASCADE,
+            decision TEXT NOT NULL CHECK (decision='unrelated'),
+            source_summary_ordinal INTEGER NOT NULL,
+            target_summary_ordinal INTEGER NOT NULL,
+            reviewed_at REAL NOT NULL,
+            PRIMARY KEY (source_episode_id, target_episode_id),
+            CHECK (source_episode_id <> target_episode_id)
+        )"""
+    )
+    database.execute(
+        "CREATE INDEX IF NOT EXISTS episode_relation_reviews_target "
+        "ON episode_relation_reviews(target_episode_id)"
+    )
+
+
 def _add_turn_parent(database):
     if "parent_turn_id" not in _columns(database, "turns"):
         database.execute("ALTER TABLE turns ADD COLUMN parent_turn_id TEXT REFERENCES turns(id) ON DELETE SET NULL")
@@ -674,6 +693,7 @@ MIGRATIONS: tuple[Migration, ...] = (
     _add_scoped_memory_activation,
     _enable_episode_relations,
     _remove_episode_salience,
+    _add_episode_relation_reviews,
 )
 SCHEMA_VERSION = len(MIGRATIONS)
 

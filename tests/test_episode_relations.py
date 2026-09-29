@@ -59,6 +59,10 @@ def test_new_episode_only_and_empty_review_is_durable():
             store.finish_episode_relations("new", 1, [], {"old"})
             assert store.claim_episode_relation_candidate() is None
             assert store._db.execute("SELECT count(*) FROM episode_relations").fetchone()[0] == 0
+            review = store._db.execute("SELECT * FROM episode_relation_reviews").fetchone()
+            assert review["target_episode_id"] == "old"
+            assert review["decision"] == "unrelated"
+            assert review["source_summary_ordinal"] == 1
         finally:
             store.close()
 
@@ -89,6 +93,7 @@ def test_relation_validation_and_updated_summary_rechecks():
                 )
             store.finish_episode_relations("new", 1, [decision], {"old"})
             assert store._db.execute("SELECT relation FROM episode_relations").fetchone()[0] == "follows_up"
+            assert store._db.execute("SELECT count(*) FROM episode_relation_reviews").fetchone()[0] == 0
             with store._db:
                 store._db.execute(
                     "UPDATE conversation_episodes SET summarized_through_ordinal=2 WHERE id='new'"
@@ -97,6 +102,7 @@ def test_relation_validation_and_updated_summary_rechecks():
             assert candidate["id"] == "new"
             store.finish_episode_relations("new", 2, [], {"old"})
             assert store._db.execute("SELECT count(*) FROM episode_relations").fetchone()[0] == 0
+            assert store._db.execute("SELECT source_summary_ordinal FROM episode_relation_reviews").fetchone()[0] == 2
         finally:
             store.close()
 

@@ -338,6 +338,17 @@ CREATE TABLE IF NOT EXISTS episode_relations (
     CHECK (source_episode_id <> target_episode_id)
 );
 CREATE INDEX IF NOT EXISTS episode_relations_target ON episode_relations(target_episode_id);
+CREATE TABLE IF NOT EXISTS episode_relation_reviews (
+    source_episode_id TEXT NOT NULL REFERENCES conversation_episodes(id) ON DELETE CASCADE,
+    target_episode_id TEXT NOT NULL REFERENCES conversation_episodes(id) ON DELETE CASCADE,
+    decision TEXT NOT NULL CHECK (decision='unrelated'),
+    source_summary_ordinal INTEGER NOT NULL,
+    target_summary_ordinal INTEGER NOT NULL,
+    reviewed_at REAL NOT NULL,
+    PRIMARY KEY (source_episode_id, target_episode_id),
+    CHECK (source_episode_id <> target_episode_id)
+);
+CREATE INDEX IF NOT EXISTS episode_relation_reviews_target ON episode_relation_reviews(target_episode_id);
 CREATE TABLE IF NOT EXISTS episode_relation_jobs (
     episode_id TEXT PRIMARY KEY REFERENCES conversation_episodes(id) ON DELETE CASCADE,
     processed_ordinal INTEGER NOT NULL DEFAULT 0,

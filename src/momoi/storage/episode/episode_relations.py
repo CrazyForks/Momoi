@@ -43,6 +43,13 @@ class EpisodeRelationStore:
         if len(decisions) > 4:
             raise ValueError("too many episode relations")
         seen: set[str] = set()
+        eligible_candidates: dict[str, int] = {}
+        for target_id in candidate_ids:
+            target = self.episode(target_id)
+            if (target is not None and target_id != episode_id
+                    and float(target["created_at"]) < float(source["created_at"])
+                    and self._runtime_archive_kind(target_id) not in {"heartbeat", "webhook"}):
+                eligible_candidates[target_id] = int(target["summarized_through_ordinal"])
         for item in decisions:
             target_id = item["target_episode_id"]
             if target_id not in candidate_ids or target_id in seen:
@@ -68,6 +75,7 @@ class EpisodeRelationStore:
             seen.add(target_id)
         with self._db:
             self._db.execute("DELETE FROM episode_relations WHERE source_episode_id=?", (episode_id,))
+            self._db.execute("DELETE FROM episode_relation_reviews WHERE source_episode_id=?", (episode_id,))
             for item in decisions:
                 self._db.execute(
                     """INSERT INTO episode_relations
@@ -78,6 +86,15 @@ class EpisodeRelationStore:
                      json.dumps({"source": item["source_evidence"], "target": item["target_evidence"]}, ensure_ascii=False),
                      ordinal, now, now),
                 )
+            for target_id, target_ordinal in eligible_candidates.items():
+                if target_id not in seen:
+                    self._db.execute(
+                        """INSERT INTO episode_relation_reviews
+                           (source_episode_id,target_episode_id,decision,
+                            source_summary_ordinal,target_summary_ordinal,reviewed_at)
+                           VALUES (?,?,'unrelated',?,?,?)""",
+                        (episode_id, target_id, ordinal, target_ordinal, now),
+                    )
             self._db.execute(
                 """UPDATE episode_relation_jobs SET processed_ordinal=?, claimed_at=NULL,
                    retry_at=0, failure_count=0, updated_at=? WHERE episode_id=?""",
