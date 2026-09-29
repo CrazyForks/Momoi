@@ -1138,17 +1138,24 @@ function RuntimePropertyFields({ spec, value, onChange }) {
   );
 }
 
-const runtimeOrder = { heartbeat: 0, episode_annealing: 1, logging: 2, reflection: 3, thinking: 4 };
+const runtimeOrder = { heartbeat: 0, episode_annealing: 1, episode_relation: 2, logging: 3, reflection: 4, thinking: 5 };
 const runtimeDescriptions = {
   heartbeat: "心跳是 Momoi 的自主时间。她可以探索、创作、延续自己的活动，也可以休息或主动与你分享。",
   logging: "控制运行日志的详细程度，用于查看服务状态与排查问题。",
   reflection: "每天在设定时间回顾对话与活动，记录感受、关系变化和可复用的经验。",
-  episode_annealing: "整理对话、生成话题摘要，并可独立启用话题关联建设。",
+  episode_annealing: "整理对话并生成话题摘要。",
+  episode_relation: "在话题摘要完成后，查找并建立有依据的话题关联。",
   thinking: "为不同运行阶段设置思考强度；默认跟随模型，单独设置后不随模型切换而改变。",
 };
 
 function RuntimeSection({ module, data, save, saving, previous, next }) {
   const schemas = Object.fromEntries(Object.entries(data.app_fields || {}).filter(([name]) => name !== "tools" && name !== "current_state"));
+  const groups = Object.entries(schemas).flatMap(([name, schema]) => name === "episode_annealing" && schema.fields.relations_enabled
+    ? [
+        { name, configName: name, schema: { ...schema, fields: Object.fromEntries(Object.entries(schema.fields).filter(([key]) => key !== "relations_enabled")) } },
+        { name: "episode_relation", configName: name, schema: { ...schema, fields: { relations_enabled: schema.fields.relations_enabled } } },
+      ]
+    : [{ name, configName: name, schema }]);
   const initial = () => Object.fromEntries(Object.entries(schemas).map(([name, schema]) => [
     name,
     Object.fromEntries(Object.entries(schema.fields).map(([key, spec]) => [key, runtimeFieldValue(spec, data.app[name]?.[key])])),
@@ -1188,12 +1195,12 @@ function RuntimeSection({ module, data, save, saving, previous, next }) {
     <form noValidate onSubmit={submit} data-dirty={dirty} data-config-dirty={dirty}>
       <SectionHeader module={module} />
       <div className="settings-form-body settings-runtime-controls">
-        {Object.entries(schemas).sort(([a], [b]) => (runtimeOrder[a] ?? 99) - (runtimeOrder[b] ?? 99)).map(([name, schema]) => (
+        {groups.sort((a, b) => (runtimeOrder[a.name] ?? 99) - (runtimeOrder[b.name] ?? 99)).map(({ name, configName, schema }) => (
           <section className={`settings-runtime-group${Object.values(schema.fields).some(spec => spec.properties) ? " settings-runtime-nested" : ""}`} key={name} aria-labelledby={`runtime-${name}`}>
             <div className="settings-runtime-copy">
               <div className="settings-voice-title">
-                <h3 id={`runtime-${name}`}>{name === "episode_annealing" ? "话题归档" : schema.label}</h3>
-                <span className="panel-label">RUNTIME // {name === "episode_annealing" ? "ARCHIVE" : name.toUpperCase()}</span>
+                <h3 id={`runtime-${name}`}>{name === "episode_annealing" ? "话题归档" : name === "episode_relation" ? "话题关联" : schema.label}</h3>
+                <span className="panel-label">RUNTIME // {name === "episode_annealing" ? "ARCHIVE" : name === "episode_relation" ? "RELATIONS" : name.toUpperCase()}</span>
               </div>
               {runtimeDescriptions[name] && <p className="settings-runtime-description" id={`runtime-${name}-description`}>{runtimeDescriptions[name]}</p>}
             </div>
@@ -1214,18 +1221,18 @@ function RuntimeSection({ module, data, save, saving, previous, next }) {
                   />
                 );
                 const onChange = value => {
-                  setDraft(current => ({ ...current, [name]: { ...current[name], [key]: value } }));
+                  setDraft(current => ({ ...current, [configName]: { ...current[configName], [key]: value } }));
                   setStatus(null);
                 };
-                if (spec.properties) return <RuntimePropertyFields key={key} spec={spec} value={draft[name][key]} onChange={onChange} />;
+                if (spec.properties) return <RuntimePropertyFields key={key} spec={spec} value={draft[configName][key]} onChange={onChange} />;
                 if (spec.type === "boolean") return (
-                  <Toggle key={key} checked={draft[name][key]} disabled={saving} onChange={onChange} hideLabel>
+                  <Toggle key={key} checked={draft[configName][key]} disabled={saving} onChange={onChange} hideLabel>
                     {name === "episode_annealing" && key === "enabled" ? "启用归档" : spec.label}
                   </Toggle>
                 );
                 return spec.format === "time"
-                  ? <TimeField key={key} label={spec.label} value={draft[name][key]} onChange={onChange} />
-                  : <OptionField key={key} name={key} spec={spec} value={draft[name][key]} onChange={onChange} />;
+                  ? <TimeField key={key} label={spec.label} value={draft[configName][key]} onChange={onChange} />
+                  : <OptionField key={key} name={key} spec={spec} value={draft[configName][key]} onChange={onChange} />;
               })}
             </fieldset>
           </section>
