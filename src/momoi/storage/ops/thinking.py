@@ -161,8 +161,11 @@ class ThinkingStore:
     ) -> dict[str, Any]:
         months = self._months_for(after, before, hint_at=hint_at, turn_id=turn_id)
         rows: list[dict[str, Any]] = []
+        # Without a text query only the requested page can contribute to the
+        # result. Bound each monthly scan before loading/decompressing blobs.
+        scan_limit = max(0, cursor) + max(0, limit) if not query.strip() else None
         for month in months:
-            rows.extend(self._scan_month(month, turn_id, after, before, stage))
+            rows.extend(self._scan_month(month, turn_id, after, before, stage, limit=scan_limit))
         rows.sort(key=lambda item: (-float(item["created_at"]), int(item["round"])))
         reasonings = [
             decode_reasoning(row["reasoning_codec"], row["reasoning_blob"])
@@ -282,6 +285,7 @@ class ThinkingStore:
         before: float | None,
         stage: str,
         call_id: str = "",
+        limit: int | None = None,
     ) -> list[dict[str, Any]]:
         clauses = ["1=1"]
         values: list[object] = []
@@ -300,12 +304,18 @@ class ThinkingStore:
         if stage:
             clauses.append("stage=?")
             values.append(stage)
-        rows = self._db(month).execute(
+        sql = (
             f"""SELECT created_at, turn_id, call_id, stage, round, model, tools_json,
                        reasoning_chars, reasoning_codec, reasoning_blob,
                        assistant_text_codec, assistant_text_blob
                 FROM calls WHERE {' AND '.join(clauses)}
-                ORDER BY created_at DESC, round""",
+                ORDER BY created_at DESC, round"""
+        )
+        if limit is not None:
+            sql += " LIMIT ?"
+            values.append(limit)
+        rows = self._db(month).execute(
+            sql,
             values,
         ).fetchall()
         return [dict(row) for row in rows]

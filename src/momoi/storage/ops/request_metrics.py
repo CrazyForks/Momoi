@@ -30,6 +30,7 @@ def compare_shapes(current: RequestShape, previous: RequestShape) -> tuple[int, 
 class RequestMetricsRepository:
     def __init__(self, database):
         self._db = database
+        self._dashboard_cache: dict[tuple, tuple[float, MetricsPage]] = {}
 
     def record_first_tool(self, turn_id: str, call_id: str, name: str) -> None:
         """Attach one turn-level latency sample to the request that led to execution."""
@@ -119,6 +120,18 @@ class RequestMetricsRepository:
 
     def dashboard_request_metrics(self, *, hours: int = 24, stage: str = "", model: str = "", before: int | None = None, limit: int = 50,
                                   estimate: Callable[..., float] | None = None) -> MetricsPage:
+        # The summary runs several full-window aggregates. Pagination changes
+        # only the rows, so reuse a recent identical response while the page is
+        # open. Bound entries to keep this cache small.
+        estimate_key = (
+            id(getattr(estimate, "__self__", estimate)),
+            id(getattr(estimate, "__func__", None)),
+        )
+        cache_key = (hours, stage, model, before, limit, estimate_key)
+        cached = self._dashboard_cache.get(cache_key)
+        now = time.monotonic()
+        if cached and now - cached[0] < 5:
+            return cached[1]
         where = "created_at >= ?"
         params = [time.time() - hours * 3600]
         for key, value in (("stage", stage), ("model", model)):
@@ -164,8 +177,12 @@ class RequestMetricsRepository:
                     output=usage.get("output") or 0,
                 )
             items.append(item)
-        return dict(totals=totals, stages=stages, trend=trend, items=items,
+        result = dict(totals=totals, stages=stages, trend=trend, items=items,
                     cost_available=estimate is not None,
                     next_cursor=items[-1]["id"] if len(rows) > limit else None,
                     filters={"stages": sorted({r["stage"] for r in choices}), "models": sorted({r["model"] for r in choices})},
                     retention_days=30, timing="turn_first_tool")
+        if len(self._dashboard_cache) >= 16:
+            self._dashboard_cache.clear()
+        self._dashboard_cache[cache_key] = (now, result)
+        return result
