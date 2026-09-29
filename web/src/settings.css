@@ -1175,6 +1175,17 @@
 }
 .settings-runtime-properties > .settings-field:nth-child(4n + 3),
 .settings-runtime-properties > .settings-field:nth-child(4n + 4) { --control-accent: var(--pink); }
+@media (min-width: 901px) {
+  .settings-runtime-thinking .settings-runtime-properties {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+  .settings-runtime-thinking .settings-runtime-properties > .settings-field {
+    --control-accent: var(--blue);
+  }
+  .settings-runtime-thinking .settings-runtime-properties > .settings-field:nth-child(3n + 2) {
+    --control-accent: var(--pink);
+  }
+}
 @media (min-width: 651px) and (max-width: 900px) {
   .settings-runtime-group { flex-wrap: wrap; gap: 20px; }
   .settings-runtime-copy { flex-basis: 100%; }

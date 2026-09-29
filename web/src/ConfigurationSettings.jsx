@@ -1196,7 +1196,7 @@ function RuntimeSection({ module, data, save, saving, previous, next }) {
       <SectionHeader module={module} />
       <div className="settings-form-body settings-runtime-controls">
         {groups.sort((a, b) => (runtimeOrder[a.name] ?? 99) - (runtimeOrder[b.name] ?? 99)).map(({ name, configName, schema }) => (
-          <section className={`settings-runtime-group${Object.values(schema.fields).some(spec => spec.properties) ? " settings-runtime-nested" : ""}`} key={name} aria-labelledby={`runtime-${name}`}>
+          <section className={`settings-runtime-group${Object.values(schema.fields).some(spec => spec.properties) ? " settings-runtime-nested" : ""}${name === "thinking" ? " settings-runtime-thinking" : ""}`} key={name} aria-labelledby={`runtime-${name}`}>
             <div className="settings-runtime-copy">
               <div className="settings-voice-title">
                 <h3 id={`runtime-${name}`}>{name === "episode_annealing" ? "话题归档" : name === "episode_relation" ? "话题关联" : schema.label}</h3>
