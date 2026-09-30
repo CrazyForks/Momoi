@@ -91,6 +91,15 @@ def test_runtime_prefilter_bypasses_gate_and_keeps_selection_order(tmp_path):
         assert rendered.count('<episode ') == 8
         empty = build_plan_retrieval(store, plan, service.config, selected_episode_rows=[])
         assert empty['episodes'] == []
+        captured.clear()
+        diagnostics = {}
+        direct = asyncio.run(service._select_recall_topics(
+            'shared topic', queries, None, diagnostics, model_selection=False,
+        ))
+        assert len(direct.episodes) == 8
+        assert captured == []
+        assert direct.memories == direct.reflections == []
+        assert diagnostics['skip_reason'] == 'workflow_selects_candidates'
     finally:
         store.close()
 

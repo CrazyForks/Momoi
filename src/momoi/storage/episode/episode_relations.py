@@ -143,7 +143,7 @@ class EpisodeRelationStore:
                     and float(target["created_at"]) < float(source["created_at"])
                     and self._runtime_archive_kind(target_id) not in {"heartbeat", "webhook"}):
                 eligible_candidates[target_id] = int(target["summarized_through_ordinal"])
-        for item in decisions:
+        for index, item in enumerate(decisions):
             target_id = item["target_episode_id"]
             if target_id not in candidate_ids or target_id in seen:
                 raise ValueError("unknown or duplicate relation target")
@@ -162,9 +162,15 @@ class EpisodeRelationStore:
                 source_fields = list(_evidence_text(evidence_records.get(episode_id, {})))
                 target_fields = list(_evidence_text(evidence_records.get(target_id, {})))
             if not any(item["source_evidence"] in value for value in source_fields):
-                raise ValueError("source evidence is not in the supplied episode")
+                raise ValueError(
+                    f"relations[{index}].source_evidence 未出现在当前话题原文中："
+                    f"{item['source_evidence']!r}；请从当前话题复制一段连续原文"
+                )
             if not any(item["target_evidence"] in value for value in target_fields):
-                raise ValueError("target evidence is not in the recalled episode")
+                raise ValueError(
+                    f"relations[{index}].target_evidence 未出现在召回话题 {target_id} 原文中："
+                    f"{item['target_evidence']!r}；请从该话题返回内容复制一段连续原文"
+                )
             seen.add(target_id)
         with self._db:
             self._db.execute("DELETE FROM episode_relations WHERE source_episode_id=?", (episode_id,))

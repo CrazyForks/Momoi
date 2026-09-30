@@ -176,7 +176,7 @@ def test_relation_validation_and_updated_summary_rechecks():
             }
             with pytest.raises(ValueError):
                 store.finish_episode_relations("new", 1, [decision], set())
-            with pytest.raises(ValueError, match="target evidence"):
+            with pytest.raises(ValueError, match=r"relations\[0\]\.target_evidence.*old.*确认项目启动"):
                 store.finish_episode_relations(
                     "new", 1, [decision], {"old"}, evidence_records={
                         "new": {"summary": "团队完成首个阶段"},
@@ -290,6 +290,7 @@ def test_workflow_model_chooses_query_then_finishes():
             asyncio.run(runner._build_episode_relations(store.episode("new"), 1, "test"))
             assert len(semantic.prepare.call_args.args[0]) == 2
             assert runner._select_recall_topics.called
+            assert runner._select_recall_topics.call_args.kwargs["model_selection"] is False
             assert "episode_actions" not in store.context_plan("test")["plan"]
             assert store.context_plan("test")["plan"]["intent_units"][0]["intent"] == "寻找项目此前的决定和进展"
             assert store._db.execute("SELECT count(*) FROM episode_relations").fetchone()[0] == 1

@@ -61,12 +61,17 @@ class EpisodeRelationWorkflow:
         search_count = 0
         completed = False
 
+        async def submit_relation_context(events, context_turn_id, arguments):
+            return await self.submit_owner_context(
+                events, context_turn_id, arguments, model_selection=False,
+            )
+
         async def execute_tool(call: ToolCall):
             nonlocal completed, search_count
             if call.name == "recall":
                 result = await recall_owner_context(
                     call, current_events=[], turn_id=turn_id,
-                    submit_context=self.submit_owner_context,
+                    submit_context=submit_relation_context,
                 )
                 if result.get("ok"):
                     if any(unit.get("recall_mode") == "search"

@@ -17,7 +17,7 @@ _NEW_EPISODE_SLUG = re.compile(r"new:[a-z0-9][a-z0-9_-]{0,39}")
 
 
 class ContextService:
-    async def _select_recall_topics(self, request, selected, dense_evidence, diagnostics=None):
+    async def _select_recall_topics(self, request, selected, dense_evidence, diagnostics=None, *, model_selection=True):
         if diagnostics is not None:
             diagnostics.update(
                 status="skipped", skip_reason="no_queries" if not selected else "disabled",
@@ -40,6 +40,12 @@ class ContextService:
             )
             if self.config.summary_results > 0 else []
         )
+        if not model_selection:
+            if diagnostics is not None:
+                diagnostics.update(status="skipped", skip_reason="workflow_selects_candidates",
+                                   candidate_count=len(candidates),
+                                   selected_ids=[str(row["id"]) for row in candidates])
+            return RecallSelection(candidates, [], [])
         memory_candidates = self.store.rank_recalled_memories(
             [
                 MemoryRecallQuery(
@@ -331,6 +337,8 @@ class ContextService:
         events: list[IncomingMessage],
         turn_id: str,
         arguments: dict[str, object],
+        *,
+        model_selection: bool = True,
     ) -> dict[str, str]:
         """Persist the Owner's context decision and return the evidence it asked for."""
 
@@ -362,7 +370,7 @@ class ContextService:
         selection = await self._select_recall_topics(
             ("\n".join(event.text for event in events) or
              "\n".join(str(unit["intent"]) for unit in plan["intent_units"])),
-            selected, dense_evidence, topic_selection
+            selected, dense_evidence, topic_selection, model_selection=model_selection
         )
         retrieval = build_plan_retrieval(
             self.store, plan, self.config, dense_evidence=dense_evidence,
