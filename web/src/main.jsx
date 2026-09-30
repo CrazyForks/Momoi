@@ -11,11 +11,11 @@ const ConfirmContext = createContext(null);
 
 const pages = {
   overview: ["今天也元气满满！", "MOMOI // HOME"],
-  conversations: ["聊天记录", "MOMOI // CHAT LOG"],
-  reflections: ["每日复盘", "MOMOI // SAVE DATA"],
+  conversations: ["话题", "MOMOI // CHAT LOG"],
+  reflections: ["复盘", "MOMOI // SAVE DATA"],
   memories: ["记忆", "MOMOI // MEMORY"],
-  emotions: ["表情包", "MOMOI // STICKERS"],
-  goals: ["任务列表", "MOMOI // QUESTS"],
+  emotions: ["表情", "MOMOI // STICKERS"],
+  goals: ["任务", "MOMOI // QUESTS"],
   thinking: ["思考记录", "MOMOI // THINKING"],
   metrics: ["请求监控", "MOMOI // METRICS"],
   settings: ["设置", "MOMOI // SETTINGS"],
@@ -23,11 +23,11 @@ const pages = {
 
 const navItems = [
   ["overview", "01", "主页"],
-  ["conversations", "02", "聊天记录"],
-  ["reflections", "03", "每日复盘"],
+  ["conversations", "02", "话题"],
+  ["reflections", "03", "复盘"],
   ["memories", "04", "记忆"],
-  ["emotions", "05", "表情包"],
-  ["goals", "06", "任务列表"],
+  ["emotions", "05", "表情"],
+  ["goals", "06", "任务"],
   ["thinking", "07", "思考"],
   ["metrics", "08", "监控"],
   ["settings", "09", "设置"],
